@@ -45,6 +45,7 @@
 { "datetime_page", CTX_FIXED, CHOICE },
 { "display_page", CTX_FIXED, 0 },
 { "fwupdate_page", CTX_FIXED, 0 },
+{ "updatemusic_page", CTX_FIXED, 0 }, /* Update Library */
 { "keylock_page", CTX_FIXED, CHOICE },
 { "language_page", CTX_FIXED, CHOICE },
 { "lighttime_page", CTX_FIXED, CHOICE },

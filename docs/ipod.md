@@ -155,7 +155,8 @@ The navbar is hidden, as on the local pages, on the settings pages
 `navbar_only` in `ipod.json` with their pinned hashes. Their native
 inits destroy the navbar's children and create an unnamed title `hscroll_label`,
 back, Home and Now Playing buttons; none has a control the keys lack, except Startup volume's
-switch (`img_bootswitch`, which `playset_bootvol_page_init` puts in the navbar; Crossfade, on the
+switch (`img_bootswitch`, which `playset_bootvol_page_init` puts in the navbar): there Centre
+clicks it, as does the first wheel turn while it is off and the page is empty (Crossfade, on the
 same page, uses its slider's 0 for Off instead). Lists hold
 settings rows (see [Settings](#settings)); other panels move up 50 pixels and keep
 their size. The settings inits never move or resize

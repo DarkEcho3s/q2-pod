@@ -540,14 +540,17 @@ static void home_step(void *w, int dir, unsigned now, int jump) {
 
 static int usable(void) {
     if (!g_backlight_status || g_lockscreen_pageflag || g_testmode_flag || g_guideflag ||
-        g_poweroff_state || bt__recv_pageflag)
+        g_poweroff_state > 1 || bt__recv_pageflag)
         return 0;
+    void *top = window_manager_get_top_window(window_manager());
+    int confirm = top && !tk_strcmp(widget_get_prop_str(top, "name", ""), "confirminfo_dialog");
+    /* A held power key sets g_poweroff_state to 1 while its Confirm Shutdown prompt is up
+     * (on_wm_keylong_fun); 2 is the power-off page itself. */
+    if (g_poweroff_state) return confirm;
     if (g_usblink_status != 2) return 1;
     /* USB mode's exit asks whether to scan in a confirm dialog before it leaves the mode: once the
      * cable is out, that prompt takes the wheel and Centre. */
-    void *top = window_manager_get_top_window(window_manager());
-    return !g_usbdet_value && top &&
-           !tk_strcmp(widget_get_prop_str(top, "name", ""), "confirminfo_dialog");
+    return !g_usbdet_value && confirm;
 }
 
 static int allowed_top(void *top) {
@@ -4604,6 +4607,18 @@ static void field_set(void *top, int f) {
     widget_invalidate_force(top, (void *)0);
 }
 
+static void click(void *w) {
+    char event[0x30];
+    stock_dispatch_trampoline(w, pointer_event_init(event, EVT_CLICK, w, 0, 0));
+}
+
+/* Startup volume's switch, whose navbar the iPod build hides: off, the page shows nothing else. */
+static void *boot_switch(void *top) {
+    return IPOD && top && !tk_strcmp(widget_get_prop_str(top, "name", ""), "bootvol_page")
+               ? widget_lookup(top, "img_bootswitch", 1)
+               : (void *)0;
+}
+
 static int edit_single(const void *info) {
     (void)info;
     st.edit_press = 0;
@@ -4612,7 +4627,10 @@ static int edit_single(const void *info) {
         return 0;
     *(volatile unsigned char *)KEY_LOCKOUT = 0; /* stock's wheel lockout after the centre key */
     int n = fields(top), f = field_at(top);
-    if (!n) {
+    void *sw = boot_switch(top);
+    if (sw) {
+        click(sw); /* Startup volume: Centre turns it on and off */
+    } else if (!n) {
         if (slider_page(top)) navigator_back();
     } else if (f < n)
         field_set(top, f + 1);
@@ -4652,9 +4670,11 @@ static int edit_key(void *top, unsigned key) {
         if (next != value) widget_set_prop_int(slider, "value", next);
     } else if (!n) {
         void *button = widget_lookup(top, dir > 0 ? "img_add" : "img_dec", 1);
-        char click[0x30];
-        if (button && widget_get_prop_bool(button, "enable", 1))
-            stock_dispatch_trampoline(button, pointer_event_init(click, EVT_CLICK, button, 0, 0));
+        void *view = boot_switch(top) ? widget_lookup(top, "view_bootvol", 1) : (void *)0;
+        if (view && !widget_get_visible(view))
+            click(boot_switch(top)); /* the first turn turns Startup volume on */
+        else if (button && widget_get_prop_bool(button, "enable", 1))
+            click(button);
     } else {
         int f = field_at(top);
         void *sel = field_widget(top, f);
