@@ -36,7 +36,7 @@ Made for the **Shanling Q2**, with an iPod classic feel and a few extras:
 - **Spotify Connect:** the Q2 becomes a Spotify Connect speaker (Premium; [set up](#spotify) from the microSD card).
 - **Internet Radio:** your own stations and the [radio-browser.info](https://www.radio-browser.info) directory, with search ([guide](docs/guide.md#internet-radio)).
 - **Scrobbling:** log listens and upload to Last.fm or ListenBrainz over Wi-Fi.
-- **Battery options:** an optional 80% charge limit and Low power mode.
+- **Battery options:** an optional 80% charge limit, Low power mode and a sleep timer.
 
 Also fixes choppy AirPods AAC audio, the clock resetting after power-off, screen-off battery drain, slow library browsing, and startup/seeking on long VBR MP3s.
 
@@ -79,8 +79,8 @@ It plays on the headphone jack, Bluetooth or a USB DAC; Play/Pause and Next/Prev
 
 | Control                                      | Action                                                                                                                                       |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Wheel**                                    | Scroll; spin faster to speed up. In a slider or time setting, change it. Elsewhere, volume.                                                  |
-| **Centre**                                   | Open the selected item, or leave a slider and move to the next time field. Double-press to turn the screen off; single press on Now Playing. |
+| **Wheel**                                    | Scroll; spin faster to speed up. In a slider, date, time or sleep timer setting, change it. Elsewhere, volume.                               |
+| **Centre**                                   | Open the selected item, leave a slider or move to the next time field. Double-press to turn the screen off (a single press on Now Playing).  |
 | **Hold Play/Pause**                          | Open track, queue, playlist and shuffle/repeat options.                                                                                      |
 | **Hold Return** (iPod UI)                    | Jump to Now Playing; Return takes you back.                                                                                                  |
 | **Double-press centre, then turn** (iPod UI) | Scrub on Now Playing, 5 seconds per tick.                                                                                                    |
@@ -90,6 +90,7 @@ Run **Library → Update Local Music** after adding music; it adds up to 65,000 
 
 - **Personalise:** **System settings → Display** for theme (Minimal or Classic), accent, Home layout, battery display and wheel sensitivity.
 - **Save battery:** **System settings → Power** for Charge limit and Low power. Both are off by default; charge limit applies while the Q2 is on.
+- **Sleep timer:** **System settings → Power → Sleep Timer**. Tap the switch at the top to turn it on, then set the hours and minutes.
 - **Pocket-proof:** **System settings → Power → Wake: Double press** ignores a single centre press while the screen is off.
 - **Browse by Album Artist:** **Audio settings → Artists** keeps guest artists from splitting albums.
 - **Use EQ:** **Audio settings → Equalizer**. Stock's genre curves are under **Presets → Stock presets**. Select **Apply changes** after editing or choosing a preset, and turn **PEQ: ON**. Import preset `.txt` files from the card's `EQ/` folder.
