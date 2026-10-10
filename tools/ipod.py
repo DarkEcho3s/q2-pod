@@ -556,12 +556,16 @@ def imagemagick(*args, data):
     return subprocess.run([tool, *args], input=data, stdout=subprocess.PIPE, check=True).stdout
 
 
+# Output PNGs: no metadata, always 8-bit RGBA.
+PNG_OUT = ['-strip', '-define', 'png:exclude-chunks=date,time', '-define', 'png:color-type=6',
+           '-define', 'png:bit-depth=8', 'png:-']
+
+
 def settings_icon(name, data):
     require(hashlib.sha256(data).hexdigest() == SETTINGS_ICONS.get(name), f'{name}: unaudited settings icon')
     require(png_header(data) == (SET_STOCK_ICON, SET_STOCK_ICON, 8, 6), f'{name}: unexpected stock icon format')
     out = imagemagick('png:-', '-alpha', 'on', '-filter', 'Lanczos', '-resize', f'{SET_ICON}x{SET_ICON}!',
-                      '-strip', '-define', 'png:exclude-chunks=date,time', '-define', 'png:color-type=6',
-                      '-define', 'png:bit-depth=8', 'png:-', data=data)
+                      *PNG_OUT, data=data)
     require(png_header(out) == (SET_ICON, SET_ICON, 8, 6), f'{name}: filtered icon is not {SET_ICON}px RGBA')
     opaque = [imagemagick('png:-', '-format', '%[opaque]', 'info:', data=d) for d in (data, out)]
     require(opaque[0] == opaque[1], f'{name}: filtering changed the transparency')
@@ -578,8 +582,7 @@ def quiet_icon(name, data):
     return imagemagick('png:-', '-trim', '+repage', '-filter', 'Lanczos', '-resize', '24x24',
                       '-channel', 'RGB', '-fill', '#aaaaaa' if name == 'play_moredown.png' else '#eeeeee',
                       '-colorize', '100', '+channel', '-gravity', 'center', '-background', 'none',
-                      '-extent', '28x28', '-strip', '-define', 'png:exclude-chunks=date,time',
-                      '-define', 'png:color-type=6', '-define', 'png:bit-depth=8', 'png:-', data=data)
+                      '-extent', '28x28', *PNG_OUT, data=data)
 
 
 def patch_word(data, address, old, new, purpose, changes=None):
