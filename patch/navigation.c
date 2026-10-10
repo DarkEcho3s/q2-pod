@@ -7,10 +7,9 @@ extern int stock_keyup_trampoline(void *, void *), stock_touch_trampoline(void *
     stock_paint_trampoline(void *, void *), stock_dispatch_trampoline(void *, void *),
     stock_keylong_trampoline(void *, void *), stock_paint_bg_trampoline(void *, void *),
     stock_playing_trampoline(void *, void *), stock_display_trampoline(void *, void *),
-    stock_bigcover_trampoline(void *, void *),
-    stock_localmusic_trampoline(void *, void *), stock_keydown_trampoline(void *, void *),
-    stock_btvol_trampoline(int, int), stock_sleep_trampoline(void *),
-    stock_color_trampoline(void *, void *, const char *, unsigned),
+    stock_bigcover_trampoline(void *, void *), stock_localmusic_trampoline(void *, void *),
+    stock_keydown_trampoline(void *, void *), stock_btvol_trampoline(int, int),
+    stock_sleep_trampoline(void *), stock_color_trampoline(void *, void *, const char *, unsigned),
     stock_image_trampoline(void *, const char *, void *), stock_about_trampoline(void *, void *),
     stock_folder_trampoline(void *, void *), stock_folder_back_trampoline(void *, void *),
     stock_input_trampoline(void *, void *), stock_buzzer_trampoline(int),
@@ -168,7 +167,8 @@ typedef struct {
     /* Now Playing's window and payload-filled widgets, and the sources they last showed. */
     void *np_win, *np_pos, *np_album, *np_slider, *np_remain, *np_elapsed, *np_cover;
     void *np_slide, *np_lrc; /* the art/lyrics/info pages and the lyric lines' scroll_view */
-    /* The full-screen art's song name and its shade, the fade's step and timer (ringnav_bigcover) */
+    /* The full-screen art's song name and its shade, the fade's step and timer (ringnav_bigcover)
+     */
     void *bc[2];
     int bc_step;
     unsigned bc_timer;
@@ -1263,9 +1263,7 @@ int ipod_home_full(void) {
     return st.home_full;
 }
 /* 1 when Home shows its Rockbox row (coverflow_home_layout): the card has Rockbox. */
-int ipod_home_rockbox(void) {
-    return st.home_rockbox = rockbox_available();
-}
+int ipod_home_rockbox(void) { return st.home_rockbox = rockbox_available(); }
 enum { TONE_LIGHT = 2, TONE_RED = 3 }; /* columns of ACCENTS */
 unsigned accent_tone(int tone) {
     return tone == TONE_LIGHT && !ipod_classic() ? MINIMAL_FILL : accents[accent()][tone];
@@ -1487,8 +1485,8 @@ static void draw_spaced(void *canvas, const unsigned *s, int x, int y, unsigned 
 /* Minimal's Home labels are HOME_CAPS_PX small capitals over their transparent stock ink
  * (ringnav_style_color), white on the selected row, else SUDO_MUTED; the status bar's idle "Q2" is
  * the 1.0.1 wordmark's MARK_PX grey capitals; Now Playing's album (docs/ipod.md#now-playing) is
- * NP_CAPS_PX, painted on its page (view_album) over its transparent label. ponytail: long labels are cut off, not
- * scrolled. */
+ * NP_CAPS_PX, painted on its page (view_album) over its transparent label. ponytail: long labels
+ * are cut off, not scrolled. */
 static void paint_caps(void *w, void *canvas) {
     if (!w || ipod_classic() || !P(canvas, CANVAS_LCD)) return;
     if (w == st.bar_idle) {
@@ -1630,7 +1628,8 @@ static void edit_paint(void *w, void *canvas);
 
 #if IPOD
 /* Minimal: stock's white radio images (select, unselect: a 26 px ring, a 12 px dot when checked)
- * vanish on the selected row's off-white card, so they are drawn again over it in the card's ink. */
+ * vanish on the selected row's off-white card, so they are drawn again over it in the card's ink.
+ */
 static void paint_radio(void *w, void *canvas) {
     if (!w || !st.sel_widget || st.sel_home || ipod_classic() || !P(canvas, CANVAS_LCD)) return;
     const char *image = widget_get_prop_str(w, "image", "");
@@ -1796,9 +1795,9 @@ static void reorder(void *view, const unsigned char *order, unsigned n) {
 
 /* Playback Setting: what is changed while listening first, then library behaviour, then output. */
 static const unsigned char playset_order[] = {
-    3 /* Play Mode */,   2 /* EQ */,          0 /* Gain */,         16 /* Crossfade */,
-    9 /* Gapless */,     10 /* ReplayGain */, 4 /* Max Volume */,   5 /* Default Vol */,
-    11 /* Balance */,    1 /* Filters */,     8 /* Memory play */,  15 /* Artists */,
+    3 /* Play Mode */,   2 /* EQ */,           0 /* Gain */,          16 /* Crossfade */,
+    9 /* Gapless */,     10 /* ReplayGain */,  4 /* Max Volume */,    5 /* Default Vol */,
+    11 /* Balance */,    1 /* Filters */,      8 /* Memory play */,   15 /* Artists */,
     13 /* Folder art */, 14 /* Folder skip */, 12 /* Enlarged art */, 6 /* DSD Output */,
     7 /* USB Audio */,
 };
@@ -2302,22 +2301,24 @@ static void album_children(void *w, int nested, int classic) {
                     widget_set_prop_int(c, "_album_draw", draw);
                 }
                 int target = classic ? draw : IMAGE_DRAW_SCALE_DOWN;
-                if (widget_get_prop_int(c, "draw_type", 0) != target) image_set_draw_type(c, target);
+                if (widget_get_prop_int(c, "draw_type", 0) != target)
+                    image_set_draw_type(c, target);
             }
         } else if (!nested && !tk_strcmp(widget_get_type(c), "hscroll_label")) {
             int mapped = x == pad;
             if (mapped != !classic) y += classic ? TILE_INSET : -TILE_INSET;
             x = classic ? 0 : pad;
             cw = size;
-        } else continue;
+        } else
+            continue;
         if (x != I(c, W_X) || y != I(c, W_Y) || cw != I(c, W_W) || h != I(c, W_H))
             widget_move_resize(c, x, y, cw, h);
     }
 }
 
 static void album_tile(void *w) {
-    if (!w || I(w, W_W) != 110 || I(w, W_H) != 160 ||
-        tk_strcmp(widget_get_type(w), "button")) return;
+    if (!w || I(w, W_W) != 110 || I(w, W_H) != 160 || tk_strcmp(widget_get_type(w), "button"))
+        return;
     void *win = window_of(w);
     const char *name = win ? widget_get_prop_str(win, "name", "") : "";
     if (!tk_strcmp(name, "album_page") || !tk_strcmp(name, "artistinfo_page"))
@@ -2386,15 +2387,21 @@ unsigned *ringnav_style_color(unsigned *color, void *style, const char *name, un
         }
         if (selected_ink()) {
             unsigned alpha = *color & 0xff000000u;
-            *color = alpha | (st.sel_home ? 0xffffff : ((*color & 0xffffff) == 0xffffff ? 0x171717 : 0x484848));
+            *color =
+                alpha |
+                (st.sel_home ? 0xffffff : ((*color & 0xffffff) == 0xffffff ? 0x171717 : 0x484848));
             return color;
         }
         if (st.sel_home && st.sel_w) {
             for (void *w = st.paint_w; w; w = P(w, W_PARENT))
-                if (w == st.sel_w) { *color = (*color & 0xff000000u) | 0xaaaaaa; return color; }
+                if (w == st.sel_w) {
+                    *color = (*color & 0xff000000u) | 0xaaaaaa;
+                    return color;
+                }
         }
         /* Minimal's secondary text is Sudo's quieter grey. */
-        if (!ipod_classic() && (*color & 0xffffff) == 0xaaaaaa) *color = (*color & 0xff000000u) | SUDO_MUTED;
+        if (!ipod_classic() && (*color & 0xffffff) == 0xaaaaaa)
+            *color = (*color & 0xff000000u) | SUDO_MUTED;
     }
     int a = accent();
     if (a == CRIMSON) return color;
@@ -2417,8 +2424,8 @@ void *ringnav_style_gradient(void *style, const char *name, void *out) {
     int own = __builtin_return_address(0) == (void *)STYLE_COLOR_GRADIENT_RET;
     int selected_bg = name && !tk_strcmp(name, "bg_color") && selected_ink();
     for (int i = 0; !own && g && g == out && i < I(g, 8) && i < 8; ++i)
-        I(g, 0xc + 8 * i) = selected_bg ? 0 :
-            (int)accent_map((unsigned)I(g, 0xc + 8 * i), accent(), TONE_LIGHT);
+        I(g, 0xc + 8 * i) =
+            selected_bg ? 0 : (int)accent_map((unsigned)I(g, 0xc + 8 * i), accent(), TONE_LIGHT);
     return g;
 }
 
@@ -2558,8 +2565,8 @@ static void setting_text(int i) {
                                                   "Battery: Icon + Percent" },
                              *const theme[] = { "Theme: Minimal", "Theme: Classic" };
     accent(); /* reads the settings */
-    const char *const names[] = { accent_names[st.accent], home[st.home_full],
-                                  battery[st.battery], theme[st.classic] };
+    const char *const names[] = { accent_names[st.accent], home[st.home_full], battery[st.battery],
+                                  theme[st.classic] };
     widget_set_text_utf8(st.setting_label[i], names[i]);
 }
 
@@ -4042,6 +4049,9 @@ static int qm_open(const void *unused) {
      * Go to is left out where its single-instance page is already open, or the album is the page.
      */
     unsigned char acts[11], n = 0;
+    /* Shuffle Albums/Folders: skipping the group comes first */
+    int group_first = st.qm_kind == QM_PLAYING && playback_option(0) >= 3;
+    if (group_first) acts[n++] = QA_NEXT_GROUP, acts[n++] = QA_PREV_GROUP;
     acts[n++] = QA_NEXT;
     acts[n++] = QA_ADD;
     if (!song) acts[n++] = QA_SHUFFLE;
@@ -4057,13 +4067,7 @@ static int qm_open(const void *unused) {
         acts[n++] = QA_ADV_SHUFFLE;
         acts[n++] = QA_REPEAT;
         acts[n++] = QA_GROUP;
-        acts[n++] = QA_NEXT_GROUP;
-        acts[n++] = QA_PREV_GROUP;
-        if (playback_option(0) >= 3) { /* Shuffle Albums/Folders: skipping the group comes first */
-            for (int i = n; i-- > 2;) acts[i] = acts[i - 2];
-            acts[0] = QA_NEXT_GROUP;
-            acts[1] = QA_PREV_GROUP;
-        }
+        if (!group_first) acts[n++] = QA_NEXT_GROUP, acts[n++] = QA_PREV_GROUP;
     }
     static const char *const rows[] = { "Play next",
                                         "Add to queue",
@@ -4445,9 +4449,9 @@ static void power_poll(void) {
 
 #if IPOD
 /* Home's Rockbox row (docs/boot.md#rockbox-from-home), bound by coverflow_home: a click leaves
- * Q2 Pod for Rockbox. demo cannot start it itself: Rockbox needs the screen, the keys and ALSA. So demo
- * leaves S90play's flag and ends; S90play sees it, runs Rockbox and starts demo again when Rockbox
- * exits. Bluetooth's daemons are not demo's children and keep the headphones connected, so
+ * Q2 Pod for Rockbox. demo cannot start it itself: Rockbox needs the screen, the keys and ALSA. So
+ * demo leaves S90play's flag and ends; S90play sees it, runs Rockbox and starts demo again when
+ * Rockbox exits. Bluetooth's daemons are not demo's children and keep the headphones connected, so
  * Rockbox finds them and plays there (q2-rockbox's pcm-alsa). The queue is saved as power-off
  * saves it, charging and the second core are handed back as Rockbox expects them at boot, the
  * watchdog (checkappprocess.sh, which reboots once demo is gone) and hciplayer (which holds the

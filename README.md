@@ -77,14 +77,14 @@ It plays on the headphone jack, Bluetooth or a USB DAC; Play/Pause and Next/Prev
 
 ## Everyday use
 
-| Control                                      | Action                                                                                                                                       |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Wheel**                                    | Scroll; spin faster to speed up. In a slider, date, time or sleep timer setting, change it. Elsewhere, volume.                               |
-| **Centre**                                   | Open the selected item, leave a slider or move to the next time field. Double-press to turn the screen off (a single press on Now Playing).  |
-| **Hold Play/Pause**                          | Open track, queue, playlist and shuffle/repeat options.                                                                                      |
-| **Hold Return** (iPod UI)                    | Jump to Now Playing; Return takes you back.                                                                                                  |
-| **Double-press centre, then turn** (iPod UI) | Scrub on Now Playing, 5 seconds per tick.                                                                                                    |
-| **Pull down from the top edge** (iPod UI)    | Open quick settings.                                                                                                                         |
+| Control                                      | Action                                                                                                                                      |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Wheel**                                    | Scroll; spin faster to speed up. In a slider, date, time or sleep timer setting, change it. Elsewhere, volume.                              |
+| **Centre**                                   | Open the selected item, leave a slider or move to the next time field. Double-press to turn the screen off (a single press on Now Playing). |
+| **Hold Play/Pause**                          | Open track, queue, playlist and shuffle/repeat options.                                                                                     |
+| **Hold Return** (iPod UI)                    | Jump to Now Playing; Return takes you back.                                                                                                 |
+| **Double-press centre, then turn** (iPod UI) | Scrub on Now Playing, 5 seconds per tick.                                                                                                   |
+| **Pull down from the top edge** (iPod UI)    | Open quick settings.                                                                                                                        |
 
 Run **Library → Update Local Music** after adding music; it adds up to 65,000 songs. Coverflow prepares artwork on its first open; cancelling keeps its progress.
 

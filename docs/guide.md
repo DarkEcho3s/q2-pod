@@ -24,23 +24,23 @@ Things people often don't know are already there:
 
 **System settings → Display**:
 
-| Setting               | Options                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **Theme**             | Minimal (default) or Classic, the iPod look before 1.0.1                                                                 |
-| **Accent**            | Classic only: Graphite (default), Crimson (stock red), Tidal, Champagne                                                  |
-| **Home**              | Split (menu beside the playing album's cover) or Full (menu only)                                                        |
-| **Battery**           | Icon (default), Percent, Icon + Percent                                                                                  |
-| **Wheel sensitivity** | 50–200% in 10% steps; default 100%, in both builds                                                                       |
+| Setting               | Options                                                                 |
+| --------------------- | ----------------------------------------------------------------------- |
+| **Theme**             | Minimal (default) or Classic, the iPod look before 1.0.1                |
+| **Accent**            | Classic only: Graphite (default), Crimson (stock red), Tidal, Champagne |
+| **Home**              | Split (menu beside the playing album's cover) or Full (menu only)       |
+| **Battery**           | Icon (default), Percent, Icon + Percent                                 |
+| **Wheel sensitivity** | 50–200% in 10% steps; default 100%, in both builds                      |
 
 ## Battery and library settings
 
-| Where                                  | Setting          | What it does                                                                                                                                                                                                               |
-| -------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **System settings → Power** | **Charge limit** | **80%** stops charging at 80% and starts again at 75%, so a Q2 left plugged in isn't held full. Off by default.                                                                                                            |
-| **System settings → Power** | **Low power**    | Longer battery: the second CPU core sleeps while the screen is off, and the screen-on UI idles when you don't touch it. Off by default.                                                                                    |
-| **System settings → Power** | **Wake**         | **Double press**: with the screen off, a single centre press is ignored, so a pocket bump stays dark; press twice to wake. To power off from a dark screen, double-press, then hold. Off (Single press) by default.        |
-| **Audio settings**                     | **Artists**      | **Artist** (default) or **Album Artist**: browse Artists by the Album Artist tag, so guest artists don't split albums.                                                                                                     |
-| **Audio settings**                     | **Crossfade**    | Fades one song into the next, 1-10 s (5 by default): turn the wheel or drag the slider, all the way down for Off; Centre switches it on or off. Only between different albums, so albums stay gapless; needs stock's **Gapless** on. Off by default. |
+| Where                       | Setting          | What it does                                                                                                                                                                                                                                         |
+| --------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **System settings → Power** | **Charge limit** | **80%** stops charging at 80% and starts again at 75%, so a Q2 left plugged in isn't held full. Off by default.                                                                                                                                      |
+| **System settings → Power** | **Low power**    | Longer battery: the second CPU core sleeps while the screen is off, and the screen-on UI idles when you don't touch it. Off by default.                                                                                                              |
+| **System settings → Power** | **Wake**         | **Double press**: with the screen off, a single centre press is ignored, so a pocket bump stays dark; press twice to wake. To power off from a dark screen, double-press, then hold. Off (Single press) by default.                                  |
+| **Audio settings**          | **Artists**      | **Artist** (default) or **Album Artist**: browse Artists by the Album Artist tag, so guest artists don't split albums.                                                                                                                               |
+| **Audio settings**          | **Crossfade**    | Fades one song into the next, 1-10 s (5 by default): turn the wheel or drag the slider, all the way down for Off; Centre switches it on or off. Only between different albums, so albums stay gapless; needs stock's **Gapless** on. Off by default. |
 
 Charge limit applies while the Q2 is on; charging while it's powered off is stock's. Low power never touches the sound, EQ, brightness or radios. Audio settings also has stock's DAC **Filter**.
 
@@ -140,14 +140,14 @@ To update, unzip a newer release over it; its `cache/` keeps the saved login. To
 - **By Country** and **By Genre:** the 60 biggest countries or genres, then each one's 100 most-voted stations.
 - **Now Playing:** opens the station that's playing, or plays the last one again after a restart.
 
-| Control             | What it does                                                                     |
-| ------------------- | -------------------------------------------------------------------------------- |
-| **Centre**          | On a station, plays it and opens its Now Playing page                            |
+| Control             | What it does                                                                                                                                         |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Centre**          | On a station, plays it and opens its Now Playing page                                                                                                |
 | **Hold Play/Pause** | On a station or its Now Playing page, saves it to Favourites, or removes it when it's already there; on Now Playing, tapping the heart does the same |
-| **Play/Pause**      | Stops the station or starts it again, on any page and with the screen off        |
-| **Next / Prev**     | The next or previous station in the list you played it from                      |
-| **Wheel**           | Volume, as everywhere                                                            |
-| **Return**          | Goes back a level                                                                |
+| **Play/Pause**      | Stops the station or starts it again, on any page and with the screen off                                                                            |
+| **Next / Prev**     | The next or previous station in the list you played it from                                                                                          |
+| **Wheel**           | Volume, as everywhere                                                                                                                                |
+| **Return**          | Goes back a level                                                                                                                                    |
 
 Now Playing shows the station, the artist and song when the station sends them, the format and bitrate, and how long it has played. Until you play local music again, the buttons stay the radio's, except on the local Now Playing page, where Play resumes your music. Picking a song in the Library, playing a video or casting Spotify stops the radio. It plays on the headphone jack, Bluetooth or a USB DAC, and carries on with the screen off. If the stream drops, it reconnects; after five failed tries it shows **Can't play this station**. If the output itself can't be opened, it shows **Can't play:** and the reason; please send that text with a bug report.
 

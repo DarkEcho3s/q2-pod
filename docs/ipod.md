@@ -467,14 +467,14 @@ still gives the discs (`confirm_ok`, `confirm_cancel`) `CONFIRM_SURFACE` (`#2B2B
 accent should stock draw them. Tidal's own confirm pop-up (cyan, black glyphs) keeps its look and
 its tiles, framed in white when selected.
 
-| Dialog                                           | Buttons                                         |
-| ------------------------------------------------ | ----------------------------------------------- |
-| `confirminfo_dialog`                             | Cancel, OK (full-width rows)                    |
-| `tidal_confirminfo_dialog`                       | `img_cancel`, `img_enter` (80x80, side by side) |
-| `autoshutdown_dialog`                            | `btn_cancel`                                    |
-| `playlistsmore_page` (a page)                    | Rename, Delete                                  |
-| `tidal_quality_select_dialog`                    | four quality rows, `btn_ok`                     |
-| `tidal_sortmode_dialog`                          | three sort rows, `btn_cancel`                   |
+| Dialog                        | Buttons                                         |
+| ----------------------------- | ----------------------------------------------- |
+| `confirminfo_dialog`          | Cancel, OK (full-width rows)                    |
+| `tidal_confirminfo_dialog`    | `img_cancel`, `img_enter` (80x80, side by side) |
+| `autoshutdown_dialog`         | `btn_cancel`                                    |
+| `playlistsmore_page` (a page) | Rename, Delete                                  |
+| `tidal_quality_select_dialog` | four quality rows, `btn_ok`                     |
+| `tidal_sortmode_dialog`       | three sort rows, `btn_cancel`                   |
 
 `sortselect_dialog` and the search result dialogs already navigate their lists. Left out, so the
 wheel stays on the volume: the text-entry dialogs (`addplaylist`, `editwifi`, `kbwifiadd`,
@@ -519,12 +519,12 @@ first byte). The payload passes `"0"`, so a missing or unreadable entry, or any 
 one valid digit, is Graphite, Split, Icon and Minimal: a card from 1.0.1 or earlier, which has
 no `THEME`, keeps 1.0.1's look.
 
-| Accent | Progress / active-control light tone | Red text / marks |
-| --- | --- | --- |
-| Graphite (0, default) | `#6E6E6E` | `#D8D8D8` |
-| Crimson (1) | `#EB2F56` | stock `#FF1448` |
-| Tidal (2) | `#30929B` | `#30929B` |
-| Champagne (3) | `#9A8446` | `#9A8446` |
+| Accent                | Progress / active-control light tone | Red text / marks |
+| --------------------- | ------------------------------------ | ---------------- |
+| Graphite (0, default) | `#6E6E6E`                            | `#D8D8D8`        |
+| Crimson (1)           | `#EB2F56`                            | stock `#FF1448`  |
+| Tidal (2)             | `#30929B`                            | `#30929B`        |
+| Champagne (3)         | `#9A8446`                            | `#9A8446`        |
 
 Existing accent preference values and the red-tone mapping stay compatible; greys and artwork
 remain unchanged by the live accent mapper. See [internals.md](internals.md#accent) for the mapping.
