@@ -685,11 +685,12 @@ else:
     # Theme: Classic draws the accent's bar (Graphite's flat fill, then its highlight) instead.
     k=Machine(); k.config['THEME']='1'; kw,_=k.page_list(5,extent=1000); k.paint(kw)
     assert len(k.bands)==49 and [k.bands[i][4] for i in (0,47,48)]==[color_t(ACCENTS[0][i]) for i in (0,1,4)]; passed()
-    # A grid tile (under half the surface width) gets the bar in its own rect.
+    # A grid tile (under half the surface width) gets the selection in its own rect: Minimal's card
+    # stands TILE_PAD out of it on every side, rather than in from it, so it clears the cover and name.
     g=Machine(); gw=g.page(); tiles=[g.entry(gw,0) for _ in range(3)]; g.nodes[gw]['children']=tiles
     for i,t in enumerate(tiles): g.word(t+O['W_X'],80*i); g.word(t+O['W_W'],80)
-    g.paint(gw); g.call(); g.paint(gw)
-    assert g.selected(gw)==1 and g.sel()==(80,0,80,48); passed()
+    g.paint(gw); g.call(); g.paint(gw); pad=O['TILE_PAD']
+    assert g.selected(gw)==1 and g.rounded[-1]['rect']==(80-pad,-pad,80+2*pad,48+2*pad); passed()
     # Touch mode draws nothing; the wheel brings the bar back.
     c=Machine(); cw,_=c.page_list(5,extent=1000); c.paint(cw)
     c.touch(); c.paint(cw); assert not c.drawn() and c.clip==(0,0,240,240)
@@ -3742,7 +3743,7 @@ if variant=='ipod':
       CONFIG.clear(); CONFIG.update(THEME=theme); m=CoverflowMachine(); m.open(); m.top=m.home; CONFIG.clear()
       bar=m.node('window','system_bar'); m.word(syms['system_bar'],bar)
       for w in (bar,m.home): m.word(w+O['W_PARENT'],m.wm)
-      SPLIT=O['HOME_CLASSIC_SPLIT_W' if theme=='1' else 'HOME_SPLIT_W']; PW=375-SPLIT
+      SPLIT=O['HOME_SPLIT_W']; PW=375-SPLIT
       def art_image(w):
           m.call(address=IPOD_HOOKS['widget_on_paint_background'][0],args=(w,m.canvas,0,0))
           return m.nodes[m.art].get('image')
@@ -4125,9 +4126,6 @@ covers=m.nodes[m.slide]['children']; assert len(covers)==5
 assert all(m.nodes[c]['image'].startswith('file:///mnt/mmc/.coverflow/') for c in covers[:3])
 assert m.nodes[covers[-2]]['image']==m.nodes[covers[-1]]['image']=='default_album_big'
 assert 'Album 0' in m.texts(); passed()
-for tag,shown in (('He\u2019s \u201cHere\u201d',"He's \"Here\""),('\u4f60\u597d\uff0c\u4e16\u754c','\u4f60\u597d\uff0c\u4e16\u754c')):
-    c=CoverflowMachine(); c.word(c.albums[0]+O['REC_ALBUM'],c.string(tag)); c.open()
-    assert shown in c.texts(); passed()
 m.press(3); assert m.hold()==11 and m.nodes[m.title]['text']=='Album 0'
 f,ctx=m.handler(m.back,O['EVT_CLICK']); m.call(O['KEY_RETURN'],address=f,args=(ctx,m.event,0,0),gap=0)
 assert m.top==page and m.release()==0; passed()
@@ -4904,7 +4902,7 @@ if variant=='ipod':
     art=named(m,home,'img_homeart')
     def home_bounds(full,classic=False):
         x0,end=(O['HOME_CLASSIC_TEXT_X'],O['CHEVRON_W']-10) if classic else (HOME_TEXT_X,O['HOME_LABEL_END' if full else 'HOME_SPLIT_LABEL_END'])
-        split=O['HOME_CLASSIC_SPLIT_W' if classic else 'HOME_SPLIT_W']
+        split=O['HOME_SPLIT_W']
         row=(O['HOME_CLASSIC_ROW'] if classic else O['HOME_FULL_ROW']) if full else split
         for name in ('list_view_home','list_view_homeset'):
             menu=named(m,home,name)
@@ -5144,7 +5142,7 @@ if variant=='ipod':
     # Home at init: Split halves the screen in both themes and shows the art; Full widens the list
     # to the screen and its rows' tap targets to HOME_FULL_ROW (Classic: HOME_CLASSIC_ROW) and hides it.
     for config,listw,roww,shown in (({'HOME':'1'},375,O['HOME_FULL_ROW'],0),({},O['HOME_SPLIT_W'],O['HOME_SPLIT_W'],1),
-                                    ({'HOME':'1','THEME':'1'},375,O['HOME_CLASSIC_ROW'],0),({'THEME':'1'},O['HOME_CLASSIC_SPLIT_W'],O['HOME_CLASSIC_SPLIT_W'],1)):
+                                    ({'HOME':'1','THEME':'1'},375,O['HOME_CLASSIC_ROW'],0),({'THEME':'1'},O['HOME_SPLIT_W'],O['HOME_SPLIT_W'],1)):
         CONFIG.clear(); CONFIG.update(config); m=CoverflowMachine(); m.open()
         rowsw=[m.get(w+O['W_W']) for w in [m.list,*m.imgs]]
         assert rowsw==[listw]+[roww]*7 and m.nodes[m.art].get('visible',1)==shown,(config,rowsw); passed()

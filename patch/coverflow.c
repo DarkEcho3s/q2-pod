@@ -782,20 +782,6 @@ void *text(void *parent, int x, int y, int w, int h) { /* shared with photos.c *
     return label;
 }
 
-/* Stock's font gives curly quotes a full-width advance, a gap inside words, so labels show their ASCII
- * forms; the records themselves (and scrobbles) keep the tags as they are. */
-static void label_text(void *label, const char *caption) {
-    char buf[256], *o = buf;
-    const unsigned char *s = (const unsigned char *)(caption ? caption : "");
-    for (; *s && o < buf + sizeof buf - 1; ++s)
-        if (s[0] == 0xe2 && s[1] == 0x80 && s[2] >= 0x98 && s[2] <= 0x9d && s[2] != 0x9a && s[2] != 0x9b)
-            *o++ = s[2] < 0x9c ? '\'' : '"', s += 2;
-        else
-            *o++ = (char)*s;
-    *o = 0;
-    widget_set_text_utf8(label, *s ? caption : buf); /* longer than buf: as is */
-}
-
 /* A black page named name, with its destroy and Return handlers; 0 when none. Shared with photos.c
  * and books.c. */
 void *page_open(const char *name, int (*closed)(void *, void *), int (*keyup)(void *, void *)) {
@@ -811,7 +797,7 @@ void *page_open(const char *name, int (*closed)(void *, void *), int (*keyup)(vo
 /* A page's 48px title bar; shared with photos.c. */
 void *page_title(void *body, const char *caption) {
     void *title = text(body, CF_X, 0, CF_W, 48);
-    label_text(title, caption);
+    widget_set_text_utf8(title, caption);
     return title;
 }
 
@@ -849,12 +835,12 @@ void page_row_detail(void *view, int index, const char *caption, const char *det
     void *item = list_item_create(view, 0, index * h, 375, h);
     widget_use_style(item, "s_listitem_black");
     void *label = text(item, CF_ROW_X, detail ? 4 : 0, CF_ROW_W, detail ? 32 : 48);
-    label_text(label, caption);
+    widget_set_text_utf8(label, caption);
     if (detail) {
         label = text(item, CF_ROW_X, 36, CF_ROW_W, 24);
         widget_set_prop_int(label, "style:normal:text_color", (int)0xffaaaaaau);
         widget_set_prop_int(label, "style:normal:font_size", 16);
-        label_text(label, detail);
+        widget_set_text_utf8(label, detail);
     }
     widget_on(item, EVT_CLICK, click, (void *)(long)index);
 }
@@ -1237,8 +1223,8 @@ static int changed(void *ctx, void *event) {
     }
     void *r = c + CARDS < n ? deque_at(cf.albums, c) : (void *)0;
     if (r) cf.saved_album = album_key(r);
-    label_text(cf.name, r ? P(r, REC_ALBUM) : c + 1 < n ? sort_names[cf.sort] : "Refresh library");
-    label_text(cf.artist, r ? P(r, REC_ARTIST) : 0);
+    widget_set_text_utf8(cf.name, r ? P(r, REC_ALBUM) : c + 1 < n ? sort_names[cf.sort] : "Refresh library");
+    widget_set_text_utf8(cf.artist, r ? P(r, REC_ARTIST) : 0);
     return 0;
 }
 
@@ -1568,7 +1554,6 @@ static struct {
 } home __attribute__((section(".scratch")));
 extern int ipod_home_full(void), ipod_home_rockbox(void), rockbox_open(void *, void *);
 /* Split's menu width; the art fills the rest. */
-static int split_w(void) { return ipod_classic() ? HOME_CLASSIC_SPLIT_W : HOME_SPLIT_W; }
 
 /* player_parsecover_thd writes the playing track's cover and then sets g_playcover_type, as Now
  * Playing reads it: 1 embedded, 2 folder image, 4 downloaded; 0 while parsing or stopped, 3 none.
@@ -1590,7 +1575,7 @@ static int home_repaint(const void *unused) {
  * it, so the native fill draws it whole and the clip crops it evenly; unknown sizes fill the
  * panel. */
 static void home_fit(unsigned w, unsigned h) {
-    int x = split_w(), pw = 375 - x, ph = 290, fw = pw, fh = ph;
+    int x = HOME_SPLIT_W, pw = 375 - x, ph = 290, fw = pw, fh = ph;
     if (w && h && w <= 8192 && h <= 8192) {
         if ((unsigned)pw * h > (unsigned)ph * w)
             fh = (int)(((unsigned)pw * h + w - 1) / w);
@@ -1639,12 +1624,19 @@ void coverflow_home_clip(void *w, void *canvas, int begin) {
         home.clipped = 0;
         return;
     }
-    int clip[4], art = w == home.art, x = split_w(), pane = widget_get_visible(home.art) ? x : 375;
+    int clip[4], art = w == home.art, x = HOME_SPLIT_W, pane = widget_get_visible(home.art) ? x : 375;
     clip_within(canvas, home.clip, clip, I(canvas, CANVAS_X) - I(w, W_X) + (art ? x : 0),
                 I(canvas, CANVAS_Y) - I(w, W_Y) + (art ? 0 : I(w, W_Y)), art ? 375 - x : pane,
                 art ? 290 : I(w, W_H));
     canvas_set_clip_rect(canvas, clip);
     home.clipped = 1;
+}
+
+/* Whether w is in one of Home's menus (Minimal draws their labels, paint_caps). */
+int coverflow_home_owns(void *w) {
+    for (; w && home.list; w = P(w, W_PARENT))
+        if (w == home.list || w == home.sets) return 1;
+    return 0;
 }
 
 /* Both menus' lists span outer, their rows and tap targets inner; labels start at x and end end
@@ -1673,7 +1665,7 @@ void coverflow_home_layout(void) {
         widget_restack(rockbox, shown ? 4 : 6); /* after Folder, else last */
         widget_set_visible(rockbox, shown, 0);
     }
-    int split = split_w(), outer = full ? 375 : split,
+    int split = HOME_SPLIT_W, outer = full ? 375 : split,
         inner = !full ? split : classic ? HOME_CLASSIC_ROW : HOME_FULL_ROW,
         x = classic ? HOME_CLASSIC_TEXT_X : HOME_DOT_X + HOME_DOT + HOME_DOT_GAP,
         end = classic ? HOME_CLASSIC_LABEL_END : full ? HOME_LABEL_END : HOME_SPLIT_LABEL_END;

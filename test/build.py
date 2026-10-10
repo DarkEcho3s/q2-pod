@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """JPEG checks; optionally pass the stock ZIP to test packaging with a custom logo and quoted paths too."""
-import sys; sys.path.insert(0, sys.path[0] + '/../tools')  # tools/ first: test/build.py must import tools/build.py
-from build import CAROUSEL, ICONS, LABELS, relabel, ROOT, STOCK_EQ, VERSIONS, dev_tag, jpeg_size
+import io, sys; sys.path.insert(0, sys.path[0] + '/../tools')  # tools/ first: test/build.py must import tools/build.py
+from build import CAROUSEL, ICONS, LABELS, relabel, ROOT, STOCK_EQ, VERSIONS, dev_tag, jpeg_size, FONT
 
 logo = (ROOT/'assets/boot-logo.jpg').read_bytes()
 assert jpeg_size(logo) == (320, 375)
@@ -131,7 +131,7 @@ def validate_assets(directory):
     xx = 'release/assets/default/raw/images/xx/'
     assert set(changed) == {'release/assets/default/raw/ui/'+p for p in (UI_ASSETS if ipod else [ARTIST_PAGE, HOME_PAGE])} | {
         'release/assets/default/raw/styles/'+p for p in (AUDIT['styles'] if ipod else [])} | {
-        xx+n for n in (SETTINGS_ICONS | QUIET_ICONS if ipod else [])} | {'release/assets/default/raw/strings/en_US.bin'}
+        xx+n for n in (SETTINGS_ICONS | QUIET_ICONS if ipod else [])} | {'release/assets/default/raw/strings/en_US.bin', FONT}
     def read(image, rel):
         return subprocess.check_output(['unsquashfs', '-cat', str(directory/image), rel])
     if ipod:
@@ -199,6 +199,12 @@ def validate_assets(directory):
     check_bluetooth_drop(directory)
     from build import SCROBBLE_CA
     assert read('rootfs.squashfs', SCROBBLE_CA) == (ROOT/'assets/scrobble-ca.pem').read_bytes()
+    # Curly quotes draw the straight glyphs; other tables keep their stock bytes (head: its checksum).
+    from build import QUOTES
+    from fontTools.ttLib import TTFont
+    old, new = (TTFont(io.BytesIO(read(i, FONT))) for i in ('stock.squashfs', 'rootfs.squashfs'))
+    assert all(new.getBestCmap()[c] == old.getBestCmap()[q] for c, q in QUOTES.items())
+    assert all(new.reader[t] == old.reader[t] for t in old.reader.keys() if t not in ('cmap', 'head'))
     # The crash watchdog only sleeps longer; check_mem_thd's drop_caches write is branched over.
     old, new = read('stock.squashfs', WATCHDOG), read('rootfs.squashfs', WATCHDOG)
     assert new == old.replace(*WATCHDOG_SLEEP) and new != old
@@ -415,7 +421,7 @@ def validate_assets(directory):
             # Full's rows end at HOME_CLASSIC_ROW, so the chevron's glyph (x 20 to 31, y 16 to 34 of
             # list_into, centred on the row) mirrors the labels' margin and, on the last row, clears
             # the bottom-right corner as the label clears the bottom-left.
-            assert inc('HOME_SPLIT_W') == round(375 * 0.45) and inc('HOME_CLASSIC_SPLIT_W') == 375 // 2
+            assert inc('HOME_SPLIT_W') == 375 // 2
             glyph_end = inc('HOME_CLASSIC_ROW') - CHEVRON_W + 31
             glyph_y = 30 + HOME_TOP + 6*HOME_ROW + (HOME_ROW - 50) // 2 + 16
             assert 375 - glyph_end == inc('HOME_CLASSIC_TEXT_X') >= corner_x(glyph_y, 34 - 16)

@@ -26,7 +26,7 @@ extern unsigned coverflow_scope(void *page);
 extern void coverflow_home_art(void *top);
 extern void coverflow_home_layout(void);
 extern void coverflow_home_clip(void *w, void *canvas, int begin);
-extern int coverflow_home_back(void *top);
+extern int coverflow_home_back(void *top), coverflow_home_owns(void *w);
 extern void coverflow_paint(void *w, void *canvas), photos_paint(void *w, void *canvas),
     photos_open(const char *root), books_paint(void *w, void *canvas),
     books_open(const char *root, int videos), video_poll(void), video_key(unsigned key);
@@ -1458,26 +1458,49 @@ static void paint_cover(void *w, void *canvas) {
 #endif
 
 #if IPOD
-/* Minimal's Now Playing album (docs/ipod.md#now-playing) is small capitals over its label's
- * transparent ink, painted on its page (view_album): NP_CAPS_PX, upper-cased (ASCII and Latin-1),
- * SUDO_TRACK px apart, cut off at the label's end. The text color is restored, the font is not. */
-static void np_paint(void *w, void *canvas) {
-    if (!w || !st.np_album || w != P(st.np_album, W_PARENT) || ipod_classic() || !P(canvas, CANVAS_LCD))
-        return;
-    const unsigned *s = widget_get_text(st.np_album);
+/* Minimal's small capitals (Sudo's): s from x, y (the text's top) in the default font at px,
+ * upper-cased (ASCII and Latin-1), SUDO_TRACK px apart, cut off at x + max. The text color is
+ * restored, the font is not. */
+static void draw_spaced(void *canvas, const unsigned *s, int x, int y, unsigned px, unsigned color,
+                        int max) {
     unsigned text = (unsigned)I(P(canvas, CANVAS_LCD), LCD_TEXT_COLOR);
-    int x = I(st.np_album, W_X), y = I(st.np_album, W_Y) + (I(st.np_album, W_H) - NP_CAPS_PX) / 2, at = 0;
-    canvas_set_font(canvas, (void *)0, NP_CAPS_PX);
-    canvas_set_text_color(canvas, RGBA(SUDO_MUTED));
-    for (unsigned i = 0; s && s[i]; ++i) {
-        unsigned c = s[i];
+    canvas_set_font(canvas, (void *)0, px);
+    canvas_set_text_color(canvas, color);
+    for (int at = 0; s && *s; ++s) {
+        unsigned c = *s;
         if ((c >= 'a' && c <= 'z') || (c >= 0xe0 && c <= 0xfe && c != 0xf7)) c -= 32;
         int cw = (int)(canvas_measure_text(canvas, &c, 1) + 0.5f);
-        if (at + cw > I(st.np_album, W_W)) break;
+        if (at + cw > max) break;
         canvas_draw_text(canvas, &c, 1, x + at, y);
         at += cw + SUDO_TRACK;
     }
     canvas_set_text_color(canvas, text);
+}
+
+/* Minimal's Home labels are HOME_CAPS_PX small capitals over their transparent stock ink
+ * (ringnav_style_color), white on the selected row, else SUDO_MUTED; the status bar's idle "Q2" is
+ * the 1.0.1 wordmark's MARK_PX grey capitals; Now Playing's album (docs/ipod.md#now-playing) is
+ * NP_CAPS_PX, painted on its page (view_album) over its transparent label. ponytail: long labels are cut off, not
+ * scrolled. */
+static void paint_caps(void *w, void *canvas) {
+    if (!w || ipod_classic() || !P(canvas, CANVAS_LCD)) return;
+    if (w == st.bar_idle) {
+        draw_spaced(canvas, widget_get_text(w), 0, (I(w, W_H) - MARK_PX) / 2, MARK_PX,
+                    RGBA(0xaaaaaa), 375);
+        return;
+    }
+    if (st.np_album && w == P(st.np_album, W_PARENT)) {
+        draw_spaced(canvas, widget_get_text(st.np_album), I(st.np_album, W_X),
+                    I(st.np_album, W_Y) + (I(st.np_album, W_H) - NP_CAPS_PX) / 2, NP_CAPS_PX,
+                    RGBA(SUDO_MUTED), I(st.np_album, W_W));
+        return;
+    }
+    if (tk_strcmp(widget_get_type(w), "hscroll_label") || !coverflow_home_owns(w)) return;
+    unsigned color = RGBA(SUDO_MUTED);
+    for (void *p = w; p; p = P(p, W_PARENT))
+        if (p == st.sel_widget) color = 0xffffffff;
+    draw_spaced(canvas, widget_get_text(w), 0, (I(w, W_H) - HOME_CAPS_PX) / 2, HOME_CAPS_PX, color,
+                I(w, W_W));
 }
 #endif
 
@@ -1518,9 +1541,10 @@ static void paint_selection(void *w, void *canvas) {
         i = reconcile(&g_menu,
                       !moving(&g_menu) && !window_manager_get_pointer_pressed(window_manager()));
     }
-    /* Touch hides the selection until the wheel or a button, except on Home (iPod's list). */
+    /* Touch hides the selection until the wheel or a button, except on Home (iPod's list) and a
+     * pop-up's buttons, which open on their first (Cancel). */
     int home = top && !tk_strcmp(widget_get_prop_str(top, "name", ""), "home_page");
-    if (i < 0 || (!shown && !home)) return;
+    if (i < 0 || (!shown && !home && g_menu.kind != 4)) return;
     rect_t r = bounds(&g_menu, i), old;
     /* A boundary detent nudges the selection against the end until it springs back. */
     if (fx_live(w) && st.bump_dir) r.y -= st.bump_dir * BUMP_PX;
@@ -1530,8 +1554,10 @@ static void paint_selection(void *w, void *canvas) {
     unsigned stroke_color = (unsigned)I(lcd, LCD_STROKE_COLOR);
     if (!clip_surface(canvas, &g_menu, &old)) return;
 #if IPOD
-    /* A list row gets the full surface width; a grid tile keeps its own rect. */
-    if (2 * r.w >= I(g_menu.w, W_W)) {
+    /* A list row gets the full surface width; a grid tile keeps its own rect, with room around
+     * its cover and name: Minimal's card, inset SEL_INSET on a row, stands TILE_PAD out of a tile. */
+    int tile = 2 * r.w < I(g_menu.w, W_W);
+    if (!tile) {
         r.x = 0;
         r.w = I(g_menu.w, W_W);
     }
@@ -1546,7 +1572,8 @@ static void paint_selection(void *w, void *canvas) {
         rect_t dot = { HOME_DOT_X, r.y + (r.h - HOME_DOT) / 2, HOME_DOT, HOME_DOT };
         fill_box(canvas, &dot, 0xffffffff, HOME_DOT / 2);
     } else { /* Sudo's card: inset from the glass's edges, its corners rounded */
-        rect_t card = { r.x + SEL_INSET, r.y, r.w - 2 * SEL_INSET, r.h };
+        int in = tile && g_menu.kind != 4 ? -TILE_PAD : SEL_INSET, up = in < 0 ? -in : 0; /* not pop-up tiles */
+        rect_t card = { r.x + in, r.y - up, r.w - 2 * in, r.h + 2 * up };
         fill_box(canvas, &card, RGBA(MINIMAL_FILL), SEL_RADIUS);
     }
     st.sel_w = w;
@@ -1650,7 +1677,7 @@ int ringnav_paint(void *w, void *canvas) {
     paint_radio(w, canvas);
     paint_letter(w, canvas);
     paint_cover(w, canvas);
-    np_paint(w, canvas);
+    paint_caps(w, canvas);
     coverflow_home_clip(w, canvas, 0);
     st.paint_w = w ? P(w, W_PARENT) : (void *)0;
 #else
@@ -1968,12 +1995,15 @@ static unsigned np_track(void) {
     return r ? fnv(hash_bytes(FNV_SEED, (const unsigned char *)&at, sizeof at), P(r, REC_PATH)) : 0;
 }
 
-/* The accent's light tone (Minimal's MINIMAL_FILL) fills the progress bar; a white fill marks the
- * scrub. */
+/* The accent's light tone (Minimal's MINIMAL_FILL) fills the progress bar; a white fill (Minimal: a
+ * thicker line) marks the scrub. */
 static void np_fill(int scrub) {
     if (!st.np_slider) return;
     unsigned color = scrub ? 0xffffffff : RGBA(accent_tone(TONE_LIGHT));
     widget_set_prop_int(st.np_slider, "style:normal:fg_color", (int)color);
+    /* Minimal's fill is near white already: its scrub thickens the line to Classic's. */
+    if (!ipod_classic())
+        widget_set_prop_int(st.np_slider, "bar_size", scrub ? NP_BAR_CLASSIC : np_bar_h());
     widget_invalidate_force(st.np_slider, (void *)0);
 }
 
@@ -1989,7 +2019,7 @@ static void np_theme(void) {
         widget_set_prop_int(st.np_slider, radius[i], h / 2);
     if (st.np_slider) widget_set_prop_int(st.np_slider, "bar_size", h);
     if (glyph) widget_set_opacity(glyph, ipod_classic() ? 255 : 0);
-    /* Minimal: the album is np_paint's capitals. */
+    /* Minimal: the album is paint_caps' capitals. */
     if (st.np_album) widget_set_opacity(st.np_album, ipod_classic() ? 255 : 0);
 }
 
@@ -2302,6 +2332,10 @@ static int selected_ink(void) {
 unsigned *ringnav_style_color(unsigned *color, void *style, const char *name, unsigned fallback) {
     stock_color_trampoline(color, style, name, fallback);
     if (st.paint_w && name && tk_str_end_with(name, "text_color")) {
+        if (!ipod_classic() && (st.paint_w == st.bar_idle || coverflow_home_owns(st.paint_w))) {
+            *color &= 0xffffff; /* paint_caps draws it */
+            return color;
+        }
         if (selected_ink()) {
             unsigned alpha = *color & 0xff000000u;
             *color = alpha | (st.sel_home ? 0xffffff : ((*color & 0xffffff) == 0xffffff ? 0x171717 : 0x484848));
@@ -3233,6 +3267,77 @@ int ringnav_artist_art_name(char *buf, unsigned size, unsigned row, const char *
 int ringnav_artist_covers(void *list) {
     return st.art_keys ? rename_covers(list, artist_key) : albumcoverinfo_init(list);
 }
+/* Artists rows' art. Stock queues artist covers (local_songercover_task, type 4: the art thread's
+ * toolsGetAlbumCover, then toolsGetExternCover, into .sldp/<md5 of the name>0.jpg), but its artist
+ * queries select no fileurl and leave +0x14, the name a cover task copies, empty, and the row
+ * renderer always shows default_artist_small. Each row gets its name and a source: artist.jpg (or
+ * .png) beside the artist's album folders, else its first track, whose album art is then used.
+ * ponytail: an artist and an album of one name share a cache file; prefix the key if that shows. */
+typedef struct { char *name, *path; } artist_src_t;
+static artist_src_t *art_src;
+static unsigned art_src_n;
+static int art_src_row(void *a, int n, char **v, char **c) {
+    (void)a, (void)c;
+    artist_src_t *m = n == 2 && v[0] && v[1] ? realloc(art_src, (art_src_n + 1) * sizeof *art_src) : 0;
+    if (m) art_src = m, m[art_src_n].name = strdup(v[0]), m[art_src_n++].path = strdup(v[1]);
+    return 0;
+}
+static int art_src_cmp(const void *a, const void *b) {
+    return strcasecmp(((const artist_src_t *)a)->name, ((const artist_src_t *)b)->name);
+}
+/* track's artist folder (the album folder's parent)'s artist.jpg or .png, or 0. */
+static char *artist_image(const char *track) {
+    char buf[1024];
+    const char *s = strrchr(track, '/');
+    int n = s ? (int)(s - track) : 0;
+    while (n > 0 && track[n - 1] != '/') --n;
+    if (n <= 0 || n > 1000) return 0;
+    snprintf(buf, sizeof buf, "%.*sartist.jpg", n, track);
+    if (!access(buf, 4)) return strdup(buf);
+    memcpy(buf + n + 7, "png", 3);
+    return access(buf, 4) ? 0 : strdup(buf);
+}
+static void artist_sources(void *list) {
+    int album_artist = I(g_artist_type, 0) == 1;
+    toolsQueryDbTable("/mnt/data/database.db",
+                      album_artist ? "select albumsonger,min(fileurl) from songtable group by albumsonger COLLATE NOCASE"
+                                   : "select songer,min(fileurl) from songtable group by songer COLLATE NOCASE",
+                      art_src_row, 0);
+    if (!art_src) return;
+    qsort(art_src, art_src_n, sizeof *art_src, art_src_cmp);
+    for (unsigned i = 0; i < deque_size(list); ++i) {
+        void *r = deque_at(list, i);
+        artist_src_t key = { P(r, REC_ARTIST), 0 }, *m;
+        if (I(r, REC_ID) == -1 || !key.name || P(r, REC_PATH) || P(r, REC_ALBUM) ||
+            !(m = bsearch(&key, art_src, art_src_n, sizeof *art_src, art_src_cmp)))
+            continue;
+        char *path = artist_image(m->path);
+        P(r, REC_PATH) = path ? path : strdup(m->path);
+        P(r, REC_ALBUM) = strdup(key.name);
+    }
+    for (unsigned i = 0; i < art_src_n; ++i) free(art_src[i].name), free(art_src[i].path);
+    free(art_src);
+    art_src = 0, art_src_n = 0;
+}
+/* The art thread's toolsGetAlbumCover call (0x4edf1c): an artist.jpg source is already a picture. */
+int ringnav_cover(const char *src, const char *dst, int w, int h) {
+    const char *dot = strrchr(src, '.');
+    return dot && (!strcasecmp(dot, ".jpg") || !strcasecmp(dot, ".png")) ? toolsThumbSpecCover(src, dst, w, h)
+                                                                         : toolsGetAlbumCover(src, dst, w, h);
+}
+/* The Artists row renderer's placeholder (0x4afc84): the row's cached cover, as Albums rows show. */
+extern int image_show(void *img, const char *url, unsigned *size);
+int ringnav_artist_icon(void *img, unsigned row) {
+    void *list = P(p_deque_showlist, 0), *r = row < deque_size(list) ? deque_at(list, row) : 0;
+    const char *name = r ? P(r, REC_ALBUM) : 0;
+    char md5[64] = {0}, url[128];
+    if (name) toolsMd5String(name, md5, 16);
+    snprintf(url, sizeof url, "file:///mnt/mmc/.sldp/%s0.jpg", md5);
+    if (!name || access(url + 7, 0) || !image_show(img, url, 0))
+        image_base_set_image(img, "default_artist_small");
+    return 0;
+}
+
 /* The album page's big cover, snprintf of classinfo +0xd (0x4a72a4): its Albums row's cover task
  * name, as the thread hashed it, when that is this album's key. */
 int ringnav_art_header(char *buf, unsigned size, const char *fmt, const char *album) {
@@ -3257,6 +3362,7 @@ int ringnav_localclass(int cls) {
     void *list = P(p_deque_showlist, 0), *dir = P(tools_pdeq_directory, 0), *a = album_opened();
     if (n > 0 && cls == 0xff10 && a) album_only(list, a, 0), n = (int)deque_size(list);
     if (n > 0 && cls == CLASS_ALBUMS) n = coverflow_split(list);
+    if (n > 0 && cls == CLASS_ARTISTS) artist_sources(list);
     if (n <= 0 || cls < CLASS_ALBUMS || cls > 0xf006 ||
         I(deque_at(list, (unsigned)n - 1), REC_ID) != -1)
         return n;

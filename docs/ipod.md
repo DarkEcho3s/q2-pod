@@ -97,8 +97,7 @@ window while sliding.
 
 Display settings offers **Home: Split / Full**, stored as `IPOD/HOME` 0 or 1; invalid or absent
 values mean Split. `coverflow_home_layout` moves the asset's widgets at runtime, in both themes:
-Split narrows both menus to `HOME_SPLIT_W` (169, 45%; Classic halves the screen at
-`HOME_CLASSIC_SPLIT_W`, 187) and shows the cover itself in the 290-pixel-high panel right of them
+Split narrows both menus to `HOME_SPLIT_W` (187, half the screen) and shows the cover itself in the 290-pixel-high panel right of them
 (`img_homeart` is an `image` for this, fitted to the cover's proportions and clipped to the panel,
 the menus clipped left of it; `default_album_home` without a cover); Full hides the art and
 widens the menus to the screen, their rows to `HOME_FULL_ROW` (375), or `HOME_CLASSIC_ROW` (369)
@@ -380,7 +379,7 @@ and both times remain `#AAAAAA`. Spotify uses the same hierarchy in the iPod bui
 keeps its existing artist color. Long lines scroll, as stock.
 
 **Theme: Minimal** draws the album in Sudo Music's small capitals (`NP_CAPS_PX`, 13 pixels,
-`SUDO_MUTED`, `SUDO_TRACK` apart, `np_paint`) over its label's transparent ink; Classic shows
+`SUDO_MUTED`, `SUDO_TRACK` apart, `paint_caps`) over its label's transparent ink; Classic shows
 the label. There is no on-screen transport row: the buttons play, pause and skip.
 
 The art, title, artist and album are the slide_view's first page, so a swipe replaces all of them

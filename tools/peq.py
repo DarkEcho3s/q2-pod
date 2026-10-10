@@ -38,6 +38,8 @@ LIBC = {
     'opendir': ('void *', 'const char *'), 'closedir': ('int', 'void *'),
     'readdir': ('struct dirent *', 'void *'),
     'qsort': ('void', 'void *, unsigned, unsigned, int (*)(const void *, const void *)'),
+    'bsearch': ('void *', 'const void *, const void *, unsigned, unsigned, int (*)(const void *, const void *)'),
+    'realloc': ('void *', 'void *, unsigned'),  # navigation.c's Artists art sources
     # libcstl and socket imports for the Play/Pause queue menu in navigation.c
     '_create_deque': ('void *', 'const char *'), 'deque_init': ('void', 'void *'),
     'deque_init_copy': ('void', 'void *, const void *'), 'deque_size': ('unsigned', 'const void *'),

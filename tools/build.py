@@ -7,7 +7,7 @@ import argparse, hashlib, io, json, pathlib, re, shlex, struct, subprocess, tarf
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ZIP_SHA = '154c17822d09be001be35c03d2d3488424dee195221790bd70864480d55b0f00'
 DEMO_SHA = '2c5f06142850b4fc168f82b44a81550cce0a5b4b9fe1c179dced4a08a3049138'
-VERSION = '1.0.3'  # major.minor.patch, single digits, shown as is (About, release tag and ZIPs)
+VERSION = '1.0.4'  # major.minor.patch, single digits, shown as is (About, release tag and ZIPs)
 # The updater's identity (firmware_v20.info and demo's version literal) must be 5 characters and
 # differ from the installed one, so it packs the digits: 1.0.1 is V101I. About shows the stock
 # firmware version and a CFW. Version row with VERSION and the edition instead (ringnav_about).
@@ -184,8 +184,13 @@ ALBUM_ART = ((0x4a388c, 'ringnav_art_name'), (0x4a421c, 'ringnav_albumcovers'), 
              (0x4a5718, 'ringnav_albumcovers'), (0x4a72a4, 'ringnav_art_header'),
              (0x4ab804, 'ringnav_artist_art_name'), (0x4ac840, 'ringnav_artist_covers'),
              (0x4ae860, 'ringnav_artist_covers'), (0x4ae968, 'ringnav_artist_covers'),
-             (0x4aebc0, 'ringnav_artist_covers'))
+             (0x4aebc0, 'ringnav_artist_covers'), (0x4edf1c, 'ringnav_cover'))
 ALBUM_ART_ROW = ((0x4a3890, 0x24c66c04, 0x02603025), (0x4ab808, 0x24c66c04, 0x02403025))
+# Artists rows' art (navigation.c artist_sources): the art thread's toolsGetAlbumCover call above takes
+# an artist.jpg source too, and the localclass row renderer's Artists branch (0x4afc84), which set
+# default_artist_small and branched to the shared call, becomes move a1,row; jal ringnav_artist_icon;
+# move a0,img; b to the return (0x4afe3c).
+ARTIST_ICON = (0x4afc84, (0x8f85a7b4, 0x24a568ac, 0x8f99a7d0, 0x10000068))
 # switchBtPriority sends LDAC quality 0x16 (SQ, 660 kbps) for both HQ (row 0) and Standard (row 1).
 # The dispatch keeps 0x15 + row in its free 0x14($sp) slot, so HQ sends 0x15 (990 kbps); see docs/internals.md.
 LDAC_HQ = ((0x4f033c, 0x00042080, 0x00041880),   # sll $3,$4,2
@@ -205,6 +210,24 @@ WHEEL_THRESHOLDS = ((0x625ce0, 0x24060014), (0x625cdc, 0x2403000a), (0x625ba0, 0
 # used nowhere else; Local Music's are "Playlist"), System settings' Idle (system_powermanager) and
 # its standby/shutdown row.
 LABELS = ((b'player_playlist', b'Playlists', b'Queue'), (b'system_powermanager', b'Idle', b'Power'), (b'powerm_deep_off', b'standby/shutdown', b'Standby'))
+
+# The stock font (Arial merged with a CJK font) gives curly quotes the CJK em advance, a wide gap
+# inside words wherever a tag has one; its cmaps map them to the straight glyphs instead.
+FONT = 'release/assets/default/raw/fonts/default.ttf'
+QUOTES = {0x2018: 0x27, 0x2019: 0x27, 0x201c: 0x22, 0x201d: 0x22}
+
+def font_quotes(data):
+    """Only cmap is decompiled; fontTools copies every other table's bytes as they are, and head keeps
+    its stock timestamp so the build is reproducible."""
+    from fontTools.ttLib import TTFont
+    font = TTFont(io.BytesIO(data), lazy=True, recalcTimestamp=False)
+    for table in font['cmap'].tables:
+        if table.isUnicode():
+            check(all(c in table.cmap for c in QUOTES.values()), 'Font without straight quotes')
+            table.cmap.update({c: table.cmap[q] for c, q in QUOTES.items()})
+    out = io.BytesIO()
+    font.save(out, reorderTables=False)
+    return out.getvalue()
 
 def relabel(data):
     """A strings/*.bin value replaced: after a u16 0 and a u16 pair count, a u32 offset to each key and
@@ -423,6 +446,7 @@ FUNCTIONS = {
  'widget_restack': ('int', 'void *, unsigned'),
  'toolsThumbSpecCover': ('int', 'const char *, const char *, int, int'),
  'toolsGetAlbumCover': ('int', 'const char *, const char *, int, int'),
+ 'toolsMd5String': ('int', 'const char *, char *, int'),  # hex md5 of a cover name, as the art cache keys
  'window_create': ('void *', 'void *, int, int, int, int'),
  'widget_factory': ('void *', 'void'),
  'widget_factory_create_widget': ('void *', 'void *, const char *, void *, int, int, int, int'),
@@ -766,6 +790,10 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         patch_word(patched, address, 0x0320f809, 0x0c000000 | (ps[name] >> 2), 'same-named albums apart in art')
     for row in ALBUM_ART_ROW:
         patch_word(patched, *row, 'same-named albums apart in art')
+    address, olds = ARTIST_ICON
+    for i, (old, new) in enumerate(zip(olds, (0x02802825, 0x0c000000 | (ps['ringnav_artist_icon'] >> 2),
+                                              0x02002025, 0x1000006a))):
+        patch_word(patched, address + 4 * i, old, new, 'Artists rows show their art')
     # Pin added private entry points as well as every replaced instruction, and the stock bitmap,
     # canvas and slide_menu entries Coverflow's depth renderer calls (docs/internals.md#coverflow-depth).
     for name, original in AUDIT['private_prologues'].items():
@@ -853,6 +881,11 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         removed.append(line.group().split()[:6])
         p = p[:line.start()]+p[line.end():]
     changed_assets = {}
+    original = cat(FONT)
+    data = font_quotes(original)
+    (out/'default.ttf').write_bytes(data)
+    p = swap_inode(p, FONT.encode(), out/'default.ttf')
+    changed_assets[FONT] = dict(original_sha256=sha(original), sha256=sha(data))
     assets = ['ui/'+rel for rel in (UI_ASSETS if ipod else [ARTIST_PAGE, HOME_PAGE])] + ['strings/en_US.bin']
     if ipod:
         assets += ['styles/'+rel for rel in AUDIT['styles']]

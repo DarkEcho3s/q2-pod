@@ -119,7 +119,7 @@ with tempfile.TemporaryDirectory(prefix='q2-ui-preview-') as tmp:
                     text(a,'12:59 PM',151,5,74,20,16)
                     text(a,'88%',280,5,40,20,16)
                 if case<3 or case in (10,11):
-                    full=case in (1,2); width=(inc('HOME_CLASSIC_ROW') if old else HOME_LIST_W) if full else inc('HOME_CLASSIC_SPLIT_W' if old else 'HOME_SPLIT_W')
+                    full=case in (1,2); width=(inc('HOME_CLASSIC_ROW') if old else HOME_LIST_W) if full else inc('HOME_SPLIT_W')
                     labels = ['Now Playing','Library','Coverflow','Folders','Rockbox','Streaming','Settings']
                     if case==1: labels=['Now Playing','Library — a very long music collection','Coverflow','音楽フォルダー','Streaming','Settings']
                     if case==2: labels=['Playback','System']

@@ -161,8 +161,7 @@
 /* iPod drill rows: the stock list_into image sits where stock rows put their own img_into, its left
  * edge CHEVRON_W from the row's right edge (8 px margin + 50 px image), so every `>` lines up. */
 #define CHEVRON_W 58
-/* iPod Home: Split gives the menu 45% of the screen (HOME_SPLIT_W; Classic's halves it,
- * HOME_CLASSIC_SPLIT_W), the art the rest right of it;
+/* iPod Home: Split gives the menu half the screen (HOME_SPLIT_W) in both themes, the art the rest right of it;
  * Minimal's Full rows are full width. Labels end HOME_LABEL_END from the row's edge. The selection
  * dot (HOME_DOT px) sits at HOME_DOT_X, clear of the bottom row's corner, HOME_DOT_GAP before the
  * labels (HOME_TEXT_X in tools/ipod.py). */
@@ -178,8 +177,7 @@
  * HOME_CLASSIC_TEXT_X and end 10px before the glyph. The status bar is BAR_CLASSIC and the progress bar an NP_BAR_CLASSIC capsule
  * (Minimal's NP_BAR_MINIMAL line). Minimal has no accent: its fills are MINIMAL_FILL, its
  * settings icons grey and list_into MINIMAL_CHEVRON. */
-#define HOME_SPLIT_W 169
-#define HOME_CLASSIC_SPLIT_W 187
+#define HOME_SPLIT_W 187
 #define HOME_CLASSIC_ROW 369
 #define HOME_CLASSIC_TEXT_X 33
 #define HOME_CLASSIC_LABEL_END (CHEVRON_W - 10)
@@ -188,12 +186,15 @@
 #define NP_BAR_MINIMAL 4
 #define MINIMAL_FILL 0xeeeeec
 #define MINIMAL_CHEVRON 0x777777
-/* Minimal's small capitals are SUDO_TRACK px apart (np_paint); secondary text is SUDO_MUTED. */
+/* Minimal's small capitals are SUDO_TRACK px apart (draw_spaced); secondary text is SUDO_MUTED. */
 #define SUDO_TRACK 2
 #define SUDO_MUTED 0x8c8c8c
+#define HOME_CAPS_PX 18 /* Minimal's Home labels */
+#define MARK_PX 12 /* and the status bar's idle Q2 */
 /* Minimal's selection is a card SEL_INSET px in from each side of the row, corners SEL_RADIUS. */
 #define SEL_INSET 6
 #define SEL_RADIUS 6
+#define TILE_PAD 6 /* ...and on a grid tile (album grids) it stands this far out of the tile */
 #define EDIT_OK_PX 18 /* the date, time and sleep timer pages' OK label, on that card */
 /* Minimal's Now Playing album is NP_CAPS_PX capitals. */
 #define NP_CAPS_PX 13
@@ -326,6 +327,7 @@
 #define ID3_ALBUM 0x404
 #define ID3_ARTIST 0x504
 #define CLASS_ALBUMS 0xf003     /* all albums: rows open getMusicByAlbum (load_localclass_list 0xff10) */
+#define CLASS_ARTISTS 0xf004    /* all artists (getAllArtist, or GetAllAlbumArtist) */
 #define CLASS_ARTIST_ALBUMS 0xff01 /* an artist's albums (load_localclass_list 0xff11) */
 #define ALBUMINFO_ROW 0xa27200  /* the albums row localmusic_albuminfo_page_init opened (0x4a7ab4) */
 /* Static mcl queue state (mclLoadPlayList @0x5aa8d4, mclNextSong @0x5adbbc). */
