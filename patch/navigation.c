@@ -4954,6 +4954,7 @@ int ringnav(void *ctx, void *event) {
         if (next == 0 || next >= max_top(&g_menu)) st.wheel_run = 0;
         wheel_offset(&g_menu, next);
     }
+    native_scrollbar(&g_menu); /* the thumb follows the new offset, not the one before this tick */
     widget_invalidate_force(w, (void *)0);
     return STOP;
 }
