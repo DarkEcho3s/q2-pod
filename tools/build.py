@@ -554,6 +554,11 @@ STOCK_EQ = ['release/assets/default/raw/ui/playset/preseteq_page.bin'] + [
 # iPod: the Home carousel's card and arrow images; only the stock home_page.bin names them.
 CAROUSEL = [f'release/assets/default/raw/images/xx/menu_{n}.png' for n in
     [*(c + s for c in ('playing', 'music', 'folder', 'stream', 'playset', 'sysset') for s in ('', 'down')), 'left', 'right']]
+# Superseded library versions (the unversioned and soname links already resolve to the newer ones)
+# and on-device debugging tools; nothing in the rootfs names them.
+OBSOLETE = ['usr/lib/libdbus-1.so.3.19.8', *(f'usr/lib/lib{n}-2.0.so.0.5400.3' for n in
+            ('gio', 'glib', 'gmodule', 'gobject', 'gthread')),
+            *(f'usr/bin/{n}' for n in ('strace', 'strace-log-merge', 'sqlite3', 'hcidump'))]
 
 FLAGS = ['--target=mipsel-linux-gnu','-march=mips32r2','-mabi=32','-mfp64',
          '-mno-abicalls','-fno-pic','-G0','-ffreestanding','-fno-builtin',
@@ -865,7 +870,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         p = p[:at]+entry+p[at:]
         added.append([path, b'R', *stock.groups()])
     removed = []
-    for path in STOCK_EQ + (CAROUSEL if ipod else []):
+    for path in STOCK_EQ + OBSOLETE + (CAROUSEL if ipod else []):
         line = re.search(rb'^'+re.escape(path.encode())+rb' R .+\n', p, re.M)
         check(line is not None, f'Missing stock inode {path}')
         removed.append(line.group().split()[:6])
