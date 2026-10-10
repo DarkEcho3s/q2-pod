@@ -685,12 +685,20 @@ else:
     # Theme: Classic draws the accent's bar (Graphite's flat fill, then its highlight) instead.
     k=Machine(); k.config['THEME']='1'; kw,_=k.page_list(5,extent=1000); k.paint(kw)
     assert len(k.bands)==49 and [k.bands[i][4] for i in (0,47,48)]==[color_t(ACCENTS[0][i]) for i in (0,1,4)]; passed()
-    # A grid tile (under half the surface width) gets the selection in its own rect: Minimal's card
-    # stands TILE_PAD out of it on every side, rather than in from it, so it clears the cover and name.
-    g=Machine(); gw=g.page(); tiles=[g.entry(gw,0) for _ in range(3)]; g.nodes[gw]['children']=tiles
-    for i,t in enumerate(tiles): g.word(t+O['W_X'],80*i); g.word(t+O['W_W'],80)
-    g.paint(gw); g.call(); g.paint(gw); pad=O['TILE_PAD']
-    assert g.selected(gw)==1 and g.rounded[-1]['rect']==(80-pad,-pad,80+2*pad,48+2*pad); passed()
+    # Cards stay two pixels inside all three columns, including scrolled first/last rows.
+    for offset in (0, 48):
+        for selected in range(6):
+            g=Machine(); gw=g.page('album_page'); tiles=[g.entry(gw,(i//3)*48) for i in range(6)]
+            g.nodes[gw]['children']=tiles
+            for i,t in enumerate(tiles): g.word(t+O['W_X'],80*(i%3)); g.word(t+O['W_W'],80)
+            g.word(gw+O['W_H'],96); g.word(gw+O['SCROLL_Y'],offset)
+            g.nodes[gw]['_ringnav_index']=selected
+            g.paint(gw)
+            x,y,width,height=g.rounded[-1]['rect']
+            assert g.selected(gw)==selected
+            assert (x,width,height)==(80*(selected%3)+2,76,44)
+            assert y==48*(selected//3)-g.get(gw+O['SCROLL_Y'])+2
+            assert g.rounded[-1]['radius']==O['SEL_RADIUS']; passed()
     # Touch mode draws nothing; the wheel brings the bar back.
     c=Machine(); cw,_=c.page_list(5,extent=1000); c.paint(cw)
     c.touch(); c.paint(cw); assert not c.drawn() and c.clip==(0,0,240,240)
@@ -940,9 +948,53 @@ def check_title_bounds(m, button, drill=False):
                     for c in children:
                         if c!=text: assert m.get(c+O['W_W'])==widths[c]
 
+def check_album_tile(m, button):
+    def descendants(w):
+        return [c for child in m.nodes[w]['children'] for c in [child,*descendants(child)]]
+    def geometry(w): return tuple(signed(m.get(w+O[k])) for k in ('W_X','W_Y','W_W','W_H'))
+    children=descendants(button)
+    original={c:geometry(c) for c in children}
+    tile=geometry(button)
+    for c in children:
+        if m.nodes[c]['type']=='hscroll_label': m.nodes[c]['text']='A very long album or artist label '*10
+    for theme in ('0','0','1','0'):
+        # Force the cached theme to reload through a fresh Machine in callers; live switching
+        # itself is checked below by calling the shared geometry routine directly.
+        m.call(address=payload_syms['album_children'],args=(button,0,int(theme),0),gap=0)
+        assert geometry(button)==tile
+        for c,(x,y,w,h) in original.items():
+            actual=geometry(c)
+            if theme=='1': assert actual==(x,y,w,h), (m.nodes[c],actual,(x,y,w,h))
+            elif w==h==110:
+                inset=6 if m.get(c+O['W_PARENT'])==button else 0
+                assert actual==(inset,inset,98,98), actual
+            elif m.nodes[c]['type']=='hscroll_label':
+                assert actual==(6,y-2,98,h), actual
+                assert actual[1]+h<=154
+                assert m.nodes[c]['text'].startswith('A very long')
+            else: assert actual==(x,y,w,h)
+    # The public paint hook must reach the same geometry for static and native-created tiles.
+    m.call(address=payload_syms['album_children'],args=(button,0,1,0),gap=0)
+    m.paint(button)
+    assert all(geometry(c)[2]==98 for c in children if original[c][2]==110)
+    passed()
+
+if variant=='ipod':
+    from ipod import decode
+    def asset_node(m,n,parent):
+        kind,rect,props,children=n
+        w=m.node(kind,props.get('name',''))
+        m.word(w+O['W_PARENT'],parent)
+        for k,v in zip(('W_X','W_Y','W_W','W_H'),rect): m.word(w+O[k],v)
+        m.nodes[w]['children']=[asset_node(m,c,w) for c in children]
+        return w
+    m=Machine(); root=asset_node(m,decode((B/'ui/localmusic/album_page.bin').read_bytes()),m.wm); m.top=root
+    for button in [w for w,n in m.nodes.items() if n['type']=='button' and n['children']]:
+        check_album_tile(m,button)
+
 for address in (0x523038, 0x4aa2cc, 0x4b0efc, 0x4a4ae8):
     for grid in ((0, 1) if address == 0x4a4ae8 else (0,)):
-        m = Machine(); w = m.page('folder_page', 'table_client')
+        m = Machine(); w = m.page('artistinfo_page' if grid else 'folder_page', 'table_client')
         m.mock('table_row_create', 'button_create', 'image_create', 'view_create',
                'hscroll_label_create', 'gif_image_create', 'widget_use_style',
                'widget_set_name', 'widget_set_children_layout', 'image_set_draw_type',
@@ -955,6 +1007,10 @@ for address in (0x523038, 0x4aa2cc, 0x4b0efc, 0x4a4ae8):
             assert m.get(row+O['W_H']) == (210 if grid else 72 if variant == 'ipod' else 78)
             for button in m.nodes[row]['children']:
                 assert m.get(button+O['W_H']) == (160 if grid else 68 if variant == 'ipod' else 70)
+        if grid and variant=='ipod':
+            m.word(w+O['W_PARENT'],m.top)
+            for row in rows:
+                for button in m.nodes[row]['children']: check_album_tile(m,button)
         if not grid:
             for name, stock, compact_geometry in ARTWORK[address]:
                 arts = [n for n, v in m.nodes.items() if v.get('name') == name]

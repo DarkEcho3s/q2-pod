@@ -1557,8 +1557,7 @@ static void paint_selection(void *w, void *canvas) {
     unsigned stroke_color = (unsigned)I(lcd, LCD_STROKE_COLOR);
     if (!clip_surface(canvas, &g_menu, &old)) return;
 #if IPOD
-    /* A list row gets the full surface width; a grid tile keeps its own rect, with room around
-     * its cover and name: Minimal's card, inset SEL_INSET on a row, stands TILE_PAD out of a tile. */
+    /* A list row gets the full surface width; a grid tile keeps its own rect. */
     int tile = 2 * r.w < I(g_menu.w, W_W);
     if (!tile) {
         r.x = 0;
@@ -1575,8 +1574,9 @@ static void paint_selection(void *w, void *canvas) {
         rect_t dot = { HOME_DOT_X, r.y + (r.h - HOME_DOT) / 2, HOME_DOT, HOME_DOT };
         fill_box(canvas, &dot, 0xffffffff, HOME_DOT / 2);
     } else { /* Sudo's card: inset from the glass's edges, its corners rounded */
-        int in = tile && g_menu.kind != 4 ? -TILE_PAD : SEL_INSET, up = in < 0 ? -in : 0; /* not pop-up tiles */
-        rect_t card = { r.x + in, r.y - up, r.w - 2 * in, r.h + 2 * up };
+        int grid = tile && g_menu.kind != 4; /* pop-up buttons keep their row inset */
+        int in = grid ? TILE_INSET : SEL_INSET, vertical = grid ? TILE_INSET : 0;
+        rect_t card = { r.x + in, r.y + vertical, r.w - 2 * in, r.h - 2 * vertical };
         fill_box(canvas, &card, RGBA(MINIMAL_FILL), SEL_RADIUS);
     }
     st.sel_w = w;
@@ -2280,6 +2280,45 @@ static void vol_paint(void *top, void *canvas) {
     draw_centred(canvas, s, k, &text, np ? NP_TIMES_PX : VOL_PANEL_PX, 0xffffffff);
 }
 
+/* Both native album constructors use 110px square covers, with playing overlays either
+ * beside the cover or nested inside it. Keep their local origins together when padding the tile. */
+static void album_children(void *w, int nested, int classic) {
+    int pad = TILE_INSET + TILE_CLEARANCE, size = classic ? 110 : 110 - 2 * pad;
+    for (unsigned i = 0; i < widget_count_children(w); ++i) {
+        void *c = widget_get_child(w, i);
+        int x = I(c, W_X), y = I(c, W_Y), cw = I(c, W_W), h = I(c, W_H);
+        if ((cw == 110 || cw == 110 - 2 * pad) && cw == h) {
+            album_children(c, 1, classic);
+            x = y = nested || classic ? 0 : pad;
+            cw = h = size;
+            if (!tk_strcmp(widget_get_type(c), "image")) {
+                int draw = widget_get_prop_int(c, "_album_draw", -1);
+                if (draw < 0) {
+                    draw = widget_get_prop_int(c, "draw_type", 0);
+                    widget_set_prop_int(c, "_album_draw", draw);
+                }
+                image_set_draw_type(c, classic ? draw : IMAGE_DRAW_SCALE_DOWN);
+            }
+        } else if (!nested && !tk_strcmp(widget_get_type(c), "hscroll_label")) {
+            int mapped = x == pad;
+            if (mapped != !classic) y += classic ? TILE_INSET : -TILE_INSET;
+            x = classic ? 0 : pad;
+            cw = size;
+        } else continue;
+        if (x != I(c, W_X) || y != I(c, W_Y) || cw != I(c, W_W) || h != I(c, W_H))
+            widget_move_resize(c, x, y, cw, h);
+    }
+}
+
+static void album_tile(void *w) {
+    if (!w || I(w, W_W) != 110 || I(w, W_H) != 160 ||
+        tk_strcmp(widget_get_type(w), "button")) return;
+    void *win = window_of(w);
+    const char *name = win ? widget_get_prop_str(win, "name", "") : "";
+    if (!tk_strcmp(name, "album_page") || !tk_strcmp(name, "artistinfo_page"))
+        album_children(w, 0, ipod_classic());
+}
+
 /* Stock paints a widget's background before its children, so the bar sits behind the rows.
  * The selection work for the surface happens here, once per frame, instead of in the border hook;
  * a BUTTONS dialog is itself top-level. Home's art is clipped to its panel until the border hook.
@@ -2289,6 +2328,7 @@ static void vol_paint(void *top, void *canvas) {
  * under another window. */
 int ringnav_paint_bg(void *w, void *canvas) {
     st.paint_w = w;
+    album_tile(w);
     int result = stock_paint_bg_trampoline(w, canvas);
     void *wm = window_manager(), *bar = *(void *const *)system_bar;
     paint_selection(w, canvas);

@@ -194,7 +194,8 @@
 /* Minimal's selection is a card SEL_INSET px in from each side of the row, corners SEL_RADIUS. */
 #define SEL_INSET 6
 #define SEL_RADIUS 6
-#define TILE_PAD 6 /* ...and on a grid tile (album grids) it stands this far out of the tile */
+#define TILE_INSET 2 /* album cards stay inside their tile on all four sides */
+#define TILE_CLEARANCE 4 /* artwork and labels sit this far inside the card */
 #define EDIT_OK_PX 18 /* the date, time and sleep timer pages' OK label, on that card */
 /* Minimal's Now Playing album is NP_CAPS_PX capitals. */
 #define NP_CAPS_PX 13
