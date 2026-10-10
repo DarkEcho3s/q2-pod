@@ -2297,7 +2297,8 @@ static void album_children(void *w, int nested, int classic) {
                     draw = widget_get_prop_int(c, "draw_type", 0);
                     widget_set_prop_int(c, "_album_draw", draw);
                 }
-                image_set_draw_type(c, classic ? draw : IMAGE_DRAW_SCALE_DOWN);
+                int target = classic ? draw : IMAGE_DRAW_SCALE_DOWN;
+                if (widget_get_prop_int(c, "draw_type", 0) != target) image_set_draw_type(c, target);
             }
         } else if (!nested && !tk_strcmp(widget_get_type(c), "hscroll_label")) {
             int mapped = x == pad;

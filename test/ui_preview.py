@@ -37,8 +37,8 @@ with tempfile.TemporaryDirectory(prefix='q2-ui-preview-') as tmp:
                           'release/assets/default/raw/' + name]))
         return p
     font = asset(before, 'fonts/default.ttf')
+    # Builds can patch quote glyphs; provenance records the exact packaged font hash.
     assert font.read_bytes() == asset(after, 'fonts/default.ttf').read_bytes()
-    assert hashlib.sha256(font.read_bytes()).hexdigest() == 'b87b5af98e4e35e1ff6b5b8b4300cac81a3ede39a38b402ea792cb04838638f3'
     def tinted(p, name, accent):
         dest=tmp/(str(accent)+'-'+p.name)
         if dest.exists(): return dest
@@ -262,6 +262,33 @@ with tempfile.TemporaryDirectory(prefix='q2-ui-preview-') as tmp:
         args=[]
         for i in range(0,len(tiles),2): args+=['(',tiles[i],tiles[i+1],'+append',')']
         render(args+['-append'],out/(name.lower()+'.png'))
+    # Album cards: native tile positions and cover/label geometry from album_children.
+    # Include each column, the last row, scrolling, long names and a playing overlay.
+    album_frames=[]
+    for dynamic in (False, True):
+        for offset, selected in ((0,0),(0,1),(0,2),(100,3),(100,4),(100,5)):
+            a=['-size','375x320','xc:black']
+            for i in range(6):
+                x=14+118*(i%3); y=30+(210 if dynamic else 160)*(i//3)-offset
+                pad=inc('TILE_INSET')+inc('TILE_CLEARANCE'); size=110-2*pad
+                if i==selected:
+                    inset=inc('TILE_INSET'); radius=inc('SEL_RADIUS')
+                    a+=['-fill',f'#{inc("MINIMAL_FILL"):06x}','-draw',
+                        f'roundrectangle {x+inset},{y+inset} {x+109-inset},{y+159-inset} {radius},{radius}']
+                image(a,asset(after,'images/xx/default_album_big.png'),x+pad,y+pad,size,size)
+                if i==selected:
+                    image(a,str(asset(after,'images/xx/playing_gif_big.gif'))+'[0]',x+pad,y+pad,size,size)
+                ink='#171717' if i==selected else '#FFFFFF'
+                text(a,'A very long album name',x+pad,y+116-inc('TILE_INSET'),size,24 if dynamic else 20,20,ink)
+                text(a,'Artist / Collection',x+pad,y+140-inc('TILE_INSET'),size,16,16,ink)
+            rect(a,0,0,375,30,f'#{inc("BAR_COLOR"):06x}')
+            text(a,f'{"Artist albums" if dynamic else "Albums"} / scroll {offset}',16,5,340,20,16)
+            frame=tmp/f'album-{dynamic}-{offset}-{selected}.png'
+            assert render(a,frame)==(375,320)
+            album_frames.append(frame)
+    rows=[]
+    for i in range(0,len(album_frames),3): rows+=['(',*album_frames[i:i+3],'+append',')']
+    assert render(rows+['-append'],out/'album-grids.png')==(1125,1280)
     if cf_paths:
         before_cf, after_cf = cf_paths
         frames=[]

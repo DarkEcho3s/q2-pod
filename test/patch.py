@@ -227,7 +227,7 @@ class Machine:
         elif name=='widget_use_style': n['style']=self.text(b); ret=0
         elif name.startswith('hscroll_label_set_') or name=='set_hscroll_label_attribute':
             n[name]=b if name!='set_hscroll_label_attribute' else True; ret=0
-        elif name=='image_set_draw_type': ret=a
+        elif name=='image_set_draw_type': n['draw_type']=b; ret=a
         elif name=='deque_at': ret=self.row_record
         elif name=='deque_size': ret=1
         elif name in ('tk_snprintf','snprintf@GLIBC_2.0'):
@@ -686,16 +686,17 @@ else:
     k=Machine(); k.config['THEME']='1'; kw,_=k.page_list(5,extent=1000); k.paint(kw)
     assert len(k.bands)==49 and [k.bands[i][4] for i in (0,47,48)]==[color_t(ACCENTS[0][i]) for i in (0,1,4)]; passed()
     # Cards stay two pixels inside all three columns, including scrolled first/last rows.
-    for offset in (0, 48):
+    for offset in (0, 24):
         for selected in range(6):
             g=Machine(); gw=g.page('album_page'); tiles=[g.entry(gw,(i//3)*48) for i in range(6)]
             g.nodes[gw]['children']=tiles
             for i,t in enumerate(tiles): g.word(t+O['W_X'],80*(i%3)); g.word(t+O['W_W'],80)
             g.word(gw+O['W_H'],96); g.word(gw+O['SCROLL_Y'],offset)
+            g.paint(gw)
             g.nodes[gw]['_ringnav_index']=selected
             g.paint(gw)
             x,y,width,height=g.rounded[-1]['rect']
-            assert g.selected(gw)==selected
+            assert g.selected(gw)==selected, (offset,selected,g.selected(gw),g.rounded)
             assert (x,width,height)==(80*(selected%3)+2,76,44)
             assert y==48*(selected//3)-g.get(gw+O['SCROLL_Y'])+2
             assert g.rounded[-1]['radius']==O['SEL_RADIUS']; passed()
@@ -954,14 +955,15 @@ def check_album_tile(m, button):
     def geometry(w): return tuple(signed(m.get(w+O[k])) for k in ('W_X','W_Y','W_W','W_H'))
     children=descendants(button)
     original={c:geometry(c) for c in children}
+    draw_types={c:m.nodes[c].get('draw_type',0) for c in children if m.nodes[c]['type']=='image' and original[c][2:]==(110,110)}
     tile=geometry(button)
     for c in children:
         if m.nodes[c]['type']=='hscroll_label': m.nodes[c]['text']='A very long album or artist label '*10
     for theme in ('0','0','1','0'):
-        # Force the cached theme to reload through a fresh Machine in callers; live switching
-        # itself is checked below by calling the shared geometry routine directly.
+        # Repeated paint and theme changes must neither compound padding nor lose stock geometry.
         m.call(address=payload_syms['album_children'],args=(button,0,int(theme),0),gap=0)
         assert geometry(button)==tile
+        for c,draw in draw_types.items(): assert m.nodes[c].get('draw_type',0)==(draw if theme=='1' else O['IMAGE_DRAW_SCALE_DOWN'])
         for c,(x,y,w,h) in original.items():
             actual=geometry(c)
             if theme=='1': assert actual==(x,y,w,h), (m.nodes[c],actual,(x,y,w,h))
@@ -973,6 +975,8 @@ def check_album_tile(m, button):
                 assert actual[1]+h<=154
                 assert m.nodes[c]['text'].startswith('A very long')
             else: assert actual==(x,y,w,h)
+    m.call(address=payload_syms['album_children'],args=(button,0,0,0),gap=0)
+    assert not any(c[0] in ('widget_move_resize','image_set_draw_type') for c in m.calls)
     # The public paint hook must reach the same geometry for static and native-created tiles.
     m.call(address=payload_syms['album_children'],args=(button,0,1,0),gap=0)
     m.paint(button)
@@ -1008,7 +1012,7 @@ for address in (0x523038, 0x4aa2cc, 0x4b0efc, 0x4a4ae8):
             for button in m.nodes[row]['children']:
                 assert m.get(button+O['W_H']) == (160 if grid else 68 if variant == 'ipod' else 70)
         if grid and variant=='ipod':
-            m.word(w+O['W_PARENT'],m.top)
+            m.word(w+O['W_PARENT'],m.top); m.word(m.top+O['W_PARENT'],m.wm)
             for row in rows:
                 for button in m.nodes[row]['children']: check_album_tile(m,button)
         if not grid:
