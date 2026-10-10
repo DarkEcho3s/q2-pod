@@ -169,6 +169,8 @@ WATCHDOG_SLEEP = (b'\tsleep 2\n', b'\tsleep 10\n')
 RTC_WRITE = (b'hwclock -w\0\0', b'hwclock -wu\0')
 # mclNextSong's shuffle pick; the payload calls the stock pick, then applies a pending Play next.
 SHUFFLE_CALL = (0x5addf0, 0x0411e8cb)  # bal mcl_shuffle_pick; its delay slot (a0=1) stays
+# device_standby's bal awake_screen after the resume from Standby; Wake: Double press keeps it dark.
+STANDBY_WAKE = (0x4f7d24, 0x0411ff26)
 # The bal toolsTrimLeft on each name copy in the two library name comparators (0x5b9d40, 0x5ba658, the
 # Chinese and other-language sorts); they become jal ringnav_sort_key, which also drops a leading article.
 SORT_TRIMS = (0x5b9e38, 0x5b9ea4, 0x5ba750, 0x5ba7bc)
@@ -489,6 +491,7 @@ FUNCTIONS = {
  'save_memoryplay_info': ('int', 'void'),  # Memory playback's queue and position, as into_poweroff saves them
  'mclSetDacPwr': ('int', 'int'),
  'reset_poweroptions_timer': ('int', 'int, int, int'),
+ 'awake_screen': ('int', 'void'),  # the backlight on, if off; Standby's resume calls it (STANDBY_WAKE)
  'btctl_transport_get_volume': ('int', 'void'),
  'btctl_transport_set_volume': ('int', 'int'),
  'device_set_volume': ('int', 'int, int'),  # volume, notify: the DAC's or hciplayer's, as the volume dialog
@@ -773,6 +776,8 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         patch_word(patched, address, old, new, 'artist detail opens on Albums')
     patch_word(patched, *SHUFFLE_CALL, 0x0c000000 | (ps['ringnav_shuffle'] >> 2),
                'shuffle honours Play next')
+    patch_word(patched, *STANDBY_WAKE, 0x0c000000 | (ps['ringnav_standby_wake'] >> 2),
+               'Wake: Double press after Standby')
     scan, load, limit, count = SCAN_LIMIT
     patch_word(patched, scan, load, 0x0c000000 | (ps['ringnav_scan_room'] >> 2), 'scan up to 65,000 songs')
     patch_word(patched, scan + 4, limit, count, 'scan up to 65,000 songs')

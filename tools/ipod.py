@@ -577,7 +577,6 @@ SETTINGS_SLIDERS = ('systemset/backlight_page.bin', 'playset/balance_page.bin',
                     'playset/maxvol_page.bin', 'playset/bootvol_page.bin')
 
 
-
 def slider_discs(path, root):
     """A settings slider's endpoint glyphs sit on inset circular discs, legible over either track or fill."""
     if path not in SETTINGS_SLIDERS:

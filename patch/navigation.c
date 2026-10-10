@@ -4565,8 +4565,13 @@ static int wake_gate(void *e) {
     }
     st.wake_pass = now - st.wake_at < WAKE_MS;
     st.wake_at = st.wake_pass ? 0 : now;
+    if (st.wake_pass) *(volatile unsigned char *)BOOT_KEY_GUARD = 0; /* not Standby's resume key */
     return !st.wake_pass;
 }
+
+/* device_standby's awake_screen once Standby resumes, on whichever key woke it (tools/build.py
+ * STANDBY_WAKE). Wake: Double press keeps the screen off, so that key acts as it does dark. */
+int ringnav_standby_wake(void) { return st.wake_double ? 1 : awake_screen(); }
 
 /* window_manager_dispatch_input_event: while q2video plays (books.c) no key or touch reaches the
  * UI; a key's release goes to the player instead. Every event times Low power's idle. */

@@ -290,7 +290,7 @@
 #define KEY_BACK_BTN 222 /* the previous and next buttons: on_wm_keyup_fun, prev_quick_click */
 #define KEY_FWD_BTN 223
 #define KEY_LOCKOUT 0xa37c89 /* stock: a centre key sets 8, on_wm_timer_setup_state counts it down per 100 ms */
-#define BOOT_KEY_GUARD 0xa37c8a /* raw flag address, no symbol in the audited binary */
+#define BOOT_KEY_GUARD 0xa37c8a /* no symbol: set after a Standby resume, on_wm_keyup_fun drops the next centre release */
 #define RETURN_RELEASE_LATCH 0xa37c8b /* stock long Return arms it; the key-up filter consumes it */
 
 /* slide_menu_scroll_to @0x5f3400 and completion @0x5f3654; animator
