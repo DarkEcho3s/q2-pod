@@ -27,6 +27,7 @@ class PlaybackMachine(QueueMachine):
                      'mclStartPlayer','mclStop','mclSetStartSeekTime','mcl_open_preload','toolsRandnum','getAllMusic'):
             self.handlers[syms[name]] = 'p:'+name.split('@')[0]
         self.word(0xa2638c, 0x1000010); self.handlers[0x1000010] = 'p:free'
+        self.word(ps['rng'], 0x2545f491)  # rand_below's generator, preseeded: every machine shuffles alike
         self.install([
             ('a2','/A/02.flac','Album A',1,2,0,0),
             ('b1','/B/01.flac','Album B',1,1,0,0),
@@ -453,8 +454,15 @@ for folder in (0,1):
         assert '/mnt/data/ringnav-queue' in r.files and r.sequence()==want
         # A real mode choice still clears the snapshot after startup.
         r.call(address=syms['config_playmode'],args=(mode,0,0,0),gap=0)
-        assert '/mnt/data/ringnav-queue' not in r.files
+        # Stock Shuffle (2) keeps Shuffle Albums/Folders; every other mode ends them.
+        assert ('/mnt/data/ringnav-queue' in r.files) == (mode == 2)
         checks+=1
+
+# Previous then Next returns to the track Previous left instead of skipping it.
+m=PlaybackMachine(); m.options(2,5,0); m.advance_song(0); m.advance_song(0)
+left=m.current(); assert m.fn('ringnav_prev')==1 and m.current()!=left
+m.fn('ringnav_next',0); assert m.current()==left
+checks+=1
 
 # Empty replacement cannot resurrect the previous saved queue at the next boot.
 m=PlaybackMachine(); m.options(0,2,0); assert '/mnt/data/ringnav-queue' in m.files
@@ -505,8 +513,8 @@ for folder in (0,1):
     m=PlaybackMachine(); m.options(3,2,folder)
     m.top=m.node('window','playing_page'); m.stack=[m.top]; m.word(m.top+O['W_PARENT'],m.wm)
     m.press(100); assert m.hold()==11
-    assert m.labels()[-2:]==(['Next folder','Previous folder'] if folder else ['Next album','Previous album'])
-    m.pick(9); m.advance(0,clear=False); assert m.current() not in (0,2,6)
+    assert m.labels()[:2]==(['Next folder','Previous folder'] if folder else ['Next album','Previous album'])
+    m.pick(0); m.advance(0,clear=False); assert m.current() not in (0,2,6)
     checks+=1
 m=PlaybackMachine(); m.handlers[ps['stock_display_trampoline']]='stock_display'
 view=m.node('scroll_view','scroll_view_display'); lst=m.node('list_view','list_view_display',[view])

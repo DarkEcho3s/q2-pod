@@ -3401,8 +3401,9 @@ static int all_songs(void *unused) {
 static int shuffle_play(void *all) {
     int size = (int)deque_size(all);
     if (size) {
+        playback_clear(); /* stock Shuffle keeps Shuffle Albums/Folders otherwise */
         config_playmode(2, 1);
-        play_folder(all, toolsRandnum(size), 0xf001);
+        play_folder(all, (int)rand_below((unsigned)size), 0xf001);
     }
     return size;
 }
@@ -4013,6 +4014,11 @@ static int qm_open(const void *unused) {
         acts[n++] = QA_GROUP;
         acts[n++] = QA_NEXT_GROUP;
         acts[n++] = QA_PREV_GROUP;
+        if (playback_option(0) >= 3) { /* Shuffle Albums/Folders: skipping the group comes first */
+            for (int i = n; i-- > 2;) acts[i] = acts[i - 2];
+            acts[0] = QA_NEXT_GROUP;
+            acts[1] = QA_PREV_GROUP;
+        }
     }
     static const char *const rows[] = { "Play next",
                                         "Add to queue",

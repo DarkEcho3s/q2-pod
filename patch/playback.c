@@ -102,9 +102,19 @@ static int compare(const void *pa, const void *pb) {
     if (!d) d = I(ra, REC_CUE_START) - I(rb, REC_CUE_START);
     return d ? d : a->index < b->index ? -1 : a->index != b->index;
 }
+/* xorshift32, seeded once from stock's generator and the tick clock: stock's alone repeats
+ * itself between shuffles started close together. */
+static unsigned rng __attribute__((section(".scratch")));
+unsigned rand_below(unsigned n) {
+    if (!rng) rng = ((unsigned)toolsRandnum(0x7fffffff) ^ time_now_ms() * 2654435761u) | 1;
+    rng ^= rng << 13;
+    rng ^= rng >> 17;
+    rng ^= rng << 5;
+    return rng % n;
+}
 static void shuffle(entry *v, unsigned n) {
     for (unsigned i = n; i > 1; --i) {
-        unsigned j = (unsigned)toolsRandnum((int)i);
+        unsigned j = rand_below(i);
         entry t = v[i - 1];
         v[i - 1] = v[j];
         v[j] = t;
@@ -126,7 +136,7 @@ static void make_order(entry *v) {
         /* Rank groups with a shuffled permutation, so even random ties cannot split a group. */
         for (unsigned i = 0; i < s.n; ++i) s.cycle[i].rank = i;
         for (unsigned i = s.n; i > 1; --i) {
-            unsigned j = (unsigned)toolsRandnum((int)i), t = s.cycle[i - 1].rank;
+            unsigned j = rand_below(i), t = s.cycle[i - 1].rank;
             s.cycle[i - 1].rank = s.cycle[j].rank;
             s.cycle[j].rank = t;
         }
@@ -231,7 +241,7 @@ static int rebuild(int keep) {
     return 1;
 }
 int playback_option(int kind) {
-    return kind == 0 ? s.shuffle : kind == 1 ? (s.active ? s.repeat : 2) : s.folder;
+    return kind == 0 ? (s.active ? s.shuffle : 0) : kind == 1 ? (s.active ? s.repeat : 2) : s.folder;
 }
 int playback_set(int kind, int value) {
     if (kind < 0 || kind > 2 || value < 0 || value >= (kind == 0 ? 5 : kind == 1 ? 6 : 2)) return 0;
@@ -347,16 +357,20 @@ int ringnav_bootmode(int mode, int notify) {
     s.restoring = 0;
     return result;
 }
-int ringnav_mode(int mode) {
-    /* player_initconfig re-applies the saved mode each time hciplayer connects, after a boot
-     * resume too: not a choice, so advanced play stays. */
-    if (s.restoring || __builtin_return_address(0) == (void *)INITCONFIG_MODE_RET)
-        return stock_mode_trampoline(mode);
+void playback_clear(void) {
     /* Stock keeps a preload when selecting List Play; an advanced repeat preload may wrap. */
     if (s.active) close_preload();
     s.active = 0;
     release();
     unlink(QUEUE_FILE);
+}
+int ringnav_mode(int mode) {
+    /* player_initconfig re-applies the saved mode each time hciplayer connects, after a boot
+     * resume too: not a choice, so advanced play stays. */
+    if (s.restoring || __builtin_return_address(0) == (void *)INITCONFIG_MODE_RET)
+        return stock_mode_trampoline(mode);
+    /* Stock Shuffle (2) on Shuffle Albums/Folders keeps the groups; any other mode ends them. */
+    if (!(s.active && s.shuffle >= 3 && mode == 2)) playback_clear();
     return stock_mode_trampoline(mode);
 }
 /* List Play on a library queue's last track. Stock stops there at a natural end, but its manual
@@ -394,6 +408,8 @@ int ringnav_prev(void) {
     --s.hn;
     unsigned at = s.history[s.hn - 1];
     close_preload();
+    /* The track left is unplayed again, so Next comes back to it rather than skipping it. */
+    if ((unsigned)M(MCL_POS) < s.n) s.seen[M(MCL_POS)] = 0;
     M(MCL_POS) = (int)at;
     for (unsigned i = 0; i < s.n; ++i)
         if (s.order[i].index == at) {
