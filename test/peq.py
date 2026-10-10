@@ -573,6 +573,12 @@ int peq_open(af_instance *af);
 char *peq_mpctx; /* the player's MPContext pointer; null: no codec to check */
 double peq_pts = -1; /* written_audio_pts: seconds decoded */
 int peq_length;      /* {media-info}'s whole seconds */
+static unsigned clock_reads;
+int __real_clock_gettime(clockid_t clock, struct timespec *t);
+int __wrap_clock_gettime(clockid_t clock, struct timespec *t) {
+    ++clock_reads;
+    return __real_clock_gettime(clock, t);
+}
 static int left = -1; /* calloc calls before one fails; -1: never */
 void *test_calloc(size_t n, size_t size) {
     if (!left--) return 0;
@@ -673,6 +679,7 @@ static void crossfade_check(void) {
     /* Incoming: its first second mixed with the held tail, equal power (ch 1: 1 out, 0 in, so the
      * tail's cos), the tail's frames in order; then the track alone. Every frame comes out. */
     track(&b, 48000);
+    xfade_view(0); /* disabling the next fade must still finish the already held tail */
     unsigned m = 0, mixed = 0;
     while (m < 2 * 48000) {
         unsigned start = m, k = block(&b, buf, 1024, &m, 0, 48000);
@@ -694,7 +701,11 @@ static void crossfade_check(void) {
     /* No fade asked (another album next, Crossfade off, Gapless off): every block whole. */
     xfade_view(0);
     track(&a, 48000);
+    /* Let the unwatched visualizer tap settle before counting clock queries. */
+    for (n = 0; n < 2 * 48000;) assert(block(&a, buf, 1024, &n, 1, 48000) == 1024);
+    unsigned reads = clock_reads;
     for (n = 0; n < 10 * 48000;) assert(block(&a, buf, 1024, &n, 1, 48000) == 1024);
+    assert(clock_reads == reads);
     a.uninit(&a);
 
     /* A seek while holding drops the held audio (it was left behind) and plays on whole. */
@@ -889,7 +900,7 @@ def player_check(tmp):
     sources = [ROOT/'patch/peq_player.c', ROOT/'patch/peq.c', tmp/'player_test.c']
     subprocess.run(['cc', '-m32', '-DPEQ_HOST', f'-DPEQ_ROOT="{root}"', '-Dcalloc=test_calloc',
                     '-O2', '-Wall', '-Wextra', '-Werror', '-I', str(ROOT/'patch'),
-                    *map(str, sources), '-lm', '-o', str(binary)], check=True)
+                    *map(str, sources), '-Wl,--wrap=clock_gettime', '-lm', '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
     print('PEQ player: negotiation, pass-through, the visualizer tap, live updates, track changes, cleanup, crossfade and the Xing seek table passed.')
 

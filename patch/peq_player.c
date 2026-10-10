@@ -144,6 +144,8 @@ static int xfade_ms(int rate, unsigned frames) {
 
 /* Frames of a (interleaved, nch) put out in place: all of them, or fewer while the hold fills. */
 static unsigned crossfade(player_state *s, float *a, unsigned frames, int nch, int rate) {
+    int ms = xfade_ms(rate, frames);
+    if (!ms && !xf.len) return frames; /* no fade or held tail: skip clock and position queries */
     unsigned cap = XF_FLOATS / (unsigned)nch;
     long long now = now_ns();
     double pts = decoded();
@@ -168,7 +170,7 @@ static unsigned crossfade(player_state *s, float *a, unsigned frames, int nch, i
             return frames;
         }
     }
-    int ms = xfade_ms(rate, frames), length = mine ? xf.length : LENGTH;
+    int length = mine ? xf.length : LENGTH;
     unsigned want = (unsigned)ms * (unsigned)(rate / 10) / 100; /* 32-bit: no __divdi3 here */
     if (want > cap - XF_SLACK / (unsigned)nch) want = cap - XF_SLACK / (unsigned)nch;
     int ending = want && length > 0 && pts >= 0 && pts > length - 2.0 * want / rate - XF_LEAD_S;

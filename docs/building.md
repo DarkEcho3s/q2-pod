@@ -79,6 +79,11 @@ ALSA startup lock workaround.
 Battery comparison still requires matched volume, output, playlist, screen, wireless and
 Low power settings and measured discharge; emulator counts do not establish battery gains.
 
+The audio filter skips crossfade clock and decoded-position queries when the fade is off
+and no tail is held. The player regression counts zero clock queries for this path once
+the unwatched visualizer tap has settled, and checks that a held tail still finishes
+when the next fade is disabled. Audio samples and block lengths remain unchanged.
+
 | Queue entries | Uncached successor instructions (exhausted category / category repeat) | Cached instructions | Traversal reads before → after | Elapsed-save bytes, v2 full → checkpoint |
 | --- | --- | --- | --- | --- |
 | 8 | 213 / 221 | 29 | 7–8 → 0 | 296 → 40 |
