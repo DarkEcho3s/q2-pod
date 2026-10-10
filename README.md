@@ -91,7 +91,7 @@ Run **Library → Update Local Music** after adding music; it adds up to 65,000 
 - **Personalise:** **System settings → Display** for theme (Minimal or Classic), accent, Home layout, battery display and wheel sensitivity.
 - **Save battery:** **System settings → Power** for Charge limit and Low power. Both are off by default; charge limit applies while the Q2 is on.
 - **Sleep timer:** **System settings → Power → Sleep Timer**. Tap the switch at the top to turn it on, then set the hours and minutes.
-- **Pocket-proof:** **System settings → Power → Wake: Double press** ignores a single centre press while the screen is off.
+- **Pocket-proof:** **System settings → Power → Wake: Double press** ignores a single centre press while the screen is off, including after Standby.
 - **Browse by Album Artist:** **Audio settings → Artists** keeps guest artists from splitting albums.
 - **Use EQ:** **Audio settings → Equalizer**. Stock's genre curves are under **Presets → Stock presets**. Select **Apply changes** after editing or choosing a preset, and turn **PEQ: ON**. Import preset `.txt` files from the card's `EQ/` folder.
 
