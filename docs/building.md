@@ -52,15 +52,9 @@ Two fresh builds must produce identical `update.tar` files. Packaging verifies M
 
 UI refinement checks cover native-font clock/percentage widths, battery charge levels and charging, codec fallback, conditional Rockbox rows, Home fallback, boot persistence and failed saves in both variants. The boot script checks missing/corrupt preferences, held Play/Pause, missing Rockbox, exit/crash fallback and explicit Home handover. Hardware verification precedes release.
 
-Advanced queue saves use snapshot v3 with a fresh 128-bit `/dev/urandom` identity.
-Queue/traversal changes commit the full snapshot first; elapsed-only changes atomically
-replace the 40-byte `ringnav-queue-elapsed` checkpoint every five seconds. Its checksum,
-identity and position must match the full snapshot. Missing, corrupt or stale checkpoints
-fall back to the full snapshot's elapsed time. Failed writes retain committed files and
-retry; shutdown still explicitly saves. V1/V2 snapshots remain readable. **Older firmware
-cannot restore v3 custom queues.** Select a fresh queue after downgrading.
-
-`connecting` is published before ALSA initialization.
+Queue/traversal changes commit the full queue snapshot; elapsed-only changes atomically
+replace the 16-byte `ringnav-queue-elapsed` checkpoint, which applies only when it matches
+the snapshot's checksum and position.
 
 The stock ALSA 1.1.6 library can deadlock with an ioplug behind `plug`: preparation
 locks the wrapper while the ioplug callback unlocks/relocks its slave, leaving a slave mutex
@@ -75,21 +69,3 @@ The shared audio writer retains partial ALSA writes and retries the remaining fr
 an underrun, instead of discarding unwritten samples. Native tests exercise partial writes,
 zero progress, recovery and lost outputs. This corrects sample loss independently of the
 ALSA startup lock workaround.
-
-Battery comparison still requires matched volume, output, playlist, screen, wireless and
-Low power settings and measured discharge; emulator counts do not establish battery gains.
-
-The audio filter skips crossfade clock and decoded-position queries when the fade is off
-and no tail is held. The player regression counts zero clock queries for this path once
-the unwatched visualizer tap has settled, and checks that a held tail still finishes
-when the next fade is disabled. Audio samples and block lengths remain unchanged.
-
-| Queue entries | Uncached successor instructions (exhausted category / category repeat) | Cached instructions | Traversal reads before → after | Elapsed-save bytes, v2 full → checkpoint |
-| --- | --- | --- | --- | --- |
-| 8 | 213 / 221 | 29 | 7–8 → 0 | 296 → 40 |
-| 128 | 2,733 / 2,501 | 29 | 127–128 → 0 | 3,922 → 40 |
-
-Counts execute the actual MIPS payload with mocked services. The unchanged manual
-lookup supplies the uncached comparison for these repeat modes; it follows the same
-lookup rules there. Repeated UI polling also reads no traversal entries. These counts
-measure work and bytes, not hardware timing, card write amplification or battery life.

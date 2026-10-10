@@ -326,9 +326,7 @@ static int radio(int argc, char **argv) {
                 _exit(1);
             }
             if (!p[1].revents) continue;
-            if (read(ep[0], &c, 1) <= 0) {
-                break;
-            }
+            if (read(ep[0], &c, 1) <= 0) break; /* ffmpeg ended */
             if (c != '\n' && c != '\r') {
                 if (len < (int)sizeof line - 1) line[len++] = c;
                 continue;

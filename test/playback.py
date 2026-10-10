@@ -14,8 +14,8 @@ ps = symbols(B/'patch.elf')
 class PlaybackMachine(QueueMachine):
     def __init__(self, files=None):
         super().__init__()
-        self.files = dict(files or {}); self.files['/dev/urandom'] = bytes(range(16)); self.handles = {}; self.fd = 100
-        self.entropy = 0; self.fail = ''; self.elapsed = 37; self.random_calls = 0; self.rng = 71
+        self.files = dict(files or {}); self.handles = {}; self.fd = 100
+        self.fail = ''; self.elapsed = 37; self.random_calls = 0; self.rng = 71
         self.allocations = 0; self.write_opens = 0
         self.missing = set(); self.starts = []; self.stops = 0; self.seek = None; self.stock_resume = None
         self.handlers.pop(syms['mclLoadPlayList'], None)
@@ -67,8 +67,6 @@ class PlaybackMachine(QueueMachine):
             for r,v in zip(regs,saved): u.reg_write(r,v)
         elif name=='fopen':
             path,mode=self.text(a),self.text(b)
-            if path=='/dev/urandom' and len(self.files.get(path,b''))==16:
-                self.entropy+=1; self.files[path]=self.entropy.to_bytes(16,'little')
             if mode=='wb': self.write_opens+=1
             if self.fail!='open' and (mode=='wb' or path in self.files):
                 self.fd+=1; ret=self.fd; self.handles[ret]=[path,0]
@@ -232,7 +230,7 @@ assert r.fn('playback_resumed',record)==1 and r.fn('playback_resumed',record)==0
 r.elapsed=0; r.fn('playback_save')
 assert struct.unpack_from('<I',r.files['/mnt/data/ringnav-queue'],24)[0]==37
 r.elapsed=38; r.fn('playback_save'); r.elapsed=0; r.fn('playback_save')
-assert struct.unpack_from('<I',r.files['/mnt/data/ringnav-queue-elapsed'],36)[0]==0
+assert struct.unpack_from('<I',r.files['/mnt/data/ringnav-queue-elapsed'],12)[0]==0
 assert r.fn('ringnav_prev')==1 and r.current()!=want
 # Skip missing files; both CUE occurrences and duplicate files remain distinct.
 r=PlaybackMachine(files); r.byte(syms['g_memory_play'],2); r.missing={'/B/01.flac'}
@@ -339,7 +337,7 @@ def snapshot_checksum(data):
     value=2166136261
     for b in data: value=((value^b)*16777619)&0xffffffff
     struct.pack_into('<I',data,12,value)
-legacy=bytearray(files['/mnt/data/ringnav-queue']); del legacy[56:76]
+legacy=bytearray(files['/mnt/data/ringnav-queue']); del legacy[56:60]
 struct.pack_into('<I',legacy,4,1); struct.pack_into('<I',legacy,8,len(legacy)); snapshot_checksum(legacy)
 r=PlaybackMachine({'/mnt/data/ringnav-queue':bytes(legacy)}); r.byte(syms['g_memory_play'],2)
 assert r.fn('ringnav_memory',r.deque([]))==want and r.mcl('MCL_TYPE')==0xf001
@@ -592,37 +590,27 @@ print(f'{checks} advanced playback/wheel MIPS checks passed ({variant})')
 m=PlaybackMachine(); m.options(0,5,0)
 full=m.files['/mnt/data/ringnav-queue']; m.elapsed=52; m.fn('playback_save')
 checkpoint=m.files['/mnt/data/ringnav-queue-elapsed']
-assert len(checkpoint)==40 and m.files['/mnt/data/ringnav-queue']==full
+assert len(checkpoint)==16 and m.files['/mnt/data/ringnav-queue']==full
 for failure in ('open','write','close','rename'):
     m.fail=failure; m.elapsed=53; m.fn('playback_save')
     assert m.files['/mnt/data/ringnav-queue-elapsed']==checkpoint
 m.fail=''; m.fn('playback_save')
-for kind in ('valid','truncated','extra','checksum','identity','position','version','size'):
+def checkpoint_checksum(data):
+    struct.pack_into('<I',data,0,0); value=2166136261
+    for b in data: value=((value^b)*16777619)&0xffffffff
+    struct.pack_into('<I',data,0,value)
+for kind in ('valid','truncated','checksum','snapshot','position'):
     c=bytearray(checkpoint)
     if kind=='truncated': c=c[:-1]
-    elif kind=='extra': c+=b'x'
     elif kind=='checksum': c[-1]^=1
-    elif kind in ('identity','position','version','size'):
-        offset={'identity':16,'position':32,'version':4,'size':8}[kind]
-        struct.pack_into('<I',c,offset,999); snapshot_checksum(c)
+    elif kind!='valid': struct.pack_into('<I',c,{'snapshot':4,'position':8}[kind],999); checkpoint_checksum(c)
     r=PlaybackMachine({'/mnt/data/ringnav-queue':full,'/mnt/data/ringnav-queue-elapsed':bytes(c)})
     r.byte(syms['g_memory_play'],2)
     assert r.fn('ringnav_memory',r.deque([]))>=0 and r.seek==(52 if kind=='valid' else 37),kind
 # Interrupted full-snapshot publication leaves an old checkpoint harmless.
-stale=bytearray(checkpoint); stale[16]^=1; snapshot_checksum(stale)
+stale=bytearray(checkpoint); stale[4]^=1; checkpoint_checksum(stale)
 r=PlaybackMachine({'/mnt/data/ringnav-queue':full,'/mnt/data/ringnav-queue-elapsed':bytes(stale)})
 r.byte(syms['g_memory_play'],2); assert r.fn('ringnav_memory',r.deque([]))>=0 and r.seek==37
-# Identity generation failure leaves the previous snapshot committed and retries later.
-m=PlaybackMachine(); m.options(0,5,0); previous=m.files['/mnt/data/ringnav-queue']
-m.files['/dev/urandom']=b''; m.advance_song(); m.fn('playback_save')
-assert m.files['/mnt/data/ringnav-queue']==previous
-m.files['/dev/urandom']=bytes(range(16)); m.fn('playback_save')
-assert m.files['/mnt/data/ringnav-queue']!=previous
-# V2 remains readable too.
-v2=bytearray(full); del v2[60:76]
-struct.pack_into('<I',v2,4,2); struct.pack_into('<I',v2,8,len(v2)); snapshot_checksum(v2)
-r=PlaybackMachine({'/mnt/data/ringnav-queue':bytes(v2)}); r.byte(syms['g_memory_play'],2)
-assert r.fn('ringnav_memory',r.deque([]))>=0 and r.seek==37
 # Measure actual payload instructions: even exhausted/category-repeat scans occur only once.
 for n in (8,128):
     for repeat in (1,4):
@@ -630,8 +618,8 @@ for n in (8,128):
         m.install([(str(i),'/a/'+str(i),'A' if i==0 else 'B',0,i,0,0) for i in range(n)],0)
         m.options(0,repeat,0)
         cost=[0]; visits=[0]
-        # playback's private o32 layout: order/cycle pointers follow 27 words of scalar state.
-        tables=[m.get(ps['s']+108),m.get(ps['s']+112)]
+        # playback's private o32 layout: order/cycle pointers follow 24 words of scalar state.
+        tables=[m.get(ps['s']+96),m.get(ps['s']+100)]
         def count_traversal(u,access,address,size,value,unused):
             if any(start<=address<start+n*12 for start in tables): visits[0]+=1
         read_hook=m.u.hook_add(UC_HOOK_MEM_READ,count_traversal)
@@ -647,8 +635,8 @@ for n in (8,128):
         assert scanned>=n-1 and visits[0]==0
         assert warm<100 and cold>=warm
         full_bytes=len(m.files['/mnt/data/ringnav-queue']); m.elapsed+=5; m.fn('playback_save')
-        assert len(m.files['/mnt/data/ringnav-queue-elapsed'])==40
-        print(f'queue={n} repeat={repeat}: successor uncached={uncached}, cold={cold}, cached={warm} instructions, traversal reads {scanned} -> 0; elapsed save {full_bytes-16} (v2 full) -> 40 bytes')
+        assert len(m.files['/mnt/data/ringnav-queue-elapsed'])==16
+        print(f'queue={n} repeat={repeat}: successor uncached={uncached}, cold={cold}, cached={warm} instructions, traversal reads {scanned} -> 0; elapsed save {full_bytes} full -> 16 bytes')
 print('Checkpoint and polling performance checks passed')
 
 # A checkpoint publication failure after full commit retries without rewriting the queue.

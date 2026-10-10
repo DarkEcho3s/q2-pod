@@ -24,7 +24,7 @@ typedef struct {
     int active, shuffle, repeat, folder, restoring, dirty;
     unsigned n, cursor, forced, force_end, hn, stamp;
     int saved_elapsed, save_failed, resume_pending, resume_elapsed, resume_wait;
-    unsigned saved_pos, identity[4];
+    unsigned saved_pos, saved_sum;
     int next_valid, next_value;
     unsigned next_pos;
     unsigned resume_key, resume_pos;
@@ -227,7 +227,6 @@ static int rebuild(int keep) {
     }
     /* Generate the following cycle on commit, never in the preload/peek path. */
     make_order(cycle);
-    s.next_valid = 0;
     s.dirty = 1;
     return 1;
 }
@@ -509,15 +508,15 @@ void playback_insert(unsigned at, unsigned n, int next) {
 /* Snapshot fields are little-endian uint32 on this MIPS target, no pointers. */
 typedef struct {
     unsigned magic, version, size, checksum, n, pos, elapsed, shuffle, repeat, folder, cursor, hn,
-        forced, force_end, type, identity[4];
+        forced, force_end, type;
 } snapshot;
 static unsigned checksum(void *buf, unsigned size) { return hash_bytes(FNV_SEED, buf, size); }
+/* Elapsed time for the snapshot whose checksum is snapshot, at pos. */
 typedef struct {
-    unsigned magic, version, size, checksum, identity[4], pos, elapsed;
+    unsigned checksum, snapshot, pos, elapsed;
 } checkpoint;
 static int save_elapsed(int sec) {
-    checkpoint c = { 0x5132454c, 1, sizeof c, 0, { 0 }, s.saved_pos, (unsigned)sec };
-    memcpy(c.identity, s.identity, sizeof c.identity);
+    checkpoint c = { 0, s.saved_sum, s.saved_pos, (unsigned)sec };
     c.checksum = checksum(&c, sizeof c);
     return BLOB_IO(CHECKPOINT_FILE, c, 1);
 }
@@ -543,11 +542,6 @@ void playback_save(void) {
         return;
     }
     s.dirty = 1;
-    unsigned identity[4];
-    void *random = fopen("/dev/urandom", "rb");
-    if (!random) return;
-    int random_ok = fread(identity, sizeof identity, 1, random) == 1;
-    if (fclose(random) || !random_ok) return;
     unsigned size = sizeof(snapshot) + (s.n * 3 + s.hn) * 4;
     for (unsigned i = 0; i < s.n; ++i) {
         const char *path = P(deque_at(queue(), i), REC_PATH);
@@ -558,7 +552,7 @@ void playback_save(void) {
     unsigned char *buf = calloc(size, 1);
     if (!buf) return;
     snapshot h = { 0x5132524e,
-                   3,
+                   2,
                    size,
                    0,
                    s.n,
@@ -571,8 +565,7 @@ void playback_save(void) {
                    s.hn,
                    s.forced,
                    s.force_end,
-                   (unsigned)M(MCL_TYPE), { 0 } };
-    memcpy(h.identity, identity, sizeof identity);
+                   (unsigned)M(MCL_TYPE) };
     memcpy(buf, &h, sizeof h);
     unsigned char *p = buf + sizeof h;
     for (unsigned i = 0; i < s.n * 3 + s.hn; ++i) {
@@ -593,13 +586,13 @@ void playback_save(void) {
         memcpy(p, path, identity[0]);
         p += identity[0];
     }
-    ((snapshot *)buf)->checksum = checksum(buf, size);
+    unsigned sum = ((snapshot *)buf)->checksum = checksum(buf, size);
     int ok = blob_io(QUEUE_FILE, QUEUE_FILE ".tmp", buf, size, 1);
     free(buf);
     if (ok) {
         s.saved_elapsed = sec;
         s.saved_pos = (unsigned)M(MCL_POS);
-        memcpy(s.identity, identity, sizeof identity);
+        s.saved_sum = sum;
         s.dirty = 0;
         s.save_failed = !save_elapsed(sec);
     }
@@ -623,17 +616,13 @@ int ringnav_memory(void *out) {
     /* V1 omitted queue provenance. Treat those queues as local lists rather than allowing
      * Folder Skip to escape the saved queue after the user selects a stock play mode. */
     snapshot h = { 0 };
-    unsigned header_size = 14 * 4;
+    unsigned header_size = sizeof h - sizeof h.type;
     int ok = fread(&h, header_size, 1, f) == 1 && h.magic == 0x5132524e &&
-             (h.version >= 1 && h.version <= 3);
+             (h.version == 1 || h.version == 2);
     h.type = 0xf001;
-    if (ok && h.version >= 2) {
+    if (ok && h.version == 2) {
         ok = fread(&h.type, sizeof h.type, 1, f) == 1;
-        header_size = 15 * 4;
-        if (ok && h.version == 3) {
-            ok = fread(h.identity, sizeof h.identity, 1, f) == 1;
-            header_size = sizeof h;
-        }
+        header_size = sizeof h;
     }
     ok = ok && (h.type == 1 || (h.type & 0xf000) == 0xf000) && h.type <= 0xffff && h.n &&
          h.n <= QUEUE_LIMIT && h.pos < h.n && h.cursor < h.n && h.hn <= HISTORY_LIMIT &&
@@ -652,20 +641,12 @@ int ringnav_memory(void *out) {
     } else
         ok = 0;
     if (fclose(f)) ok = 0;
-    if (ok && h.version == 3) {
-        checkpoint c = { 0 };
-        void *cf = fopen(CHECKPOINT_FILE, "rb");
-        if (cf) {
-            unsigned char extra;
-            int valid = fread(&c, sizeof c, 1, cf) == 1;
-            if (fread(&extra, 1, 1, cf)) valid = 0;
-            if (fclose(cf)) valid = 0;
-            unsigned sum = c.checksum;
-            c.checksum = 0;
-            if (valid && c.magic == 0x5132454c && c.version == 1 && c.size == sizeof c &&
-                checksum(&c, sizeof c) == sum && !memcmp(c.identity, h.identity, sizeof c.identity) &&
-                c.pos == h.pos && c.elapsed <= 0x7fffffff) h.elapsed = c.elapsed;
-        }
+    checkpoint c;
+    if (ok && BLOB_IO(CHECKPOINT_FILE, c, 0) && c.snapshot == h.checksum && c.pos == h.pos &&
+        c.elapsed <= 0x7fffffff) {
+        unsigned sum = c.checksum;
+        c.checksum = 0;
+        if (checksum(&c, sizeof c) == sum) h.elapsed = c.elapsed;
     }
     /* Validate the entire snapshot before queries or mutations. */
     unsigned *indices = (unsigned *)(buf ? buf + header_size : 0);
