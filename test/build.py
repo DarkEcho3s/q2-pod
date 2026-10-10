@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """JPEG checks; optionally pass the stock ZIP to test packaging with a custom logo and quoted paths too."""
 import sys; sys.path.insert(0, sys.path[0] + '/../tools')  # tools/ first: test/build.py must import tools/build.py
-from build import CAROUSEL, ICONS, QUEUE_LABEL, ROOT, STOCK_EQ, VERSIONS, dev_tag, jpeg_size
+from build import CAROUSEL, ICONS, LABELS, QUEUE_LABEL, relabel, ROOT, STOCK_EQ, VERSIONS, dev_tag, jpeg_size
 
 logo = (ROOT/'assets/boot-logo.jpg').read_bytes()
 assert jpeg_size(logo) == (320, 375)
@@ -141,10 +141,16 @@ def validate_assets(directory):
             for text,size,room in [('Q2',16,28),('12:59 PM',16,CLOCK_TEXT),('100%',inc('BATT_PCT_PX'),inc('BATT_PCT_W'))]:
                 rendered=imagemagick('-font',font.name,'-pointsize',str(size),'label:'+text,'png:-',data=b'')
                 assert png_header(rendered)[0]-1<=room,(text,size,room,png_header(rendered))
-    # Now Playing's queue reads "Queue" (QUEUE_LABEL); nothing else in the string table moves.
+    # Now Playing's queue reads "Queue" (QUEUE_LABEL), Idle "Power" and standby/shutdown "Standby"
+    # (LABELS); the table's later offsets move with them and nothing else changes.
     strings = 'release/assets/default/raw/strings/en_US.bin'
     old, new = read('stock.squashfs', strings), read('rootfs.squashfs', strings)
-    assert new == old.replace(*QUEUE_LABEL) and new != old and len(new) == len(old)
+    want = old.replace(*QUEUE_LABEL)
+    for label in LABELS: want = relabel(want, *label)
+    assert new == want and len(new) == len(old) + sum(len(v) - len(o) for _, o, v in LABELS)
+    n = 2 * struct.unpack_from('<H', new, 2)[0]
+    table = dict(zip(*[iter(new[o:new.index(b'\0', o)] for o in struct.unpack_from(f'<{n}I', new, 4))] * 2))
+    assert [table[k] for k, _, _ in LABELS] == [v for _, _, v in LABELS] and table[b'powerm_sleep'] == b'Sleep Timer'
     # iPod settings icons: the audited 52px artwork, packaged as SET_ICON RGBA with the same transparency
     # and, on a plain background, the same average colour; Stock keeps them stock. Minimal greys them
     # as they load (navigation.c ringnav_image_add: every disc MINIMAL_CHEVRON, glyphs white).
@@ -482,7 +488,8 @@ def validate_assets(directory):
             continue
         if short == ARTIST_PAGE:
             assert [n[2]['value'] for n in walk(root) if n[0] == 'pages'] == ['1'], 'Artist page must show Albums'
-        if short in AUDIT['slide_only']:  # nothing but the hint changes
+        if short in AUDIT['slide_only'] or short == 'systemset/sleepshutdown_page.bin':  # nothing but the hint
+            # changes; the sleep timer keeps its toolbar, where its on/off switch is
             root[2].pop('anim_hint')
             assert root == decode(original), short
             continue
