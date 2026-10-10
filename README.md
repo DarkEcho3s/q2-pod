@@ -59,7 +59,7 @@ Flash the [official Shanling firmware](https://en.shanling.com/download/150) the
 
 ### Rockbox alongside Q2 Pod
 
-Unzip [Rockbox's `rockbox.zip`](https://github.com/DiamondBond/q2-rockbox/releases) to the card's root. Rockbox then starts at power-on. **Hold Play/Pause while powering on**, or choose Rockbox's **Boot stock OS**, to use Q2 Pod for that session.
+Unzip [Rockbox's `rockbox.zip`](https://github.com/DiamondBond/q2-rockbox/releases) to the card's root. Rockbox then starts at power-on. **Hold Play/Pause while powering on**, or choose Rockbox's **Boot stock OS**, to use Q2 Pod for that session. To start Q2 Pod every time, set **System settings → Boot to: Q2-Pod**.
 
 For Bluetooth, connect your headphones in Q2 Pod first, then select **Rockbox** on Home (iPod UI) to launch it.
 
@@ -130,7 +130,7 @@ New to Q2 Pod? The guide's [tips](docs/guide.md#tips) cover features that are ea
 - [Setup](docs/setup.md) - Q2 Pod, Rockbox and themes on a fresh Q2
 - [Changelog](docs/changelog.md) - what's changed in each release
 - [Building](docs/building.md) - both firmware variants and the MIPS test suite
-- [iPod UI](docs/ipod.md) · [Internals](docs/internals.md) · [Boot](docs/boot.md) · [Releasing](docs/releasing.md)
+- [Spotify port](docs/librespot.md) · [iPod UI](docs/ipod.md) · [Internals](docs/internals.md) · [Boot](docs/boot.md) · [Releasing](docs/releasing.md)
 
 ## Contributing
 

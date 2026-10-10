@@ -244,7 +244,7 @@ It applies to songs you listen to from then on; listens already in `.scrobbler.l
 
 Safely eject the card, put it in the Q2 and reopen **Library**. **Upload Scrobbles** appears just above **Update Local Music** when a ListenBrainz token or all four Last.fm fields are present. Connect to Wi-Fi, then select **Upload Scrobbles**. If the row is missing, check the filename, section headings and required fields first.
 
-V9.5 includes the certificates needed for verified TLS uploads; no `.scrobble.pem` file is needed on the card. A certificate or storage failure keeps pending listens. Uploads need listens in `.scrobbler.log`: play a tagged song for at least half its length or four minutes, whichever comes first. Set the Q2's date and time correctly before listening.
+The firmware includes the certificates needed for verified TLS uploads; no `.scrobble.pem` file is needed on the card. A certificate or storage failure keeps pending listens. Uploads need listens in `.scrobbler.log`: play a tagged song for at least half its length or four minutes, whichever comes first. Set the Q2's date and time correctly before listening.
 
 Settings, play counts, resume points and book pages live on the Q2 itself (`/mnt/data`), not the card.
 
