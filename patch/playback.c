@@ -517,7 +517,7 @@ typedef struct {
 } checkpoint;
 static int save_elapsed(int sec) {
     checkpoint c = { 0, s.saved_sum, s.saved_pos, (unsigned)sec };
-    c.checksum = checksum(&c, sizeof c);
+    c.checksum = checksum(&c.snapshot, 3 * 4);
     return BLOB_IO(CHECKPOINT_FILE, c, 1);
 }
 void playback_save(void) {
@@ -643,11 +643,8 @@ int ringnav_memory(void *out) {
     if (fclose(f)) ok = 0;
     checkpoint c;
     if (ok && BLOB_IO(CHECKPOINT_FILE, c, 0) && c.snapshot == h.checksum && c.pos == h.pos &&
-        c.elapsed <= 0x7fffffff) {
-        unsigned sum = c.checksum;
-        c.checksum = 0;
-        if (checksum(&c, sizeof c) == sum) h.elapsed = c.elapsed;
-    }
+        c.elapsed <= 0x7fffffff && checksum(&c.snapshot, 3 * 4) == c.checksum)
+        h.elapsed = c.elapsed;
     /* Validate the entire snapshot before queries or mutations. */
     unsigned *indices = (unsigned *)(buf ? buf + header_size : 0);
     unsigned char *p = buf ? buf + header_size + (h.n * 3 + h.hn) * 4 : 0;
