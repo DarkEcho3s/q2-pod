@@ -91,7 +91,7 @@ def validate_assets(directory):
     from ipod import (AUDIT, BOTTOM, CHEVRON_W, CONFIRM, VOLUME, QUICK_SETTINGS, QS_TOP, QS_LABEL_GAP, QS_LABEL_H,
                       QS_LABEL_W, QS_ROW_GAP, QS_PITCH, QS_BAR, QS_TOUCH, QS_EDGE, QS_SUN, HOME_LABEL_END, HOME_LIST_W, HOME_TEXT_X, HOME_TOP, PITCH, ARTIST_PAGE, HOME_PAGE, HOME_ROW, HOME_ROWS, NAVBAR_ONLY, PLAYING_PAGE, SET_ROW, SET_ROWS, SET_TOP, UI_ASSETS,
                       NP_BAR, NP_MARGIN, NP_POS_X, NP_TOP, STATUS_BAR, STATUS_HIDDEN, STATUS_LEFT, STATUS_MARGIN, STATUS_RIGHT, CLOCK_MIN, CLOCK_TEXT, corner_inset, corner_x,
-                      QUIET_ICONS, quiet_icon, SET_ICON, SET_STOCK_ICON, SETTINGS_ICONS, SETTINGS_SLIDERS, decode, imagemagick, inc, png_header, settings_icon, walk,
+                      QUIET_ICONS, quiet_icon, SET_ICON, SET_STOCK_ICON, SETTINGS_ICONS, SETTINGS_SLIDERS, decode, slider_discs, imagemagick, inc, png_header, settings_icon, walk,
                       patch_asset, patch_code, patch_style, style_props, SLIDE)
     manifest = json.loads((directory/'manifest.json').read_text())
     ipod = manifest['variant'] == 'ipod'
@@ -491,10 +491,13 @@ def validate_assets(directory):
             continue
         if short == ARTIST_PAGE:
             assert [n[2]['value'] for n in walk(root) if n[0] == 'pages'] == ['1'], 'Artist page must show Albums'
-        if short in AUDIT['slide_only'] or short == 'systemset/sleepshutdown_page.bin':  # nothing but the hint
-            # changes; the sleep timer keeps its toolbar, where its on/off switch is
+        if short in AUDIT['slide_only'] or short in ('systemset/sleepshutdown_page.bin', 'playset/bootvol_page.bin'):
+            # nothing but the hint changes (and Startup volume's slider discs); the sleep timer and
+            # Startup volume keep their toolbars, where their on/off switches are
             root[2].pop('anim_hint')
-            assert root == decode(original), short
+            kept = decode(original)
+            slider_discs(short, kept)
+            assert root == kept, short
             continue
         nav = next(n for n in root[3] if n[2].get('name') == 'view_navbar')
         if short in NAVBAR_ONLY:  # content moves up 50; lists hold four whole SET_ROW rows from SET_TOP
