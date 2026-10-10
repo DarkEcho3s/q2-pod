@@ -89,8 +89,8 @@ It plays on the headphone jack, Bluetooth or a USB DAC; Play/Pause and Next/Prev
 Run **Library → Update Local Music** after adding music; it adds up to 65,000 songs. Coverflow prepares artwork on its first open; cancelling keeps its progress.
 
 - **Personalise:** **System settings → Display** for theme (Minimal or Classic), accent, Home layout, battery display and wheel sensitivity.
-- **Save battery:** **System settings → Power management** for Charge limit and Low power. Both are off by default; charge limit applies while the Q2 is on.
-- **Pocket-proof:** **System settings → Power management → Wake: Double press** ignores a single centre press while the screen is off.
+- **Save battery:** **System settings → Power** for Charge limit and Low power. Both are off by default; charge limit applies while the Q2 is on.
+- **Pocket-proof:** **System settings → Power → Wake: Double press** ignores a single centre press while the screen is off.
 - **Browse by Album Artist:** **Audio settings → Artists** keeps guest artists from splitting albums.
 - **Use EQ:** **Audio settings → Equalizer**. Stock's genre curves are under **Presets → Stock presets**. Select **Apply changes** after editing or choosing a preset, and turn **PEQ: ON**. Import preset `.txt` files from the card's `EQ/` folder.
 

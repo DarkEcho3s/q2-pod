@@ -11,10 +11,10 @@ Things people often don't know are already there:
 - **Hold Return** (iPod) jumps to Now Playing from anywhere.
 - **Brightness, volume limits, balance, date and time and the sleep timer** take the wheel: turn to change, Centre to go back or move to the next field and then OK. In the pull-down, the wheel sets the brightness.
 - **Wheel too fast or slow?** **System settings → Display → Wheel sensitivity**.
-- **Longer battery:** **System settings → Power management → Low power** and **Charge limit**.
+- **Longer battery:** **System settings → Power → Low power** and **Charge limit**.
 - **Guest artists splitting albums?** **Audio settings → Artists → Album Artist**.
 - **Coverflow order:** the **Sort** card, just before Refresh library, switches to Artist, Recently Added or Most Played.
-- **Screen waking in your pocket?** **System settings → Power management → Wake: Double press**; stock's **Buttons lock** also keeps the buttons and volume still while the screen is off.
+- **Screen waking in your pocket?** **System settings → Power → Wake: Double press**; stock's **Buttons lock** also keeps the buttons and volume still while the screen is off.
 - **Want stock's EQ presets?** **Equalizer → Presets → Stock presets** has Pop, Rock, Jazz and the rest; the ten default bands work as a 10-band graphic EQ.
 - **Wheel click gone?** Key Tone is the Q2's own speaker, so it stays quiet while music plays or headphones, Bluetooth or a USB DAC are connected.
 - **Lock screen is black?** It shows your own images: see [Lock screen](#lock-screen).
@@ -36,9 +36,9 @@ Things people often don't know are already there:
 
 | Where                                  | Setting          | What it does                                                                                                                                                                                                               |
 | -------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **System settings → Power management** | **Charge limit** | **80%** stops charging at 80% and starts again at 75%, so a Q2 left plugged in isn't held full. Off by default.                                                                                                            |
-| **System settings → Power management** | **Low power**    | Longer battery: the second CPU core sleeps while the screen is off, and the screen-on UI idles when you don't touch it. Off by default.                                                                                    |
-| **System settings → Power management** | **Wake**         | **Double press**: with the screen off, a single centre press is ignored, so a pocket bump stays dark; press twice to wake. To power off from a dark screen, double-press, then hold. Off (Single press) by default.        |
+| **System settings → Power** | **Charge limit** | **80%** stops charging at 80% and starts again at 75%, so a Q2 left plugged in isn't held full. Off by default.                                                                                                            |
+| **System settings → Power** | **Low power**    | Longer battery: the second CPU core sleeps while the screen is off, and the screen-on UI idles when you don't touch it. Off by default.                                                                                    |
+| **System settings → Power** | **Wake**         | **Double press**: with the screen off, a single centre press is ignored, so a pocket bump stays dark; press twice to wake. To power off from a dark screen, double-press, then hold. Off (Single press) by default.        |
 | **Audio settings**                     | **Artists**      | **Artist** (default) or **Album Artist**: browse Artists by the Album Artist tag, so guest artists don't split albums.                                                                                                     |
 | **Audio settings**                     | **Crossfade**    | Fades one song into the next, 1-10 s (5 by default): turn the wheel or drag the slider, all the way down for Off; Centre switches it on or off. Only between different albums, so albums stay gapless; needs stock's **Gapless** on. Off by default. |
 

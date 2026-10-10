@@ -138,7 +138,7 @@ typedef struct {
     unsigned mp_gen;
     void *sp_page; /* the Library Shuffle menu's page, kept across picks */
     int dark;      /* the backlight was off at the last UI loop pass */
-    /* Power management's Charge limit and Low power (read once from config.ini's Q2POD), the value
+    /* Power's Charge limit and Low power (read once from config.ini's Q2POD), the value
      * labels of those rows and Artists, and the poll: charging is held off at the limit; CPU1 is
      * offline (cpu_off), this boot's first offline is done (cpu_marked), and cpu_bad is 0 before
      * the check, 1 usable, 2 refused by an earlier boot's stall, 3 refused by the kernel;
@@ -1687,7 +1687,7 @@ static void *list_row(void *view, const char *icon, int (*click)(void *, void *)
     return list_row_core(view, icon, click, ctx, 260, 0);
 }
 
-/* Power management's Charge limit, Low power and Wake (docs/internals.md#charge-limit, #low-power,
+/* Power's Charge limit, Low power and Wake (docs/internals.md#charge-limit, #low-power,
  * #wake), Q2POD CHARGELIMIT, LOWPOWER and WAKEDOUBLE in config.ini, and Audio settings' Artists,
  * which is stock's own PLAYSET ARTISTTYPE (artist_type, the artist page's switch;
  * docs/internals.md#album-artists). */
@@ -1770,7 +1770,7 @@ static const unsigned char playset_order[] = {
 };
 /* System Setting: connections and display first, boot/update/reset/about last. */
 static const unsigned char sysset_order[] = {
-    1 /* Wireless */,     3 /* Display */,  4 /* Idle */,    5 /* Date and time */,
+    1 /* Wireless */,     3 /* Display */,  4 /* Power */,   5 /* Date and time */,
     8 /* Buttons lock */, 7 /* Key tone */, 2 /* Network */, 0 /* Language */,
     6 /* In-Vehicle */,   12 /* Boot to */, 9 /* Update */,  10 /* Reset */,
     11 /* About */,

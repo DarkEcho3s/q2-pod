@@ -3,7 +3,7 @@
 
 --logo swaps the boot splash JPEG (320x375); it defaults to assets/boot-logo.jpg.
 """
-import argparse, hashlib, io, json, pathlib, re, shlex, struct, subprocess, tarfile, zipfile
+import argparse, functools, hashlib, io, json, pathlib, re, shlex, struct, subprocess, tarfile, zipfile
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ZIP_SHA = '154c17822d09be001be35c03d2d3488424dee195221790bd70864480d55b0f00'
 DEMO_SHA = '2c5f06142850b4fc168f82b44a81550cce0a5b4b9fe1c179dced4a08a3049138'
@@ -53,7 +53,7 @@ HOOKS = {
     'window_manager_dispatch_input_event': (0x66d49c, 'ringnav_input'),
     # Key Tone: no click while music plays, and none on the buzzer while headphones or Bluetooth listen
     'buzzeer_switch': (0x4f3cc8, 'ringnav_buzzer'),
-    # Power management gains Charge limit and Low power; Audio settings gains Artists (Album Artist)
+    # Power gains Charge limit and Low power; Audio settings gains Artists (Album Artist)
     'systemset_sysset_page_init': (0x4cc4cc, 'ringnav_systemset'),
     'systemset_display_page_init': (0x4c1d04, 'ringnav_display'),
     'save_memoryplay_info': (0x516344, 'ringnav_savequeue'),
@@ -205,6 +205,20 @@ WHEEL_THRESHOLDS = ((0x625ce0, 0x24060014), (0x625cdc, 0x2403000a), (0x625ba0, 0
 # "Playlists" (player_playlist, used nowhere else; Local Music's are "Playlist"). Same size: the
 # table finds each value by offset, so the padding NULs are never read.
 QUEUE_LABEL = (b'player_playlist\0Playlists\0', b'player_playlist\0Queue\0\0\0\0\0')
+# English labels renamed: System settings' Idle (system_powermanager), now Power, and its standby/shutdown row.
+LABELS = ((b'system_powermanager', b'Idle', b'Power'), (b'powerm_deep_off', b'standby/shutdown', b'Standby'))
+
+def relabel(data, key, old, new):
+    """A strings/*.bin value replaced: after a u16 0 and a u16 pair count, a u32 offset to each key and
+    value, in file order; the offsets past the change move with it."""
+    at = data.find(b'\0' + key + b'\0' + old + b'\0')
+    check(at > 0 and data.count(b'\0' + key + b'\0') == 1, f'Unexpected {key.decode()} label')
+    at += len(key) + 2
+    n = 2 * struct.unpack_from('<H', data, 2)[0]
+    offsets = [o + len(new) - len(old) if o > at else o for o in struct.unpack_from(f'<{n}I', data, 4)]
+    data = bytearray(data[:at] + new + data[at + len(old):])
+    struct.pack_into(f'<{n}I', data, 4, *offsets)
+    return bytes(data)
 # demo's .pdr section (offset, size): MIPS procedure descriptors past every LOAD segment, which nothing
 # reads at run time. Zeroed, they pack to almost nothing, which keeps the Stock rootfs within stock's size.
 PDR = (0x61694c, 0x69d40)
@@ -849,7 +863,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         path = 'release/assets/default/raw/' + ('images/xx/'+name if kind == 'images' else rel)
         original = cat(path)
         check(kind != 'strings' or original.count(QUEUE_LABEL[0]) == 1, 'Unexpected queue label')
-        data = (original.replace(*QUEUE_LABEL) if kind == 'strings' else
+        data = (functools.reduce(lambda d, l: relabel(d, *l), LABELS, original.replace(*QUEUE_LABEL)) if kind == 'strings' else
                 patch_style(original, AUDIT['styles'][name]) if kind == 'styles' else
                 (quiet_icon(name, original) if name in QUIET_ICONS else settings_icon(name, original)) if kind == 'images' else patch_asset(name, original, ipod))
         target = out/rel
