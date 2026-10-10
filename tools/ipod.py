@@ -611,8 +611,9 @@ def patch_asset(path, data, ipod):
     require(len(nav) == 1 and nav[0][1] in ([0, 0, 375, 50], [0, 0, 370, 50]), f'{path}: unexpected toolbar')  # 370: stream_page
     # Keep the widget (and callback lookups) alive. Children may be recreated by stock.
     playlist = path == 'localmusic/playlist_page.bin'
-    # The sleep timer's on/off switch is in its toolbar, and its fields hide while it is off.
-    if path == 'systemset/sleepshutdown_page.bin':
+    # The sleep timer's and Startup volume's on/off switches are in their toolbars, and their
+    # fields hide while they are off.
+    if path in ('systemset/sleepshutdown_page.bin', 'playset/bootvol_page.bin'):
         return encode(root)
     if not playlist:
         nav[0][2]['visible'] = 'false'

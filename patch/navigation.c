@@ -4654,18 +4654,6 @@ static void field_set(void *top, int f) {
     widget_invalidate_force(top, (void *)0);
 }
 
-static void click(void *w) {
-    char event[0x30];
-    stock_dispatch_trampoline(w, pointer_event_init(event, EVT_CLICK, w, 0, 0));
-}
-
-/* Startup volume's switch, whose navbar the iPod build hides: off, the page shows nothing else. */
-static void *boot_switch(void *top) {
-    return IPOD && top && !tk_strcmp(widget_get_prop_str(top, "name", ""), "bootvol_page")
-               ? widget_lookup(top, "img_bootswitch", 1)
-               : (void *)0;
-}
-
 static int edit_single(const void *info) {
     (void)info;
     st.edit_press = 0;
@@ -4674,16 +4662,14 @@ static int edit_single(const void *info) {
         return 0;
     *(volatile unsigned char *)KEY_LOCKOUT = 0; /* stock's wheel lockout after the centre key */
     int n = fields(top), f = field_at(top);
-    void *sw = boot_switch(top);
-    if (sw) {
-        click(sw); /* Startup volume: Centre turns it on and off */
-    } else if (!n) {
+    if (!n) {
         if (slider_page(top)) navigator_back();
     } else if (f < n)
         field_set(top, f + 1);
     else {
         void *ok = field_widget(top, n);
-        if (ok) click(ok);
+        char click[0x30];
+        if (ok) stock_dispatch_trampoline(ok, pointer_event_init(click, EVT_CLICK, ok, 0, 0));
     }
     return 0;
 }
@@ -4716,11 +4702,9 @@ static int edit_key(void *top, unsigned key) {
         if (next != value) widget_set_prop_int(slider, "value", next);
     } else if (!n) {
         void *button = widget_lookup(top, dir > 0 ? "img_add" : "img_dec", 1);
-        void *sw = boot_switch(top), *view = sw ? widget_lookup(top, "view_bootvol", 1) : (void *)0;
-        if (view && !widget_get_visible(view))
-            click(sw); /* the first turn turns Startup volume on */
-        else if (button && widget_get_prop_bool(button, "enable", 1))
-            click(button);
+        char click[0x30];
+        if (button && widget_get_prop_bool(button, "enable", 1))
+            stock_dispatch_trampoline(button, pointer_event_init(click, EVT_CLICK, button, 0, 0));
     } else {
         int f = field_at(top);
         void *sel = field_widget(top, f);

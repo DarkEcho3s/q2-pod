@@ -1,7 +1,7 @@
 /* Crossfade (docs/internals.md#crossfade): Audio settings' row, its page and the fade hciplayer's
  * filter applies (peq_player.c). The page is stock's Boot volume page re-dressed: its slider runs
- * Off (0) and XF_MIN..XF_MAX seconds, so it needs no switch (the iPod build hides the navbar that
- * holds it); the switch, where shown, and Centre still turn it on and off. */
+ * Off (0) and XF_MIN..XF_MAX seconds, so it needs no switch; the switch and Centre still turn it on
+ * and off. */
 #include "offsets.inc"
 #include "peq.h"
 #include "playback.h"
