@@ -3267,77 +3267,6 @@ int ringnav_artist_art_name(char *buf, unsigned size, unsigned row, const char *
 int ringnav_artist_covers(void *list) {
     return st.art_keys ? rename_covers(list, artist_key) : albumcoverinfo_init(list);
 }
-/* Artists rows' art. Stock queues artist covers (local_songercover_task, type 4: the art thread's
- * toolsGetAlbumCover, then toolsGetExternCover, into .sldp/<md5 of the name>0.jpg), but its artist
- * queries select no fileurl and leave +0x14, the name a cover task copies, empty, and the row
- * renderer always shows default_artist_small. Each row gets its name and a source: artist.jpg (or
- * .png) beside the artist's album folders, else its first track, whose album art is then used.
- * ponytail: an artist and an album of one name share a cache file; prefix the key if that shows. */
-typedef struct { char *name, *path; } artist_src_t;
-static artist_src_t *art_src;
-static unsigned art_src_n;
-static int art_src_row(void *a, int n, char **v, char **c) {
-    (void)a, (void)c;
-    artist_src_t *m = n == 2 && v[0] && v[1] ? realloc(art_src, (art_src_n + 1) * sizeof *art_src) : 0;
-    if (m) art_src = m, m[art_src_n].name = strdup(v[0]), m[art_src_n++].path = strdup(v[1]);
-    return 0;
-}
-static int art_src_cmp(const void *a, const void *b) {
-    return strcasecmp(((const artist_src_t *)a)->name, ((const artist_src_t *)b)->name);
-}
-/* track's artist folder (the album folder's parent)'s artist.jpg or .png, or 0. */
-static char *artist_image(const char *track) {
-    char buf[1024];
-    const char *s = strrchr(track, '/');
-    int n = s ? (int)(s - track) : 0;
-    while (n > 0 && track[n - 1] != '/') --n;
-    if (n <= 0 || n > 1000) return 0;
-    snprintf(buf, sizeof buf, "%.*sartist.jpg", n, track);
-    if (!access(buf, 4)) return strdup(buf);
-    memcpy(buf + n + 7, "png", 3);
-    return access(buf, 4) ? 0 : strdup(buf);
-}
-static void artist_sources(void *list) {
-    int album_artist = I(g_artist_type, 0) == 1;
-    toolsQueryDbTable("/mnt/data/database.db",
-                      album_artist ? "select albumsonger,min(fileurl) from songtable group by albumsonger COLLATE NOCASE"
-                                   : "select songer,min(fileurl) from songtable group by songer COLLATE NOCASE",
-                      art_src_row, 0);
-    if (!art_src) return;
-    qsort(art_src, art_src_n, sizeof *art_src, art_src_cmp);
-    for (unsigned i = 0; i < deque_size(list); ++i) {
-        void *r = deque_at(list, i);
-        artist_src_t key = { P(r, REC_ARTIST), 0 }, *m;
-        if (I(r, REC_ID) == -1 || !key.name || P(r, REC_PATH) || P(r, REC_ALBUM) ||
-            !(m = bsearch(&key, art_src, art_src_n, sizeof *art_src, art_src_cmp)))
-            continue;
-        char *path = artist_image(m->path);
-        P(r, REC_PATH) = path ? path : strdup(m->path);
-        P(r, REC_ALBUM) = strdup(key.name);
-    }
-    for (unsigned i = 0; i < art_src_n; ++i) free(art_src[i].name), free(art_src[i].path);
-    free(art_src);
-    art_src = 0, art_src_n = 0;
-}
-/* The art thread's toolsGetAlbumCover call (0x4edf1c): an artist.jpg source is already a picture. */
-int ringnav_cover(const char *src, const char *dst, int w, int h) {
-    const char *dot = strrchr(src, '.');
-    return dot && (!strcasecmp(dot, ".jpg") || !strcasecmp(dot, ".png")) ? toolsThumbSpecCover(src, dst, w, h)
-                                                                         : toolsGetAlbumCover(src, dst, w, h);
-}
-/* The Artists row renderer's placeholder (0x4afc84): the row's cached cover, as Albums rows show. */
-extern int image_show(void *img, const char *url, unsigned *size);
-int ringnav_artist_icon(void *img, unsigned row) {
-    void *list = P(p_deque_showlist, 0), *r = row < deque_size(list) ? deque_at(list, row) : 0;
-    const char *name = r ? P(r, REC_ALBUM) : 0;
-    char md5[64] = {0}, url[128];
-    if (name) toolsMd5String(name, md5, 16);
-    snprintf(url, sizeof url, "file:///mnt/mmc/.sldp/%s0.jpg", md5);
-    if (!name || access(url + 7, 0) || !image_show(img, url, 0))
-        image_base_set_image(img, "default_artist_small");
-    return 0;
-}
-
 /* The album page's big cover, snprintf of classinfo +0xd (0x4a72a4): its Albums row's cover task
  * name, as the thread hashed it, when that is this album's key. */
 int ringnav_art_header(char *buf, unsigned size, const char *fmt, const char *album) {
@@ -3362,7 +3291,6 @@ int ringnav_localclass(int cls) {
     void *list = P(p_deque_showlist, 0), *dir = P(tools_pdeq_directory, 0), *a = album_opened();
     if (n > 0 && cls == 0xff10 && a) album_only(list, a, 0), n = (int)deque_size(list);
     if (n > 0 && cls == CLASS_ALBUMS) n = coverflow_split(list);
-    if (n > 0 && cls == CLASS_ARTISTS) artist_sources(list);
     if (n <= 0 || cls < CLASS_ALBUMS || cls > 0xf006 ||
         I(deque_at(list, (unsigned)n - 1), REC_ID) != -1)
         return n;

@@ -184,13 +184,8 @@ ALBUM_ART = ((0x4a388c, 'ringnav_art_name'), (0x4a421c, 'ringnav_albumcovers'), 
              (0x4a5718, 'ringnav_albumcovers'), (0x4a72a4, 'ringnav_art_header'),
              (0x4ab804, 'ringnav_artist_art_name'), (0x4ac840, 'ringnav_artist_covers'),
              (0x4ae860, 'ringnav_artist_covers'), (0x4ae968, 'ringnav_artist_covers'),
-             (0x4aebc0, 'ringnav_artist_covers'), (0x4edf1c, 'ringnav_cover'))
+             (0x4aebc0, 'ringnav_artist_covers'))
 ALBUM_ART_ROW = ((0x4a3890, 0x24c66c04, 0x02603025), (0x4ab808, 0x24c66c04, 0x02403025))
-# Artists rows' art (navigation.c artist_sources): the art thread's toolsGetAlbumCover call above takes
-# an artist.jpg source too, and the localclass row renderer's Artists branch (0x4afc84), which set
-# default_artist_small and branched to the shared call, becomes move a1,row; jal ringnav_artist_icon;
-# move a0,img; b to the return (0x4afe3c).
-ARTIST_ICON = (0x4afc84, (0x8f85a7b4, 0x24a568ac, 0x8f99a7d0, 0x10000068))
 # switchBtPriority sends LDAC quality 0x16 (SQ, 660 kbps) for both HQ (row 0) and Standard (row 1).
 # The dispatch keeps 0x15 + row in its free 0x14($sp) slot, so HQ sends 0x15 (990 kbps); see docs/internals.md.
 LDAC_HQ = ((0x4f033c, 0x00042080, 0x00041880),   # sll $3,$4,2
@@ -446,7 +441,6 @@ FUNCTIONS = {
  'widget_restack': ('int', 'void *, unsigned'),
  'toolsThumbSpecCover': ('int', 'const char *, const char *, int, int'),
  'toolsGetAlbumCover': ('int', 'const char *, const char *, int, int'),
- 'toolsMd5String': ('int', 'const char *, char *, int'),  # hex md5 of a cover name, as the art cache keys
  'window_create': ('void *', 'void *, int, int, int, int'),
  'widget_factory': ('void *', 'void'),
  'widget_factory_create_widget': ('void *', 'void *, const char *, void *, int, int, int, int'),
@@ -790,10 +784,6 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         patch_word(patched, address, 0x0320f809, 0x0c000000 | (ps[name] >> 2), 'same-named albums apart in art')
     for row in ALBUM_ART_ROW:
         patch_word(patched, *row, 'same-named albums apart in art')
-    address, olds = ARTIST_ICON
-    for i, (old, new) in enumerate(zip(olds, (0x02802825, 0x0c000000 | (ps['ringnav_artist_icon'] >> 2),
-                                              0x02002025, 0x1000006a))):
-        patch_word(patched, address + 4 * i, old, new, 'Artists rows show their art')
     # Pin added private entry points as well as every replaced instruction, and the stock bitmap,
     # canvas and slide_menu entries Coverflow's depth renderer calls (docs/internals.md#coverflow-depth).
     for name, original in AUDIT['private_prologues'].items():

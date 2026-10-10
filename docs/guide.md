@@ -71,7 +71,7 @@ Charge limit applies while the Q2 is on; charging while it's powered off is stoc
 
 - **List ends:** lists stop at the end; pause, then turn again to wrap.
 - **Position memory:** recent folders, albums, searches and menus reopen where you were, until power-off.
-- **Artists:** open on Albums, with All Songs one tap away. Browse by the Album Artist tag with **Audio settings → Artists**. Each artist shows `artist.jpg` (or `.png`) from its folder (`Artist/artist.jpg` beside `Artist/Album/`), else its first album's cover.
+- **Artists:** open on Albums, with All Songs one tap away. Browse by the Album Artist tag with **Audio settings → Artists**.
 - **Pop-ups** (iPod): the wheel moves between OK and Cancel.
 - **Key Tone:** the speaker clicks only when nothing plays and no headphones (3.5/4.4 mm), Bluetooth or USB DAC are connected. iPod: once per row, not per tick.
 
