@@ -55,7 +55,9 @@
 #define EVT_CLICK 0x10c
 #define EVT_FOCUS 0x10e /* widget_set_focused_internal @0x65fdf4 */
 #define EVT_BLUR 0x10f  /* widget_set_focused_internal @0x65fe40 */
+#define EVT_SCROLL 0x14e /* stock scroll_view on_scroll @0x5efa40; table setter emits this too */
 #define EVT_SCROLL_END 0x14f /* stock lists queue their visible covers on this (album page registers @0x4a43d0) */
+#define VIEW_ON_SCROLL 0x100 /* scroll_view callback installed by list_view, called by touch @0x5efa5c */
 #define CANVAS_X 0x00
 #define CANVAS_Y 0x04
 #define CANVAS_LCD 0x38
@@ -279,7 +281,7 @@
 #define BUMP_PX 6
 #define BUMP_MS 120
 #define EDGE_PAUSE_MS 300 /* well above WHEEL_RUN_MS, so a spin never counts as a pause */
-#define BAR_VALUE 0x7c /* scroll_bar native value, maintained by list/table setters */
+#define BAR_VALUE 0x7c /* scroll_bar native value, maintained by list/table scroll callbacks */
 #define KEY_CENTER 218
 #define KEY_PREV 172
 #define KEY_NEXT 173

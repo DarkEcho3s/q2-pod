@@ -2349,6 +2349,28 @@ for _ in range(3): assert m.call(gap=100)==11 and m.selected(w)==0
 m.paint(w,gap=0); assert m.sel()==(0,0,240,48)
 passed()
 
+# Run the stock list callback and thumb setter: immediate wheel moves must sync the value.
+for populated in (False,True):
+    m=Machine(); w,es=m.page_list(20 if populated else 0,height=96,extent=960)
+    bar=m.node('scroll_bar_m'); m.word(bar+0x78,1000)  # native bar range
+    parent=m.node('list_view',children=[w,bar])
+    m.word(parent+0x84,w); m.word(parent+0x88,bar)
+    m.word(w+O['W_PARENT'],parent); m.nodes[m.top]['children']=[parent]
+    m.word(w+O['VIEW_ON_SCROLL'],0x5ec070)  # installed by stock list_view
+    m.word(w+0x74,syms['g_scroll_view_vtable'])
+    m.handlers.pop(syms['scroll_view_set_offset'])
+    m.mock('scroll_bar_cast','scroll_bar_is_mobile','widget_set_opacity','widget_set_visible_only',
+           'widget_dispatch_simple_event')
+    m.paint(w)
+    for key in [O['KEY_NEXT']]*20+[O['KEY_PREV']]*20:
+        assert m.call(key)==11
+        offset=m.get(w+O['SCROLL_Y'])
+        assert m.get(bar+O['BAR_VALUE'])==int(offset/864*1000)
+        events=[c[2] for c in m.calls if c[0]=='widget_dispatch_simple_event' and c[1]==w]
+        if m.moved(): assert events[-2:]==[O['EVT_SCROLL'],O['EVT_SCROLL_END']]
+    assert m.get(w+O['SCROLL_Y'])==m.get(bar+O['BAR_VALUE'])==0
+    passed()
+
 # Native scrollbar lifecycle, including a fully transparent/invisible mobile bar.
 for kind in ('scroll_view','table_client'):
     m=Machine()

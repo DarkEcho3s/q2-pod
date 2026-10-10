@@ -930,9 +930,13 @@ static void wheel_offset(menu_t *m, int top) {
     if (m->kind == 2) {
         table_client_set_yoffset(m->w, top);
         load_rows(m, m->w);
-    } else if (m->kind == 1)
+    } else if (m->kind == 1) {
         scroll_view_set_offset(m->w, I(m->w, SCROLL_X), top);
-    else
+        /* The immediate setter skips the on_scroll callback that touch scrolling runs. */
+        int (*on_scroll)(void *, int, int) = P(m->w, VIEW_ON_SCROLL);
+        if (on_scroll) on_scroll(m->w, I(m->w, SCROLL_X), I(m->w, SCROLL_Y));
+        widget_dispatch_simple_event(m->w, EVT_SCROLL);
+    } else
         return;
     widget_dispatch_simple_event(m->w, EVT_SCROLL_END);
 }
@@ -4954,7 +4958,6 @@ int ringnav(void *ctx, void *event) {
         if (next == 0 || next >= max_top(&g_menu)) st.wheel_run = 0;
         wheel_offset(&g_menu, next);
     }
-    native_scrollbar(&g_menu); /* the thumb follows the new offset, not the one before this tick */
     widget_invalidate_force(w, (void *)0);
     return STOP;
 }
