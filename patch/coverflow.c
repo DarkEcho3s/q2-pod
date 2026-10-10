@@ -1510,8 +1510,7 @@ static int keyup(void *ctx, void *event) {
 }
 
 static int closed(void *ctx, void *event) {
-    (void)ctx;
-    (void)event;
+    (void)ctx; (void)event;
     if (cf.saved_album) BLOB_IO(LAST_ALBUM, cf.saved_album, 1);
     drop();
     cf.page = cf.body = cf.covers = cf.slide = 0;

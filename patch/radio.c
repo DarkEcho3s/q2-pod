@@ -424,7 +424,7 @@ static int np_closed(void *ctx, void *event) {
 
 /* The heart: the station playing in or out of favourites.m3u. */
 static int np_heart(void *ctx, void *event) {
-    (void)ctx, (void)event;
+    (void)ctx; (void)event;
     if (rd.list.n) toast(fav_toggle(&rd.list, rd.at));
     return 0;
 }
@@ -463,7 +463,7 @@ static int menu_click(void *ctx, void *event), pick_click(void *ctx, void *event
 /* The search box's keyboard closed with text: the directory searched by name, Return then going
  * back to the menu or the country or genre list. */
 static int searched(void *ctx, void *event) {
-    (void)ctx, (void)event;
+    (void)ctx; (void)event;
     const unsigned *t = widget_get_text(ui.edit); /* wchar_t, narrowed as the EQ editor's value */
     unsigned n = 0;
     if (!t || !t[0]) return later(A_SHOW, 0), 0;
@@ -477,7 +477,7 @@ static int searched(void *ctx, void *event) {
 
 /* The box left without a search: the page as it was. */
 static int search_left(void *ctx, void *event) {
-    (void)ctx, (void)event;
+    (void)ctx; (void)event;
     if (!ui.go) later(A_SHOW, 0);
     return 0;
 }
@@ -719,8 +719,7 @@ static int keyup(void *ctx, void *event) {
 }
 
 static int closed(void *ctx, void *event) {
-    (void)ctx;
-    (void)event;
+    (void)ctx; (void)event;
     fetch_cancel();
     stop_timer(&ui.timer);
     stop_timer(&ui.go);

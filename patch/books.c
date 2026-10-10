@@ -669,8 +669,7 @@ int books_key(void *top, unsigned key) {
 }
 
 static int closed(void *ctx, void *event) {
-    (void)ctx;
-    (void)event;
+    (void)ctx; (void)event;
     marks_save();
     stop_worker();
     stop_timer(&bk.timer);

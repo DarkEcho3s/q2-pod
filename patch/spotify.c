@@ -393,8 +393,7 @@ static int keyup(void *ctx, void *event) {
 }
 
 static int closed(void *ctx, void *event) {
-    (void)ctx;
-    (void)event;
+    (void)ctx; (void)event;
     stop_timer(&ui.timer);
     stop_timer(&ui.leave);
     stop_timer(&ui.press);

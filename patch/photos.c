@@ -396,8 +396,7 @@ static int keyup(void *ctx, void *event) {
 }
 
 static int closed(void *ctx, void *event) {
-    (void)ctx;
-    (void)event;
+    (void)ctx; (void)event;
     ph.viewer = 0; /* going with the page */
     drop_photos();
     stop_timer(&ph.timer);
