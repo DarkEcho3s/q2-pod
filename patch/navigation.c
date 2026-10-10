@@ -4636,8 +4636,7 @@ static int edit_single(const void *info) {
         field_set(top, f + 1);
     else {
         void *ok = field_widget(top, n);
-        char click[0x30];
-        if (ok) stock_dispatch_trampoline(ok, pointer_event_init(click, EVT_CLICK, ok, 0, 0));
+        if (ok) click(ok);
     }
     return 0;
 }
@@ -4670,9 +4669,9 @@ static int edit_key(void *top, unsigned key) {
         if (next != value) widget_set_prop_int(slider, "value", next);
     } else if (!n) {
         void *button = widget_lookup(top, dir > 0 ? "img_add" : "img_dec", 1);
-        void *view = boot_switch(top) ? widget_lookup(top, "view_bootvol", 1) : (void *)0;
+        void *sw = boot_switch(top), *view = sw ? widget_lookup(top, "view_bootvol", 1) : (void *)0;
         if (view && !widget_get_visible(view))
-            click(boot_switch(top)); /* the first turn turns Startup volume on */
+            click(sw); /* the first turn turns Startup volume on */
         else if (button && widget_get_prop_bool(button, "enable", 1))
             click(button);
     } else {
