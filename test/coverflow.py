@@ -5,7 +5,7 @@ stSongInfo pointer offsets hold. The stock calls are stubbed; UI widgets are pla
 import pathlib
 import subprocess
 import tempfile
-import sys; sys.path.insert(0, sys.path[0] + '/../tools')  # tools/ first: test/build.py must import tools/build.py
+import sys; sys.path.insert(0, sys.path[0] + '/../tools')  # tools/ first
 from build import FUNCTIONS
 from peq import LIBC
 

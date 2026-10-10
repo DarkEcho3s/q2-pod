@@ -828,18 +828,16 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         line = inode(p, path)
         check(line is not None, f'Missing {path.decode()} pseudo inode')
         return p[:line.start()]+path+b' F '+b' '.join(line.groups())+b' cat '+shlex.quote(str(src)).encode()+p[line.end():]
-    p = swap_inode(p, b'release/bin/demo', out/'demo')
-    p = swap_inode(p, b'usr/bin/hciplayer', out/'peq/hciplayer')
-    p = swap_inode(p, BLUEALSA.encode(), out/'bluealsa')
-    p = swap_inode(p, WATCHDOG.encode(), out/'watchdog')
     (out/'S90play').write_bytes(patch_s90play(cat(S90PLAY)))
-    p = swap_inode(p, S90PLAY.encode(), out/'S90play')
     logo_data = logo.read_bytes()
     check(jpeg_size(logo_data) == (320, 375), 'Logo must be 320x375 like the stock splash')
     # Package exactly the validated bytes, even if the input is edited during compression.
     logo = out/'logo.jpg'
     logo.write_bytes(logo_data)
-    p = swap_inode(p, b'release/assets/default/raw/images/xx/logo.jpg', logo)
+    for path, src in ((b'release/bin/demo', out/'demo'), (b'usr/bin/hciplayer', out/'peq/hciplayer'),
+                      (BLUEALSA.encode(), out/'bluealsa'), (WATCHDOG.encode(), out/'watchdog'),
+                      (S90PLAY.encode(), out/'S90play'), (b'release/assets/default/raw/images/xx/logo.jpg', logo)):
+        p = swap_inode(p, path, src)
     # New inodes, each with its stock image's metadata: the Stock build's Coverflow card icons (menu_music's),
     # the Local Music and Spotify rows' icons, drawn in assets/icons/ (stock's 52px style) or else a copy of the stock image named
     # (not the copies iPod pre-sizes for Settings), and q2video.

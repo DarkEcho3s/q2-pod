@@ -526,14 +526,13 @@ typedef struct {
     unsigned magic, version, size, checksum, n, pos, elapsed, shuffle, repeat, folder, cursor, hn,
         forced, force_end, type;
 } snapshot;
-static unsigned checksum(void *buf, unsigned size) { return hash_bytes(FNV_SEED, buf, size); }
 /* Elapsed time for the snapshot whose checksum is snapshot, at pos. */
 typedef struct {
     unsigned checksum, snapshot, pos, elapsed;
 } checkpoint;
 static int save_elapsed(int sec) {
     checkpoint c = { 0, s.saved_sum, s.saved_pos, (unsigned)sec };
-    c.checksum = checksum(&c.snapshot, 3 * 4);
+    c.checksum = hash_bytes(FNV_SEED, (const unsigned char *)&c.snapshot, 3 * 4);
     return BLOB_IO(CHECKPOINT_FILE, c, 1);
 }
 void playback_save(void) {
@@ -602,7 +601,7 @@ void playback_save(void) {
         memcpy(p, path, identity[0]);
         p += identity[0];
     }
-    unsigned sum = ((snapshot *)buf)->checksum = checksum(buf, size);
+    unsigned sum = ((snapshot *)buf)->checksum = hash_bytes(FNV_SEED, buf, size);
     int ok = blob_io(QUEUE_FILE, QUEUE_FILE ".tmp", buf, size, 1);
     free(buf);
     if (ok) {
@@ -653,13 +652,13 @@ int ringnav_memory(void *out) {
         unsigned char extra;
         if (fread(&extra, 1, 1, f)) ok = 0;
         ((snapshot *)buf)->checksum = 0;
-        if (checksum(buf, h.size) != h.checksum) ok = 0;
+        if (hash_bytes(FNV_SEED, buf, h.size) != h.checksum) ok = 0;
     } else
         ok = 0;
     if (fclose(f)) ok = 0;
     checkpoint c;
     if (ok && BLOB_IO(CHECKPOINT_FILE, c, 0) && c.snapshot == h.checksum && c.pos == h.pos &&
-        c.elapsed <= 0x7fffffff && checksum(&c.snapshot, 3 * 4) == c.checksum)
+        c.elapsed <= 0x7fffffff && hash_bytes(FNV_SEED, (const unsigned char *)&c.snapshot, 3 * 4) == c.checksum)
         h.elapsed = c.elapsed;
     /* Validate the entire snapshot before queries or mutations. */
     unsigned *indices = (unsigned *)(buf ? buf + header_size : 0);
