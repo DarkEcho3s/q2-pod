@@ -65,17 +65,17 @@ Flash `/tmp/q2-logo/update.tar` the normal way: copy it to the root of the micro
 
 ## Making a logo that works
 
-- **Orientation: rotate upright artwork 90° clockwise before fitting it.** The stock JPEG is stored sideways because of the framebuffer orientation. The supplied SHANLING logo therefore reads downward along the left side of the stored JPEG and appears upright on the device.
+- **Orientation: rotate upright artwork 90° clockwise before fitting it.** The stock JPEG is stored sideways because of the framebuffer orientation. The supplied logo therefore reads sideways in the stored JPEG and appears upright on the device.
 - **Canvas: exactly 320x375 pixels, black.** `display_logo` does not scale the image. Fit the rotated artwork within both dimensions, preserve its aspect ratio, and centre it horizontally and vertically without cropping. The build rejects any other size.
 - **Format: 8-bit, three-component baseline JPEG (RGB/YCbCr).** No PNG, alpha, grayscale or CMYK. The stock renderer assumes three decoded bytes per pixel; the builder rejects incompatible frame headers.
-- **Keep it small.** JPEG data barely compresses and the repacked rootfs must stay within the stock image size (50,442,240 bytes). The stock splash is 47.8 KB and a rebuilt Stock rootfs with `assets/boot-logo.jpg` leaves about 12 KB of slack (iPod, without the Home carousel images, about 272 KB), so keep a Stock-build logo under about 28 KB (this file plus that slack); re-save at lower quality if the build fails with `Repacked rootfs exceeds stock size`. `assets/boot-logo.jpg` is about 16.5 KB.
+- **Keep it small.** JPEG data barely compresses and the repacked rootfs must stay within the stock image size (50,442,240 bytes). The stock splash is 47.8 KB and a rebuilt Stock rootfs with `assets/boot-logo.jpg` leaves about 12 KB of slack (iPod, without the Home carousel images, about 272 KB), so keep a Stock-build logo under about 28 KB (this file plus that slack); re-save at lower quality if the build fails with `Repacked rootfs exceeds stock size`. `assets/boot-logo.jpg` is about 7.7 KB.
 
-The supplied logo comes from the [original artwork](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRA0yLsPKygK-EqPHDCqGfsbNtwv2mp9Lk4l-aqDei6Qy85qhC-mONCnwo&s=10), transformed directly with ImageMagick. The downloaded source is a 428x346 PNG despite the URL having no filename. To reproduce the transform from that source:
+The supplied logo is a flat white Q2 mark with a small POD label on black. Its editable, upright source is `assets/boot-logo.svg` (375x320). To reproduce the firmware JPEG with ImageMagick:
 
 ```sh
-magick original-logo.png -background black -alpha remove -alpha off -rotate 90 \
-  -resize 320x375 -gravity center -extent 320x375 -colorspace sRGB -type TrueColor \
-  -strip -interlace none -quality 92 assets/boot-logo.jpg
+magick -background black -density 384 assets/boot-logo.svg -resize 375x320 \
+  -rotate 90 -colorspace sRGB -type TrueColor -strip -interlace none \
+  -sampling-factor 4:4:4 -quality 92 assets/boot-logo.jpg
 ```
 
 To check what landed in the image:
