@@ -2613,8 +2613,8 @@ static int setting_click(void *ctx, void *event) {
  * chevron, since they change in place. */
 int ringnav_display(void *win, void *ctx) {
     int result = stock_display_trampoline(win, ctx);
-    void *view = win ? widget_lookup(win, "scroll_view_display", 1) : (void *)0;
 #if IPOD
+    void *view = win ? widget_lookup(win, "scroll_view_display", 1) : (void *)0;
     static const char *const icons[] = { "system_display", "playset_covermode",
                                          "system_powermanager", "system_display" };
     for (int k = 0; view && k < 4; ++k) {
@@ -2622,8 +2622,6 @@ int ringnav_display(void *win, void *ctx) {
         st.setting_label[i] = list_row(view, icons[i], setting_click, (void *)(long)i);
         setting_text(i);
     }
-#endif
-#if IPOD
     if (view) accent_row();
 #endif
     return result;
