@@ -138,6 +138,10 @@
 #define BATT_PCT_PX 14
 #define BATT_BODY_W 16
 #define BATT_BODY_H 11
+#define BATT_INSIDE_W 44
+#define BATT_INSIDE_H 20
+#define BATT_INSIDE_NUB_H 6
+#define BATT_INSIDE_TEXT_DY 2
 #define BATT_NUB_W 2
 #define BATT_NUB_H 5
 #define BATT_PX 14

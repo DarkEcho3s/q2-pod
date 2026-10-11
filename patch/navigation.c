@@ -175,7 +175,7 @@ typedef struct {
      * CODEC_STEPS the glyph fading in, 2 * CODEC_STEPS done) and timer; the battery slot's last
      * level, charge and low state. */
     void *bar_bt, *bar_wifi, *bar_pct, *bar_slot, *bar_icon, *bar_idle, *bar_state, *bar_eq;
-    int codec, codec_step;
+    int codec, codec_step, batt_mode;
     unsigned codec_timer, batt_key;
     unsigned letter_timer; /* the fast-scroll letter shows while this runs */
     /* Now Playing's window and payload-filled widgets, and the sources they last showed. */
@@ -1259,7 +1259,7 @@ static int accent(void) {
     if (!st.settings_read) {
         st.accent = config_digit("ACCENT", ACCENT_N);
         st.home_full = config_digit("HOME", 2);
-        st.battery = config_digit("BATTERY", 3);
+        st.battery = config_digit("BATTERY", 4);
         st.classic = config_digit("THEME", 2);
         st.settings_read = 1;
     }
@@ -1945,7 +1945,8 @@ static void bar_sync(void *bar) {
     if (st.home_rockbox != rockbox_available()) coverflow_home_layout();
     int mode = st.battery;
     if (mode) {
-        int reach = mode == 1 ? BATT_PCT_W : BATT_BODY_W + BATT_NUB_W + BATT_GAP + BATT_PCT_W;
+        int reach = mode == 1 ? BATT_PCT_W : mode == 3 ? BATT_INSIDE_W + BATT_NUB_W
+                         : BATT_BODY_W + BATT_NUB_W + BATT_GAP + BATT_PCT_W;
         if (widget_get_visible(st.bar_wifi)) reach += I(st.bar_wifi, W_W) + 5;
         if (shown)
             reach += 5 + (st.codec && st.codec_step < CODEC_STEPS ? codec_reach[st.codec - 1]
@@ -1953,7 +1954,8 @@ static void bar_sync(void *bar) {
         if (reach > BATT_ROOM) mode = 0;
     }
     widget_set_visible(st.bar_icon, 0, 0);
-    int width = BATT_BODY_W + BATT_NUB_W + (mode == 2 ? BATT_GAP + BATT_PCT_W : 0);
+    int width = (mode == 3 ? BATT_INSIDE_W : BATT_BODY_W) + BATT_NUB_W +
+                (mode == 2 ? BATT_GAP + BATT_PCT_W : 0);
     int resized = I(st.bar_slot, W_W) != width;
     widget_resize(st.bar_slot, width, 30);
     widget_set_visible(st.bar_pct, mode == 1, 0);
@@ -1976,13 +1978,14 @@ static void bar_sync(void *bar) {
                    (unsigned)(icon && !tk_strcmp(icon, "bar_lowcharge"));
     unsigned color = RGBA(key & 2 ? BATT_CHARGE_RGB : key & 1 ? BATT_LOW_RGB : 0xffffff);
     widget_set_prop_int(st.bar_pct, "style:normal:text_color", (int)color);
-    if (key == st.batt_key) return;
+    if (key == st.batt_key && mode == st.batt_mode) return;
+    st.batt_mode = mode;
     st.batt_key = key;
     widget_invalidate_force(st.bar_slot, (void *)0);
 }
 
-/* Charge-level outline and nub, with a percentage alongside in mode 2; charging fills the icon
- * solid green, without the level; restore canvas state. */
+/* Charge-level outline and nub, percentage alongside in mode 2 or inside an unfilled outline
+ * in mode 3; charging fills only the small icon. Restore canvas state. */
 static void paint_battery(void *w, void *canvas) {
     void *lcd = P(canvas, CANVAS_LCD);
     if (!lcd) return;
@@ -1990,15 +1993,26 @@ static void paint_battery(void *w, void *canvas) {
     unsigned key = st.batt_key, level = key >> 2, s[4], n = put_num(s, level);
     s[n++] = '%';
     unsigned color = RGBA(key & 2 ? BATT_CHARGE_RGB : key & 1 ? BATT_LOW_RGB : 0xffffff);
-    const int bw = BATT_BODY_W, bh = BATT_BODY_H, y = (I(w, W_H) + 1 - bh) / 2;
+    int inside = st.batt_mode == 3;
+    const int bw = inside ? BATT_INSIDE_W : BATT_BODY_W,
+              bh = inside ? BATT_INSIDE_H : BATT_BODY_H,
+              nh = inside ? BATT_INSIDE_NUB_H : BATT_NUB_H, y = (I(w, W_H) + 1 - bh) / 2;
     canvas_set_fill_color(canvas, color);
     canvas_fill_rect(canvas, 1, y, bw - 2, 1);
     canvas_fill_rect(canvas, 1, y + bh - 1, bw - 2, 1);
     canvas_fill_rect(canvas, 0, y + 1, 1, bh - 2);
     canvas_fill_rect(canvas, bw - 1, y + 1, 1, bh - 2);
-    canvas_fill_rect(canvas, bw, y + (bh - BATT_NUB_H) / 2, BATT_NUB_W, BATT_NUB_H);
-    canvas_fill_rect(canvas, 2, y + 2, (bw - 4) * (key & 2 ? 100 : level) / 100, bh - 4);
-    if (I(w, W_W) > bw + BATT_NUB_W) {
+    canvas_fill_rect(canvas, bw, y + (bh - nh) / 2, BATT_NUB_W, nh);
+    if (inside) {
+        canvas_set_fill_color(canvas, RGBA(0));
+        canvas_fill_rect(canvas, 1, y + 1, bw - 2, bh - 2);
+        /* Digits have no descenders: lower their ink within the font's line box. */
+        rect_t r = { (bw - BATT_PCT_W) / 2, y + BATT_INSIDE_TEXT_DY, BATT_PCT_W, bh };
+        draw_centred(canvas, s, n, &r, BATT_PX, color);
+    } else {
+        canvas_fill_rect(canvas, 2, y + 2, (bw - 4) * (key & 2 ? 100 : level) / 100, bh - 4);
+    }
+    if (st.batt_mode == 2) {
         rect_t r = { bw + BATT_NUB_W + BATT_GAP, 0, BATT_PCT_W, I(w, W_H) };
         draw_centred(canvas, s, n, &r, BATT_PX, color);
     }
@@ -2642,7 +2656,7 @@ int ringnav_image_add(void *manager, const char *name, void *bitmap) {
 static void setting_text(int i) {
     static const char *const home[] = { "Home: Split", "Home: Full" },
                              *const battery[] = { "Battery: Icon", "Battery: Percent",
-                                                  "Battery: Icon + Percent" },
+                                                  "Battery: Icon + Percent", "Battery: Percent Inside" },
                              *const theme[] = { "Theme: Minimal", "Theme: Classic" };
     accent(); /* reads the settings */
     const char *const names[] = { accent_names[st.accent], home[st.home_full], battery[st.battery],
@@ -2664,7 +2678,7 @@ static void accent_row(void) {
 static int setting_click(void *ctx, void *event) {
     (void)event;
     static const char *const keys[] = { "ACCENT", "HOME", "BATTERY", "THEME" };
-    static const int counts[] = { ACCENT_N, 2, 3, 2 };
+    static const int counts[] = { ACCENT_N, 2, 4, 2 };
     int i = (int)(long)ctx; /* read by ringnav_display: 0 Accent, 1 Home, 2 Battery, 3 Theme */
     int *const values[] = { &st.accent, &st.home_full, &st.battery, &st.classic },
                *value = values[i];

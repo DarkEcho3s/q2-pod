@@ -817,7 +817,34 @@ else:
             assert [x[:5] for x in bands]==expected
             assert [(l['text'],l['rect'],l['color'],l['font'],l['align']) for l in letters]==[(text+'%',(bw+O['BATT_NUB_W']+O['BATT_GAP'],0,O['BATT_PCT_W'],30),color_t(rgb),('default',O['BATT_PX']),(1,1))]
 
-        for mode in range(3):
+        # Percent Inside: fixed geometry, black interior and centred text in every state.
+        for theme in (0,1):
+            b,bar,w,paint=battery_bar(3); b.config['THEME']=str(theme)
+            b.nodes[w['img_bt']]['visible']=0
+            for image,rgb in (('bar_battery',0xffffff),('bar_charge',O['BATT_CHARGE_RGB']),('bar_lowcharge',O['BATT_LOW_RGB'])):
+                for value in (0,1,9,10,99,100):
+                    b.nodes[w['img_battery']]['image']=image
+                    b.nodes[w['label_battery']]['text']=f'{value}%'
+                    paint(); before=lcd(); bands,letters=slot()
+                    bw,bh,nh=O['BATT_INSIDE_W'],O['BATT_INSIDE_H'],O['BATT_INSIDE_NUB_H']; y=(30+1-bh)//2
+                    assert b.get(w['view_battery']+O['W_W'])==bw+O['BATT_NUB_W']
+                    assert [x[:5] for x in bands]==[(1,y,bw-2,1,color_t(rgb)),(1,y+bh-1,bw-2,1,color_t(rgb)),
+                        (0,y+1,1,bh-2,color_t(rgb)),(bw-1,y+1,1,bh-2,color_t(rgb)),
+                        (bw,y+(bh-nh)//2,O['BATT_NUB_W'],nh,color_t(rgb)),(1,y+1,bw-2,bh-2,color_t(0))]
+                    assert [(l['text'],l['rect'],l['color'],l['font'],l['align']) for l in letters]==[(f'{value}%',((bw-O['BATT_PCT_W'])//2,y+O['BATT_INSIDE_TEXT_DY'],O['BATT_PCT_W'],bh),color_t(rgb),('default',O['BATT_PX']),(1,1))]
+        # A crowded codec temporarily uses the small icon and recovers without a level change.
+        b,bar,w,paint=battery_bar(3); b.nodes[w['label_battery']]['text']='100%'
+        paint(); assert b.get(w['view_battery']+O['W_W'])==O['BATT_BODY_W']+O['BATT_NUB_W']
+        b.advance(O['CODEC_MS'])
+        for _ in range(O['CODEC_STEPS']): b.advance(O['CODEC_STEP_MS'])
+        b.calls=[]; paint()
+        assert b.get(w['view_battery']+O['W_W'])==O['BATT_INSIDE_W']+O['BATT_NUB_W']
+        assert ('widget_invalidate_force',w['view_battery']) in [c[:2] for c in b.calls]
+        for invalid in ('4','9','-1','33','bad',''):
+            b,bar,w,paint=battery_bar(invalid); paint()
+            assert b.get(w['view_battery']+O['W_W'])==O['BATT_BODY_W']+O['BATT_NUB_W']
+
+        for mode in range(4):
             for bt in (0,1):
                 for wifi in (0,1):
                     b,bar,w,paint=battery_bar(mode)
@@ -826,7 +853,7 @@ else:
                     b.nodes[w['label_battery']]['text']='100%'
                     paint()
                     assert shown(b,w)==(['label_battery'] if mode==1 else ['view_battery'])
-                    assert b.get(w['view_battery']+O['W_W'])==O['BATT_BODY_W']+O['BATT_NUB_W']+(O['BATT_GAP']+O['BATT_PCT_W'] if mode==2 else 0)
+                    assert b.get(w['view_battery']+O['W_W'])==(O['BATT_INSIDE_W'] if mode==3 else O['BATT_BODY_W'])+O['BATT_NUB_W']+(O['BATT_GAP']+O['BATT_PCT_W'] if mode==2 else 0)
         passed()
     battery_checks()
 assert m.confirm()==11 and m.dispatched()[0][1]==entries[0]; passed()
@@ -3798,12 +3825,13 @@ if variant=='ipod':
         assert m.nodes[idle]['visible']==int(not playing and not equalizer)
         assert tuple(m.get(title+O[k]) for k in ('W_X','W_Y','W_W','W_H'))==clock_box
     passed()
-    for mode in (1,2,0,1,2,0):
+    for mode in (1,2,3,0,1,2,3,0):
         m.call(address=payload_syms['setting_click'],args=(2,m.event,0,0),gap=0)
-        paint_live_bar()
+        m.calls=[]; paint_live_bar()
+        assert ('widget_invalidate_force',slot) in [c[:2] for c in m.calls]
         if mode != 1:
             assert m.nodes[slot]['visible']
-            assert m.get(slot+O['W_W'])==O['BATT_BODY_W']+O['BATT_NUB_W']+(O['BATT_GAP']+O['BATT_PCT_W'] if mode==2 else 0)
+            assert m.get(slot+O['W_W'])==(O['BATT_INSIDE_W'] if mode==3 else O['BATT_BODY_W'])+O['BATT_NUB_W']+(O['BATT_GAP']+O['BATT_PCT_W'] if mode==2 else 0)
             assert signed(m.get(views[1]+O['W_X']))+signed(m.get(slot+O['W_X']))+m.get(slot+O['W_W'])==375-STATUS_MARGIN
     passed()
 
@@ -5203,11 +5231,12 @@ if variant=='ipod':
     home_bounds(False)
     m.paint(view); assert not m.bands and m.rounded[0]['color']==color_t(0xeeeeec); passed()
     bar=m.node('window','system_bar'); m.word(syms['system_bar'],bar)
-    for value,name in ((1,'Percent'),(2,'Icon + Percent'),(0,'Icon')):
+    for value,name in ((1,'Percent'),(2,'Icon + Percent'),(3,'Percent Inside'),(0,'Icon')):
         writes=click(2); assert [(w[0],m.text(w[2])) for w in writes]==[(value,'BATTERY')] and texts()[2]=='Battery: '+name
         assert ('widget_invalidate_force',bar) in [c[:2] for c in m.calls] and not [c for c in m.calls if c[0]=='image_manager_unload_all']
     passed()
     m,view,rows=display({'ACCENT':'2','HOME':'1','BATTERY':'2','SHORTCUT':'1'}); got=[m.nodes[m.nodes[m.nodes[r]['children'][0]]['children'][1]]['text'] for r in rows]; assert got==['Accent: Tidal','Home: Full','Battery: Icon + Percent','Theme: Minimal']; passed()
+    m,view,rows=display({'BATTERY':'3'}); assert m.nodes[m.nodes[m.nodes[rows[2]]['children'][0]]['children'][1]]['text']=='Battery: Percent Inside'; passed()
     m,view,rows=display({'ACCENT':'2','HOME':'1','THEME':'1'}); got=[m.nodes[m.nodes[m.nodes[r]['children'][0]]['children'][1]]['text'] for r in rows]
     assert got==['Accent: Tidal','Home: Full','Battery: Icon','Theme: Classic'] and m.nodes[view]['children'][3:5]==[rows[3],rows[0]]; passed()
     # Home's Rockbox row (docs/boot.md#rockbox-from-home): its click saves the queue as power-off does,

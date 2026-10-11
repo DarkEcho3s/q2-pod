@@ -138,16 +138,16 @@ stock font at 16 pixels.
 (`CODEC_MS`), then fades out and the white Bluetooth glyph (`bar_btcon`) fades in at the same place,
 150 ms each way; the glyph then stays until the codec changes or Bluetooth goes off.
 
-**Battery.** The Battery setting (see [Display settings](#display-settings)) shows one of three
-widgets at the right end, and the layout skips the other two:
+**Battery.** The Battery setting (see [Display settings](#display-settings)) offers four modes at the right end; the layout skips hidden widgets:
 
 - Icon: a clean 16×11 charge-level outline and a 2-pixel nub, drawn in `view_battery`.
 - Percent: stock's `label_battery`, 14 px, right-aligned in a 36-pixel slot.
 - Icon + Percent: the same charge-level icon with a readable 14 px percentage beside it, in a 56-pixel slot.
+- Percent Inside (`BATTERY=3`): a fixed 44×20 outline with a 2×6 terminal, and a centred 14 px percentage in a 36-pixel text area, lowered 2 pixels to centre the digits within the font’s line box. The interior stays black without a level fill; outline and text turn green while charging and red when low.
 
-Charging fills the icon solid green (`BATT_CHARGE_RGB`); low battery always uses
+In Icon and Icon + Percent, charging fills the icon solid green (`BATT_CHARGE_RGB`); low battery always uses
 `BATT_LOW_RGB` (`#FF1448`) under every accent. Saved Battery values keep their existing meanings.
-The bar surface is black. Every mode fits with ordinary Bluetooth and Wi-Fi, with at least
+The bar is black in Minimal and charcoal in Classic. Every mode fits with ordinary Bluetooth and Wi-Fi, with at least
 4 pixels (`CLOCK_GAP`) before the widest clock text (`BATT_ROOM`, 94 pixels from the margin).
 Wide codec badges temporarily show the icon alone until they fade.
 
@@ -503,7 +503,7 @@ builds three rows with `0x4c19bc`: a `list_item_create(view, 0, 0, 0, 0)` in `s_
 show no value; each opens a sub-page (iPod's [settings rows](#settings) then lay them out 68
 pixels high). iPod runs the stock init, then adds four rows the same way: "Theme: Minimal" and
 "Accent: Graphite" with the System settings Display icon (`system_display`), "Home: Split" with Play settings' cover
-mode icon (`playset_covermode`), "Battery: Icon" (Icon, Percent, Icon + Percent; see
+mode icon (`playset_covermode`), "Battery: Icon" (Icon, Percent, Icon + Percent, Percent Inside; see
 [Status bar and clock](#status-bar-and-clock)) with the power manager icon
 (`system_powermanager`), all among the [settings icons](#settings-icons)
 the build pre-sizes. The value is in the label (260 pixels wide, to where the chevron ends) and there is no

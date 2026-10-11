@@ -301,6 +301,49 @@ with tempfile.TemporaryDirectory(prefix='q2-ui-preview-') as tmp:
             assert render(a,row)==(750,238)
             frames.append(row)
         render(frames+['-append'],out/'coverflow-renderer.png')
+    # Native-size battery review with packaged font and connectivity assets.
+    battery_rows=[]
+    for theme in themes:
+        for state,color in (('normal','#ffffff'),('charging',f'#{inc("BATT_CHARGE_RGB"):06x}'),('low',f'#{inc("BATT_LOW_RGB"):06x}')):
+            for level in (0,1,9,10,99,100,'LDAC fallback'):
+                a=['-size','375x50','xc:black']
+                rect(a,0,0,375,30,f'#{inc("BAR_CLASSIC") if theme=="classic" else inc("BAR_COLOR"):06x}')
+                text(a,f'{theme} / {state} / {level}'+('%' if isinstance(level,int) else ''),5,30,360,20,12)
+                # Match the packaged idle label and clock, without inherited image geometry.
+                for value,px,width,x0 in (('Q2',18,28,STATUS_MARGIN),('12:59 PM',16,90,142)):
+                    glyph=tmp/f'bar-text-{px}.png'
+                    render(['-background','none','-fill','white','-font',font,'-pointsize',px,
+                            'label:'+value,'-gravity','Center','-extent',f'{width}x30'],glyph)
+                    a += [glyph,'-gravity','NorthWest','-geometry',f'+{x0}+0','-composite']
+                bw,bh,nh=inc('BATT_INSIDE_W'),inc('BATT_INSIDE_H'),inc('BATT_INSIDE_NUB_H')
+                fallback=isinstance(level,str)
+                if fallback: bw,bh,nh=inc('BATT_BODY_W'),inc('BATT_BODY_H'),inc('BATT_NUB_H')
+                x=375-STATUS_MARGIN-bw-inc('BATT_NUB_W'); y=(30+1-bh)//2
+                for dx,dy,w,h in ((1,0,bw-2,1),(1,bh-1,bw-2,1),(0,1,1,bh-2),(bw-1,1,1,bh-2),(bw,(bh-nh)//2,inc('BATT_NUB_W'),nh)):
+                    rect(a,x+dx,y+dy,w,h,color)
+                if fallback:
+                    rect(a,x+2,y+2,bw-4,bh-4,color)
+                else:
+                    rect(a,x+1,y+1,bw-2,bh-2,'black')
+                    glyph=tmp/f'battery-text-{state}-{level}.png'
+                    render(['-background','none','-fill',color,'-font',font,'-pointsize',inc('BATT_PX'),
+                            'label:'+str(level)+'%','-gravity','Center','-extent',f'{inc("BATT_PCT_W")}x{bh}'],glyph)
+                    bounds=imagemagick(glyph,'-format','%@','info:',data=b'').decode().strip()
+                    gw,gh,gx,gy=map(int,re.fullmatch(r'(\d+)x(\d+)\+(\d+)\+(\d+)',bounds).groups())
+                    # Visible glyph ink must leave at least three clear pixels inside each border.
+                    dx=(bw-inc('BATT_PCT_W'))//2; dy=inc('BATT_INSIDE_TEXT_DY')
+                    assert dx+gx>=4 and dx+gx+gw<=bw-4 and gy+dy>=4 and gy+dy+gh<=bh-4, bounds
+                    a += [glyph,'-gravity','NorthWest','-geometry',f'+{x+dx}+{y+dy}','-composite']
+                # Ordinary Bluetooth and Wi-Fi fit alongside every percentage.
+                wifi=asset(after,'images/xx/bar_wifi4.png')
+                ww,wh=png_header(wifi.read_bytes())[:2]
+                image(a,wifi,x-5-ww,(30-wh)//2,ww,wh)
+                bt=asset(after,'images/xx/'+('bar_ldac' if fallback else 'bar_btcon')+'.png'); tw,th=png_header(bt.read_bytes())[:2]
+                image(a,bt,x-5-ww-5-tw,(30-th)//2,tw,th)
+                frame=tmp/f'battery-{theme}-{state}-{level}.png'
+                assert render(a,frame)==(375,50)
+                battery_rows.append(frame)
+    assert render(battery_rows+['-append'],out/'battery-inside.png')==(375,50*len(battery_rows))
     (out/'provenance.json').write_text(json.dumps({
         'font_sha256':hashlib.sha256(font.read_bytes()).hexdigest(),
         'before_source_sha256':json.loads((before/'manifest.json').read_text())['source_sha256'],
