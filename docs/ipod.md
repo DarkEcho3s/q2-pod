@@ -86,7 +86,7 @@ selection rectangle or chevron. **Theme: Classic** styles the menu as before 1.0
 The seven destinations remain Now Playing, Library, Coverflow, Folder, Rockbox, Streaming and
 Settings. Rockbox is visible only when its binary is on the card. Settings opens Playback and
 System; Return restores the menu's previous selection. The native stock handlers, translation
-keys, full-row tap targets and submenu animation remain intact. The wheel bumps at either end and wraps on a second detent, as the library lists do (`RING` in `patch/contexts.inc`).
+keys, full-row tap targets, wheel hard ends and submenu animation remain intact.
 
 `HOME_ROW=39` and `HOME_TOP=8` retain corner clearance. The 6-pixel dot sits at x 25, clear of the
 bottom row's corner, and labels start 8 pixels after it (x 39) and end 33 pixels before the row's
