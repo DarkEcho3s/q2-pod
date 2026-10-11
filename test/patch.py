@@ -3988,7 +3988,7 @@ if variant=='ipod':
 
     # Now Playing: stock init runs first, then "n of m", the album and "-remaining" (slider max less
     # value, in seconds) fill in; later paints rewrite a label only when its source changed.
-    playing=IPOD_HOOKS['playing_page_init'][0]
+    playing=HOOKS['playing_page_init'][0]
     assert struct.unpack_from('<I',demo,fileoff(demo,playing))[0]==0x08000000|symbols(B/'patch.elf')['ringnav_playing']>>2
     m=QueueMachine(queue=3,pos=1); m.handlers[playing+12]='stock_playing'
     for i,r in enumerate(m.items(m.get(syms['mcl_pdeqplaylist']))): m.word(r+O['REC_ALBUM'],m.string(f'Album {i}'))
@@ -4606,7 +4606,7 @@ class RolloverMachine(CoverflowMachine):
         self.word(self.win+O['W_PARENT'],self.wm); self.top=self.win
         self.info=self.alloc(0x40); self.word(self.info+0x20,self.win)
         if variant=='ipod':
-            playing=IPOD_HOOKS['playing_page_init'][0]; self.handlers[playing+12]='stock_playing'
+            playing=HOOKS['playing_page_init'][0]; self.handlers[playing+12]='stock_playing'
             self.call(address=playing,args=(self.win,0,0,0),gap=0)
         self.byte(syms['g_forcerefresh_flag'],1)
 
@@ -5634,12 +5634,16 @@ m=ShuffleMachine(); stock=[m.node('list_item') for _ in range(11)]
 view=m.node('scroll_view','scroll_view_localmusic',stock); m.top=m.node('window','localmusic_page',[view])
 assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0
 assert m.calls[0][:3]==('stock_localmusic',m.top,5)
-# Library order: Shuffle; Artist, Album, All Songs, Genre, Playlist, My Fav; Recently Added, Recent,
-# Most Played, Frequent, Hi-Res; then Update Local Music, last (stock rows by get_localmusic_showinfo index).
-kids=m.nodes[view]['children']; row,top=kids[0],kids[9]
-assert [kids[i] for i in (*range(1,9),10,11,12)]==[stock[i] for i in (3,2,1,4,10,6,9,8,7,5,0)] and m.nodes[row]['style']=='s_listitem_black'
+# Library order: Shuffle; Artist, Album, All Songs, Genre, Playlist, Ratings (in My Fav's place, hidden);
+# Recently Added, Recent, Most Played, Frequent, Hi-Res; then Update Local Music, last (stock rows by
+# get_localmusic_showinfo index).
+kids=m.nodes[view]['children']; row,rated,top=kids[0],kids[6],kids[10]
+assert [kids[i] for i in (*range(1,6),7,8,9,11,12,13)]==[stock[i] for i in (3,2,1,4,10,6,9,8,7,5,0)] and m.nodes[row]['style']=='s_listitem_black'
+assert m.nodes[stock[6]]['visible']==0 and all(m.nodes[k].get('visible',1) for k in kids if k!=stock[6])
 icon,label=m.nodes[m.nodes[top]['children'][0]]['children']
 assert m.nodes[icon]['image']=='local_frequentplay' and m.nodes[label]['text']=='Most Played'
+icon,label,into=m.nodes[m.nodes[rated]['children'][0]]['children']
+assert m.nodes[icon]['image']=='local_fav' and m.nodes[label]['text']=='Ratings' and m.nodes[into]['image']=='list_into'
 # The Shuffle row: the local_shuffle icon, its label and stock's list_into trailing image, as the
 # stock Local Music categories place them. Its button has no name, so stock's row click ignores it.
 button=m.nodes[row]['children'][0]; icon,label,into=m.nodes[button]['children']
@@ -5765,15 +5769,140 @@ m.close(); m.calls=[]; m.rescan(); m.calls=[]
 assert m.call(address=f,args=(ctx,m.event,0,0),gap=0,count=50_000_000)==0 and called('getAllMusic')
 m.page=m.top; assert m.texts()==['Most Played']+[x for p in zip(ranked[:3],details[:3]) for x in p]; passed()
 
+# Ratings (navigation.c rate_*): 5 hearts are stock's My Fav, 1-4 kept in /mnt/data/ringnav-ratings by listen_key with
+# the hearts in its low three bits. Now Playing's heart: stock's click (0x52b154, bound to img_fav with the window) is
+# swapped for one telling a tap, stock's toggle that leaves nothing kept, from a RATE_HOLD_MS hold, which opens the
+# picker: five of the heart's images on a dark panel, the wheel moving the rating, Centre saving and Return leaving it.
+FAV_CLICK=0x52b154
+class RateMachine(ShuffleMachine):
+    def __init__(self,saved=b''):
+        super().__init__()
+        self.budget=2_000_000  # a RATE_SLOTS table scan or two a call
+        self.word(O['MCL_POS'],1)  # B of ABC plays
+        self.files={'/mnt/data/ringnav-ratings':saved} if saved else {}; self.open_files={}; self.fav_songs=[]
+        for n in ('fopen@GLIBC_2.2','fread@GLIBC_2.0','fwrite@GLIBC_2.0','fclose@GLIBC_2.2','rename@GLIBC_2.0','getAllFav'):
+            self.handlers[syms[n]]='r:'+n
+        self.handlers[FAV_CLICK]='r:fav_click'
+        self.fav=self.node('image','img_fav'); self.word(self.fav+O['W_X'],303); self.word(self.fav+O['W_Y'],176)
+        self.word(self.fav+O['W_W'],50); self.word(self.fav+O['W_H'],50); self.nodes[self.fav]['image']='play_unfav'
+        self.np=self.node('window','playing_page',[self.node('view','view_album',[self.fav])])
+        self.word(self.np+O['W_W'],375); self.word(self.np+O['W_H'],320); self.word(self.np+O['W_PARENT'],self.wm)
+        for w in self.nodes[self.np]['children']: self.word(self.fav+O['W_PARENT'],w); self.word(w+O['W_PARENT'],self.np)
+        em=self.alloc(4); it=self.alloc(0x28); self.word(self.fav+O['W_EMITTER'],em); self.word(em,it)
+        self.word(it+O['EMIT_TYPE'],O['EVT_CLICK']); self.word(it+12,FAV_CLICK); self.word(it,self.np)
+        playing=HOOKS['playing_page_init'][0]; self.handlers[playing+12]='stock_playing'
+        self.top=self.np; self.stack=[self.np]
+        assert self.call(address=playing,args=(self.np,0,0,0),gap=0)==0
+    def hook(self,u,address,size,unused):
+        name=self.handlers.get(address,'')
+        if not name.startswith('r:'): return super().hook(u,address,size,unused)
+        name=name[2:].split('@')[0]; a,b,c,d=[u.reg_read(r) for r in REGS]; ret=0; self.calls.append((name,a,b,c))
+        if name=='fopen':
+            path,mode=self.text(a),self.text(b)
+            if mode=='wb' or path in self.files: ret=0x2000000+len(self.open_files)*16; self.open_files[ret]=[path,b'']
+        elif name=='fread': data=self.files[self.open_files[d][0]]; ret=int(len(data)>=b*c); u.mem_write(a,data[:b*c].ljust(b*c,b'\0'))
+        elif name=='fwrite': self.open_files[d][1]+=bytes(u.mem_read(a,b*c)); ret=c
+        elif name=='fclose':
+            path,data=self.open_files.pop(a)
+            if data: self.files[path]=data
+        elif name=='rename': self.files[self.text(b)]=self.files.pop(self.text(a))
+        elif name=='getAllFav':
+            self.deqs[self.get(syms['tools_pdeq_directory'])][1]=[self.copy('stSongInfo',e) for e in self.fav_songs]; ret=len(self.fav_songs)
+        elif name=='fav_click':  # stock: My Fav toggled for the playing track, and the heart's image
+            assert a==self.np; t=self.names()[self.get(O['MCL_POS'])]; self.favs^={t}
+            self.nodes[self.fav]['image']='play_fav' if t in self.favs else 'play_unfav'
+        for r in [UC_MIPS_REG_V1,*REGS,UC_MIPS_REG_T8,UC_MIPS_REG_T9]: u.reg_write(r,0xdeadbeef)
+        u.reg_write(UC_MIPS_REG_V0,ret&0xffffffff); u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA))
+    def kept(self):
+        data=self.files.get('/mnt/data/ringnav-ratings',b'')
+        return sorted(v for v in struct.unpack(f'<{len(data)//4}I',data) if v)
+    def badge(self):
+        b=self.nodes[self.fav]  # the badge is the heart's sibling, last added
+        w=self.nodes[self.get(self.fav+O['W_PARENT'])]['children'][-1]; return self.nodes[w].get('text') if self.nodes[w]['visible'] else None
+    def panel(self):
+        p=[w for w in self.nodes[self.np]['children'] if self.nodes[w]['type']=='hscroll_label']
+        return p[0] if p and self.nodes[p[0]]['visible'] else None
+    def hearts(self):
+        p=self.panel(); return [self.nodes[h]['image'] for h in self.nodes[p]['children'] if self.nodes[h]['type']=='image']
+    def caption(self): return self.nodes[self.nodes[self.panel()]['children'][0]]['text']
+    def tap(self,press=True):  # a press, then its click
+        if press: f,ctx=self.handler(self.fav,O['EVT_POINTER_DOWN']); self.call(address=f,args=(ctx,self.event,0,0),gap=0)
+        f,ctx=self.handler(self.fav,O['EVT_CLICK']); return self.call(address=f,args=(ctx,self.event,0,0),gap=0)
+    def heart(self,ms=O['RATE_HOLD_MS']):  # a press held ms on the heart
+        f,ctx=self.handler(self.fav,O['EVT_POINTER_DOWN']); self.call(address=f,args=(ctx,self.event,0,0),gap=0)
+        self.pressed=1; self.advance(ms,clear=False); self.pressed=0
+def key_of(name): k=fnv('/p/'+name); return k|(k==0)
+m=RateMachine()
+# Bound: stock's click off img_fav, the payload's click and press on, the badge hidden; nothing read yet beyond the file.
+assert ('widget_off_by_func',m.fav,O['EVT_CLICK'],FAV_CLICK) in m.calls and m.badge() is None and m.panel() is None
+assert [t for t,f,ctx in m.nodes[m.fav]['handlers']]==[O['EVT_CLICK'],O['EVT_POINTER_DOWN']]; passed()
+# A tap is stock's heart: B (playing) into My Fav, nothing kept; again, out.
+assert m.tap()==11 and m.favs=={'B'} and m.nodes[m.fav]['image']=='play_fav' and m.kept()==[]
+assert m.tap()==11 and m.favs==set(); passed()
+# A press shorter than the hold, then its click: still the tap.
+m.heart(O['RATE_HOLD_MS']-1); assert m.panel() is None and m.tap(press=False)==11 and m.favs=={'B'}; passed()
+# A hold opens the picker on 5 (My Fav); its release's click does nothing.
+m.heart(); assert m.hearts()==['play_fav']*5 and m.caption()=='5 of 5'
+assert m.tap(press=False)==11 and m.favs=={'B'}; passed()
+# The wheel moves the rating within 0-5; Return leaves it as it was.
+m.top=m.np
+for k,want in ((O['KEY_NEXT'],5),(O['KEY_PREV'],4),(O['KEY_PREV'],3)): assert m.call(k)==11
+assert m.hearts()==['play_fav']*3+['play_unfav']*2 and m.caption()=='3 of 5' and m.favs=={'B'}
+assert m.call(O['KEY_RETURN'])==11 and m.panel() is None and m.favs=={'B'} and m.kept()==[]; passed()
+# Centre saves 3: My Fav out through stock's own click, 3 kept, the badge on the empty heart.
+m.heart()
+for _ in range(2): m.call(O['KEY_PREV'])
+assert m.call(O['KEY_CENTER'])==11 and m.panel() is None and m.favs==set()
+assert m.kept()==[(key_of('B')&~7)|3] and m.badge()=='3'; passed()
+# Down to 0 clears it; a tap on the third heart saves 3 again; a tap on the heart (into My Fav) leaves nothing kept.
+m.heart()
+for _ in range(4): m.call(O['KEY_PREV'])
+assert m.caption()=='Unrated' and m.hearts()==['play_unfav']*5
+m.call(O['KEY_CENTER']); assert m.kept()==[] and m.badge() is None and m.favs==set()
+m.heart(); p=m.panel(); heart=[h for h in m.nodes[p]['children'] if m.nodes[h]['type']=='image'][2]
+f,ctx=m.handler(heart,O['EVT_CLICK']); m.call(address=f,args=(ctx,m.event,0,0),gap=0)
+assert m.panel() is None and m.kept()==[(key_of('B')&~7)|3] and m.badge()=='3'
+assert m.tap()==11 and m.favs=={'B'} and m.kept()==[] and m.badge() is None; passed()
+# Kept across boots; the badge follows the playing track on the UI tick.
+assert m.tap()==11 and m.favs==set(); m.heart(); m.call(O['KEY_NEXT']); m.call(O['KEY_NEXT']); m.call(O['KEY_CENTER'])
+m2=RateMachine(m.files['/mnt/data/ringnav-ratings']); assert m2.badge()=='2'
+m2.word(O['MCL_POS'],0); m2.advance(500); assert m2.badge() is None; passed()
+# Hold Play/Pause on Now Playing: Rate first, with the hearts; its row opens the same picker.
+m2.word(O['MCL_POS'],1); m2.handlers[syms['navigator_to']]='q:navigator_to'; m2.press(100)
+assert m2.hold()==11 and m2.labels()[0]=='Rate  ♥♥♡♡♡' and m2.release()==0
+m2.pick(0); m2.advance(0); m2.top=m2.np; assert m2.caption()=='2 of 5' and m2.call(O['KEY_RETURN'])==11; passed()
+# Ratings: Top Rated (4-5), Loved (5), All Rated and Disliked (1), most hearts first, then title order.
+m=RateMachine(b''.join(struct.pack('<I',(key_of(n)&~7)|h) for n,h in (('A',1),('C',4),('E',2))).ljust(4*O['RATE_SLOTS'],b'\0'))
+m.found=[m.song(n) for n in ('A','B','C','D','E')]; m.fav_songs=[m.song('D')]
+m.top=m.node('window','localmusic_page'); view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)])
+m.nodes[m.top]['children']=[view]; m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)
+f,ctx=m.handler(m.nodes[m.nodes[view]['children'][6]]['children'][0],O['EVT_CLICK'])
+assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0; menu=m.top; m.page=menu
+assert m.nodes[menu]['name']=='ratings_page' and m.texts()==['Ratings','Top Rated','Loved','All Rated','Disliked']
+want={0:['D','C'],1:['D'],2:['D','C','E','A'],3:['A']}
+hearts={'D':'♥♥♥♥♥','C':'♥♥♥♥♡','E':'♥♥♡♡♡','A':'♥♡♡♡♡'}
+for i,names in want.items():
+    row=m.nodes[m.find('scroll_view',menu)]['children'][i]; g,c=m.handler(row,O['EVT_CLICK'])
+    assert m.call(address=g,args=(c,m.event,0,0),gap=0,count=50_000_000)==0; m.page=m.top
+    assert m.nodes[m.page]['name']=='rated_page'
+    assert m.texts()==[('Top Rated','Loved','All Rated','Disliked')[i]]+[x for n in names for x in (n,hearts[n]+' · Artist')],m.texts()
+    if i==2:  # a row plays the list from there, as a library queue
+        r=m.nodes[m.find('scroll_view')]['children'][1]; g,c=m.handler(r,O['EVT_CLICK'])
+        assert m.call(address=g,args=(c,m.event,0,0),gap=0)==0 and m.queued==names and m.plays[-1][2:]==(1,0xf001,2)
+    m.close(); m.page=menu
+m.found=[m.song('Z')]; m.fav_songs=[]; m.calls=[]; row=m.nodes[m.find('scroll_view',menu)]['children'][0]; g,c=m.handler(row,O['EVT_CLICK'])
+m.call(address=g,args=(c,m.event,0,0),gap=0); m.page=m.top
+assert m.texts()==['Top Rated','No songs yet','Hold the heart on Now Playing to rate']; passed()
+
 # Upload Scrobbles: the second-last row, above Update Local Music, only with an account in the card's .scrobble.ini (a
 # ListenBrainz token or all four Last.fm keys). Without Wi-Fi it only says so; otherwise scrobble.c's thread
 # starts, a second press finds it running, and a timer reports the result once the thread ends.
 m=ShuffleMachine(); m.config.update(USER='u',PASSWORD='p',API_KEY='k')  # no API_SECRET: no row
 view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)]); m.top=m.node('window','localmusic_page',[view])
-assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==13
+assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==14
 assert ('/mnt/mmc/.scrobble.ini','LASTFM','API_SECRET','') in m.config_reads
 m.config['TOKEN']='tok'; m.nodes[view]['children']=[m.node('list_item') for _ in range(11)]
-assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==14
+assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==15
 button=m.nodes[m.nodes[view]['children'][-2]]['children'][0]; icon,label=m.nodes[button]['children']
 assert m.nodes[icon]['image']=='local_scrobble' and m.nodes[label]['text']=='Upload Scrobbles' and not m.nodes[button].get('name')
 f,ctx=m.handler(button,O['EVT_CLICK'])
@@ -5791,7 +5920,7 @@ m=ShuffleMachine(); m.card=[('Music',4),('PODCASTS',4),('Audiobooks',8)]
 m.handlers[int(manifest['patch_symbols']['stock_folder_trampoline'],16)]='stock_folder'
 m.handlers[int(manifest['patch_symbols']['stock_folder_back_trampoline'],16)]='stock_folder_back'
 view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)]); m.top=m.node('window','localmusic_page',[view])
-assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==14
+assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==15
 button=m.nodes[m.nodes[view]['children'][-2]]['children'][0]; icon,label=m.nodes[button]['children']
 assert m.nodes[icon]['image']=='local_podcasts' and m.nodes[label]['text']=='Podcasts' and not m.nodes[button].get('name')
 f,ctx=m.handler(button,O['EVT_CLICK']); m.calls=[]
@@ -5910,7 +6039,7 @@ m=PhotosMachine(tree,data)
 view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)]); m.top=m.node('window','localmusic_page',[view])
 assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0,count=5_000_000)==0
 button=m.nodes[m.nodes[view]['children'][-1]]['children'][0]; icon,label=m.nodes[button]['children']
-assert m.nodes[icon]['image']=='local_photos' and m.nodes[label]['text']=='Photos' and len(m.nodes[view]['children'])==14
+assert m.nodes[icon]['image']=='local_photos' and m.nodes[label]['text']=='Photos' and len(m.nodes[view]['children'])==15
 f,ctx=m.handler(button,O['EVT_CLICK']); assert m.call(address=f,args=(ctx,m.event,0,0),gap=0,count=5_000_000)==0
 page=m.top; assert m.nodes[page]['name']=='photos_page' and m.nodes[page]['style:normal:bg_color']==-0x1000000
 albums,grid,viewer=m.nodes[page]['children']; assert not m.nodes[grid]['visible'] and not m.nodes[viewer]['visible']
@@ -6065,7 +6194,7 @@ m=BooksMachine(tree,files)
 view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)]); m.top=m.node('window','localmusic_page',[view])
 assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0,count=5_000_000)==0
 button=m.nodes[m.nodes[view]['children'][-1]]['children'][0]; icon,label=m.nodes[button]['children']
-assert m.nodes[icon]['image']=='local_books' and m.nodes[label]['text']=='Books' and len(m.nodes[view]['children'])==14
+assert m.nodes[icon]['image']=='local_books' and m.nodes[label]['text']=='Books' and len(m.nodes[view]['children'])==15
 f,ctx=m.handler(button,O['EVT_CLICK']); assert m.call(address=f,args=(ctx,m.event,0,0),gap=0,count=5_000_000)==0
 page=m.page=m.top; assert m.nodes[page]['name']=='books_page' and m.nodes[page]['style:normal:bg_color']==-0x1000000
 books,reader=m.nodes[page]['children']; sheet,info=m.nodes[reader]['children']
@@ -6120,7 +6249,7 @@ m=BooksMachine(tree,{})
 view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)]); m.top=m.node('window','localmusic_page',[view])
 assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0,count=5_000_000)==0
 button=m.nodes[m.nodes[view]['children'][-1]]['children'][0]; icon,label=m.nodes[button]['children']
-assert m.nodes[icon]['image']=='local_videos' and m.nodes[label]['text']=='Videos' and len(m.nodes[view]['children'])==14
+assert m.nodes[icon]['image']=='local_videos' and m.nodes[label]['text']=='Videos' and len(m.nodes[view]['children'])==15
 f,ctx=m.handler(button,O['EVT_CLICK']); assert m.call(address=f,args=(ctx,m.event,0,0),gap=0,count=5_000_000)==0
 page=m.page=m.top; videos,_=m.nodes[page]['children']
 assert m.nodes[page]['name']=='books_page' and labels(videos)==['Videos','c','a','b']; passed()

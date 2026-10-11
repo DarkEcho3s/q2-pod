@@ -275,6 +275,10 @@
 #define LISTEN_MAX_S 240
 #define PLAYS_SLOTS 512
 #define PLAYS_TOP 100
+/* Ratings (docs/internals.md#ratings): RATE_SLOTS songs keep 1-4 hearts (5 is My Fav); holding
+ * Now Playing's heart RATE_HOLD_MS opens the picker. */
+#define RATE_SLOTS 4096
+#define RATE_HOLD_MS 500
 /* End bump and wrap, audited row lists only (see ring_list in patch/navigation.c). A detent past an
  * end nudges the outline; further detents stop there while the wheel keeps turning, and the first
  * same-direction detent after a pause of EDGE_PAUSE_MS moves to the other end of the same list. */

@@ -72,11 +72,12 @@ HOOKS = {
     'mclStartPlayer': (0x5ad6ac, 'ringnav_start_player'),
     # Tidal cache (patch/tidal.c): the stream URL thread's player start, with its song id in $s2
     'mcl_tidalStartPlayer': (0x5ad240, 'tidal_start'),
+    # Ratings (navigation.c rate_bind): Now Playing's heart, held, opens the picker
+    'playing_page_init': (0x52ca88, 'ringnav_playing'),
 }
 # Hooked in iPod builds only, so Stock keeps these entry points stock.
 IPOD_HOOKS = {'playlist_rebuild': (0x4b2dac, 'ringnav_playlist'),
               'widget_on_paint_background': (0x65c77c, 'ringnav_paint_bg'),
-              'playing_page_init': (0x52ca88, 'ringnav_playing'),
               'bigcover_page_init': (0x5200ec, 'ringnav_bigcover'),
               'style_get_color': (0x649f6c, 'ringnav_style_color'),
               'image_manager_add': (0x6445d4, 'ringnav_image_add'),
@@ -428,6 +429,7 @@ FUNCTIONS = {
  'getMusicByAlbumAndComposer': ('int', 'const char *, const char *, int'),
  'getMusicByAlbumAndGenre': ('int', 'const char *, const char *, int'),
  'checkFavExist': ('int', 'void *'),
+ 'getAllFav': ('int', 'void'),
  'deleteMusicFromFav': ('int', 'void *'),
  'batch_init_selectrecord': ('int', 'int'),
  'batch_set_selectitem': ('int', 'int'),
@@ -550,7 +552,7 @@ CONTEXT_DATA = {'bt_showcoding': 4, 'g_memory_info': 3476, 'g_folder_path': 1024
                 'pdeq_albumcoverlist': 4, 'aclist_mutex': 24,
                 'tidalStreamingLevelNow': 4}  # the quality the Tidal URL thread asked for
 # Windows the payload creates at runtime (window_create), so no rootfs asset names them.
-PAYLOAD_WINDOWS = {'coverflow_page', 'photos_page', 'books_page', 'mostplayed_page', 'shuffle_page', 'spotify_page',
+PAYLOAD_WINDOWS = {'coverflow_page', 'photos_page', 'books_page', 'mostplayed_page', 'shuffle_page', 'ratings_page', 'rated_page', 'spotify_page',
                    'radio_page', 'radionp_page'}
 ICONS = ['menu_coverflow.png', 'menu_coverflowdown.png']
 # The stock EQ preset page and the images only it and the stock equalizer page show: the PEQ

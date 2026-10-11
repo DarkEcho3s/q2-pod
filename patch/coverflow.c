@@ -800,14 +800,14 @@ void *text(void *parent, int x, int y, int w, int h) { /* shared with photos.c *
     return label;
 }
 
-/* A black page named name, with its destroy and Return handlers; 0 when none. Shared with photos.c
+/* A black page named name, with its destroy (given the page) and Return handlers; 0 when none. Shared with photos.c
  * and books.c. */
 void *page_open(const char *name, int (*closed)(void *, void *), int (*keyup)(void *, void *)) {
     void *page = window_create(0, 0, 0, 0, 0);
     if (!page) return 0;
     widget_set_name(page, name);
     widget_set_prop_int(page, "style:normal:bg_color", (int)0xff000000u);
-    widget_on(page, EVT_DESTROY, closed, 0);
+    widget_on(page, EVT_DESTROY, closed, page);
     widget_on(page, EVT_KEY_UP, keyup, 0);
     return page;
 }

@@ -7,6 +7,7 @@ Controls, settings and media setup. For installation, see the [README](../README
 Things people often don't know are already there:
 
 - **Hold Play/Pause** on Now Playing for the queue, favourites, playlists, shuffle and repeat. During Shuffle Albums or Folders it also has **Next album / Previous album**.
+- **Rate songs with hearts:** hold the heart on Now Playing (or **Hold Play/Pause → Rate**), turn to 0-5 hearts, Centre to save. Five hearts is My Fav; **Library → Ratings** lists them.
 - **Double-press the centre button** to turn the screen off; on Now Playing a single press does it.
 - **Hold Return** (iPod) jumps to Now Playing from anywhere.
 - **Brightness, volume limits, balance, date and time and the sleep timer** take the wheel: turn to change, Centre to go back or move to the next field and then OK. In the pull-down, the wheel sets the brightness.
@@ -57,21 +58,30 @@ Charge limit applies while the Q2 is on; charging while it's powered off is stoc
 
 ## Controls
 
-| Control                   | What it does                                                                                                                                                                                   |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Wheel**                 | One row per tick; spin to speed up. Outside menus it sets volume.                                                                                                                              |
-| **Centre button**         | Opens the highlighted item. Double-press turns the screen off (single press on Now Playing).                                                                                                   |
-| **Hold Play/Pause**       | Song or local Now Playing track: queue, favourite, playlist, go to album or artist. Album, artist, genre or folder: queue, shuffle, playlist; a Coverflow album: queue, shuffle, go to artist. |
-| **Fast Coverflow turn**   | Album/Artist sorts jump one populated initial per tick; Sort and Refresh remain individual stops.                                                                                              |
-| **Hold Return** (iPod)    | Opens Now Playing; the next Return goes back.                                                                                                                                                  |
-| **Scrub** (iPod)          | On Now Playing, double-press centre, then turn: 5 s per tick. Double-press, Return, touch or wait 3 s to jump.                                                                                 |
-| **Pull to search** (iPod) | At the top of Library (Local Songs), pull down until "Release to search" appears.                                                                                                              |
+| Control                   | What it does                                                                                                                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Wheel**                 | One row per tick; spin to speed up. Outside menus it sets volume.                                                                                                                                                  |
+| **Centre button**         | Opens the highlighted item. Double-press turns the screen off (single press on Now Playing).                                                                                                                       |
+| **Hold Play/Pause**       | Song or local Now Playing track: rate (Now Playing), queue, favourite, playlist, go to album or artist. Album, artist, genre or folder: queue, shuffle, playlist; a Coverflow album: queue, shuffle, go to artist. |
+| **Fast Coverflow turn**   | Album/Artist sorts jump one populated initial per tick; Sort and Refresh remain individual stops.                                                                                                                  |
+| **Hold Return** (iPod)    | Opens Now Playing; the next Return goes back.                                                                                                                                                                      |
+| **Scrub** (iPod)          | On Now Playing, double-press centre, then turn: 5 s per tick. Double-press, Return, touch or wait 3 s to jump.                                                                                                     |
+| **Pull to search** (iPod) | At the top of Library (Local Songs), pull down until "Release to search" appears.                                                                                                                                  |
 
 - **List ends:** lists stop at the end; pause, then turn again to wrap.
 - **Position memory:** recent folders, albums, searches and menus reopen where you were, until power-off.
 - **Artists:** open on Albums, with All Songs one tap away. Browse by the Album Artist tag with **Audio settings → Artists**.
 - **Pop-ups** (iPod): the wheel moves between OK and Cancel.
 - **Key Tone:** the speaker clicks, playing or not, whenever no headphones (3.5/4.4 mm), Bluetooth or USB DAC are connected. iPod: once per row, not per tick.
+
+### Ratings
+
+Every song can have 0 to 5 hearts.
+
+- **Rate:** hold the heart on Now Playing, or **Hold Play/Pause → Rate**. Turn the wheel to choose, press Centre to save, or Return to leave it as it was; tapping a heart saves that many.
+- **Five hearts is My Fav:** tapping the heart still adds a song to My Fav (five hearts) or takes it out (unrated). A song rated 1 to 4 shows its number on the empty heart.
+- **Library → Ratings** (where My Fav was): **Top Rated** (4 and 5 hearts), **Loved** (5), **All Rated** and **Disliked** (1), most hearts first. A row plays the list from that song.
+- Ratings are kept by file path, so they survive Update Local Music but not moving or renaming the file.
 
 ### Shuffle, repeat and grouping
 

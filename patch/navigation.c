@@ -136,7 +136,16 @@ typedef struct {
     void *mp_page, *mp_list;
     unsigned mp_gen;
     void *sp_page; /* the Library Shuffle menu's page, kept across picks */
-    int dark;      /* the backlight was off at the last UI loop pass */
+    /* Ratings: the 1-4 heart table (calloc'd on first use); Now Playing's window, its heart and
+     * the heart's stock click context, the 1-4 badge, the picker's panel and hearts, the hearts
+     * picked, and the heart's hold timer (rate_held once it fired); the Ratings menu and the list
+     * it opened, with its tracks. */
+    unsigned *rates;
+    void *rate_win, *rate_fav, *rate_ctx, *rate_badge, *rate_panel, *rate_title, *rate_heart[5];
+    int rate_pick, rate_shown, rate_held;
+    unsigned rate_hold, rate_tick;
+    void *rt_menu, *rt_page, *rt_list;
+    int dark; /* the backlight was off at the last UI loop pass */
     /* Power's Charge limit and Low power (read once from config.ini's Q2POD), the value
      * labels of those rows and Artists, and the poll: charging is held off at the limit; CPU1 is
      * offline (cpu_off), this boot's first offline is done (cpu_marked), and cpu_bad is 0 before
@@ -2147,9 +2156,11 @@ static int np_gone(void *win, void *event) {
 
 /* playing_page_init: stock builds the page and starts its 250 ms timer, then the iPod labels bind.
  */
+static void rate_bind(void *win);
 int ringnav_playing(void *win, void *ctx) {
     int result = stock_playing_trampoline(win, ctx);
     if (!win) return result;
+    rate_bind(win);
     st.np_win = win;
     st.np_pos = widget_lookup(win, "label_ipod_pos", 1);
     st.np_album = widget_lookup(win, "label_ipod_album", 1);
@@ -2604,6 +2615,13 @@ static int setting_click(void *ctx, void *event) {
 
 #else
 #define np_cancel() ((void)0)
+/* playing_page_init: Stock's page as built, with the heart's rating hold (rate_bind). */
+static void rate_bind(void *win);
+int ringnav_playing(void *win, void *ctx) {
+    int result = stock_playing_trampoline(win, ctx);
+    if (win) rate_bind(win);
+    return result;
+}
 #endif
 
 /* systemset_display_page_init: stock builds its three rows (0x4c19bc: a s_listitem_black list_item
@@ -2962,7 +2980,8 @@ enum {
     QA_REPEAT,
     QA_GROUP,
     QA_NEXT_GROUP,
-    QA_PREV_GROUP
+    QA_PREV_GROUP,
+    QA_RATE
 };
 #define MCL(a) (*(volatile int *)(a))
 
@@ -2993,7 +3012,10 @@ static unsigned browse_hash(void) { return local_hash(hash_bytes(FNV_SEED, g_fol
 
 /* Coverflow's or Most Played's tracks, when page is theirs. */
 static void *page_tracks(void *page) {
-    return page && page == st.mp_page ? st.mp_list : coverflow_tracks(page);
+    return !page                ? (void *)0
+           : page == st.mp_page ? st.mp_list
+           : page == st.rt_page ? st.rt_list
+                                : coverflow_tracks(page);
 }
 
 static unsigned queue_hash(void *q) {
@@ -3414,7 +3436,10 @@ static int page_keyup(void *ctx, void *event) {
 static int page_closed(void *ctx, void *event) {
     (void)ctx;
     (void)event;
-    st.mp_page = st.sp_page = 0;
+    if (ctx == st.rt_page) st.rt_page = 0;
+    if (ctx == st.rt_menu) st.rt_menu = 0;
+    if (ctx == st.mp_page) st.mp_page = 0;
+    if (ctx == st.sp_page) st.sp_page = 0;
     return 0;
 }
 
@@ -3554,6 +3579,293 @@ static int most_played(void *ctx, void *event) {
                     plays, plays == 1 ? "" : "s");
         page_row_detail(view, i, track_name(name, sizeof name, t), detail, mp_play);
     }
+    return 0;
+}
+
+/* Ratings (docs/internals.md#ratings): 0 to 5 hearts a song. 5 is stock's My Fav, so Now Playing's
+ * heart, the queue menu's Favourites rows and Loved stay one; 1 to 4 are kept here by listen_key,
+ * its low three bits holding the hearts, read once into a table calloc'd on first use. */
+#define RATINGS_FILE "/mnt/data/ringnav-ratings"
+/* Now Playing's heart click (playing_page_init binds it to img_fav with the window): stock's My
+ * Fav toggled for the playing track (manage_myfav), and the heart's image with it. */
+#define FAV_CLICK ((int (*)(void *, void *))0x52b154)
+
+static unsigned *rates(void) {
+    if (!st.rates && (st.rates = calloc(RATE_SLOTS, sizeof *st.rates)))
+        blob_io(RATINGS_FILE, RATINGS_FILE ".tmp", st.rates, RATE_SLOTS * sizeof *st.rates, 0);
+    return st.rates;
+}
+
+/* key's slot; with free, the first free one when it has none; -1 when neither. */
+static int rate_slot(unsigned key, int free) {
+    unsigned *t = rates();
+    int empty = -1;
+    for (int i = 0; t && i < RATE_SLOTS; i++) {
+        if (t[i] && (t[i] ^ key) < 8) return i;
+        if (!t[i] && empty < 0) empty = i;
+    }
+    return free ? empty : -1;
+}
+
+/* The hearts kept for key, 1 to 4, else 0. */
+static int rate_kept(unsigned key) {
+    int i = rate_slot(key, 0);
+    return i < 0 ? 0 : (int)(st.rates[i] & 7);
+}
+
+/* Keeps n hearts for key, 1 to 4, or none for 0 and 5 (My Fav's); 0 when the table is full. */
+static int rate_keep(unsigned key, int n) {
+    int some = n > 0 && n < 5, i = rate_slot(key, some);
+    if (i < 0) return !some;
+    st.rates[i] = some ? (key & ~7u) | (unsigned)n : 0;
+    blob_io(RATINGS_FILE, RATINGS_FILE ".tmp", st.rates, RATE_SLOTS * sizeof *st.rates, 1);
+    return 1;
+}
+
+/* The playing local track (the queue menu's types), or 0. */
+static void *rate_track(void) {
+    unsigned at, n, type = (unsigned)MCL(MCL_TYPE);
+    if (type != 1 && (type & 0xf000) != 0xf000) return (void *)0;
+    return queue_now(&at, &n);
+}
+
+/* "♥♥♥♡♡" for n hearts, in s (16 bytes). */
+static const char *hearts_text(char *s, int n) {
+    char *p = s;
+    for (int i = 0; i < 5; i++) p += tk_snprintf(p, 4, i < n ? "\xe2\x99\xa5" : "\xe2\x99\xa1");
+    return s;
+}
+
+/* The badge on an empty heart: the playing track's 1-4 hearts, hidden for none and on a full heart
+ * (My Fav, whatever was kept before). */
+static void rate_badge(void) {
+    if (!st.rate_badge) return;
+    void *r = rate_track();
+    int n = r ? rate_kept(listen_key(r)) : 0;
+    if (n && !tk_strcmp(widget_get_prop_str(st.rate_fav, "image", ""), "play_fav")) n = 0;
+    char s[4] = { (char)('0' + n) };
+    widget_set_text_utf8(st.rate_badge, s);
+    widget_set_visible(st.rate_badge, n != 0, 0);
+}
+
+static int rate_tick(const void *unused) {
+    (void)unused;
+    if (g_backlight_status) rate_badge();
+    return 8; /* RET_REPEAT */
+}
+
+/* The picker's hearts and caption for rate_pick. */
+static void rate_paint(void) {
+    char t[24] = "Unrated";
+    for (int i = 0; i < 5; i++)
+        image_base_set_image(st.rate_heart[i], i < st.rate_pick ? "play_fav" : "play_unfav");
+    if (st.rate_pick) tk_snprintf(t, sizeof t, "%d of 5", st.rate_pick);
+    widget_set_text_utf8(st.rate_title, t);
+}
+
+/* Closes the picker, and with save rates the playing track rate_pick: My Fav in or out through
+ * the heart's own click, the rest kept here. */
+static void rate_close(int save) {
+    if (!st.rate_shown) return;
+    st.rate_shown = 0;
+    widget_set_visible(st.rate_panel, 0, 0);
+    void *r = save ? rate_track() : (void *)0;
+    if (!r) return;
+    int n = st.rate_pick, fav = checkFavExist(r) != 0;
+    if (!rate_keep(listen_key(r), n)) {
+        toast("Ratings are full");
+        return;
+    }
+    if ((n == 5) != fav) FAV_CLICK(st.rate_ctx, (void *)0);
+    rate_badge();
+}
+
+static int rate_tap(void *ctx, void *event) {
+    (void)event;
+    st.rate_pick = (int)(long)ctx;
+    rate_close(1);
+    return STOP;
+}
+
+/* The picker over Now Playing, on the playing track's rating: a dark rounded panel with five of
+ * the heart's own images, the wheel moving the rating, Centre saving it and Return leaving it as
+ * it was; a tap on a heart saves that many. */
+static int rate_open(void) {
+    void *r = rate_track(), *win = st.rate_win;
+    if (!win || !r || st.rate_shown) return 0;
+    if (!st.rate_panel) {
+        int h = 110, w = 5 * 56 + 24;
+        st.rate_panel = text(win, (I(win, W_W) - w) / 2, (I(win, W_H) - h) / 2, w, h);
+        widget_set_prop_int(st.rate_panel, "style:normal:bg_color",
+                            (int)((LETTER_ALPHA << 24) | FILL_RGB));
+        widget_set_prop_int(st.rate_panel, "style:normal:round_radius", LETTER_RADIUS);
+        st.rate_title = text(st.rate_panel, 0, 8, w, 28);
+        for (int i = 0; i < 5; i++) {
+            void *heart = st.rate_heart[i] = image_create(st.rate_panel, 12 + i * 56, 44, 56, 56);
+            image_set_draw_type(heart, IMAGE_DRAW_CENTER);
+            widget_set_prop_str(heart, "clickable", "true");
+            widget_on(heart, EVT_CLICK, rate_tap, (void *)(long)(i + 1));
+        }
+    }
+    st.rate_pick = checkFavExist(r) ? 5 : rate_kept(listen_key(r));
+    st.rate_shown = 1;
+    rate_paint();
+    widget_set_visible(st.rate_panel, 1, 0);
+    return 1;
+}
+
+/* The wheel, Centre and Return while the picker is up. */
+static int rate_key(void *top, unsigned key) {
+    if (!st.rate_shown || top != st.rate_win) return 0;
+    if (key == KEY_NEXT || key == KEY_PREV) {
+        st.rate_pick = clamp_step(st.rate_pick, 5, key == KEY_NEXT ? 1 : -1);
+        rate_paint();
+    } else if (key == KEY_CENTER || key == KEY_RETURN)
+        rate_close(key == KEY_CENTER);
+    else
+        return 0;
+    drop_input();
+    return 1;
+}
+
+/* Holding the heart RATE_HOLD_MS opens the picker; a tap is stock's, a full heart then keeping
+ * nothing here, so taking it away leaves the song unrated. */
+static int rate_long(const void *unused) {
+    (void)unused;
+    st.rate_hold = 0;
+    if (window_manager_get_pointer_pressed(window_manager())) st.rate_held = rate_open();
+    return 0;
+}
+static int rate_down(void *ctx, void *event) {
+    (void)ctx, (void)event;
+    st.rate_held = 0;
+    rearm(&st.rate_hold, rate_long, RATE_HOLD_MS);
+    return 0;
+}
+static int rate_fav_click(void *ctx, void *event) {
+    stop_timer(&st.rate_hold);
+    if (st.rate_held || st.rate_shown) {
+        st.rate_held = 0;
+        return STOP;
+    }
+    FAV_CLICK(ctx, event);
+    void *r = rate_track();
+    if (r) rate_keep(listen_key(r), 0);
+    rate_badge();
+    return STOP;
+}
+
+static int rate_gone(void *win, void *event) {
+    (void)event;
+    if (win != st.rate_win) return 0;
+    stop_timer(&st.rate_hold);
+    stop_timer(&st.rate_tick);
+    st.rate_win = st.rate_fav = st.rate_ctx = st.rate_badge = st.rate_panel = (void *)0;
+    st.rate_shown = st.rate_held = 0;
+    return 0;
+}
+
+/* Now Playing's heart (both builds' playing_page_init): stock's click is swapped for one that
+ * tells a hold from a tap, and the badge sits on the heart's top right. */
+static void rate_bind(void *win) {
+    void *fav = widget_lookup(win, "img_fav", 1), *emitter = fav ? P(fav, W_EMITTER) : (void *)0;
+    for (void *item = emitter ? P(emitter, 0) : 0; item; item = P(item, EMIT_NEXT))
+        if (I(item, EMIT_TYPE) == EVT_CLICK && P(item, 12) == (void *)FAV_CLICK &&
+            !B(item, EMIT_PENDING_REMOVE)) {
+            st.rate_ctx = P(item, 0);
+            break;
+        }
+    if (!st.rate_ctx) return;
+    st.rate_win = win;
+    st.rate_fav = fav;
+    widget_off_by_func(fav, EVT_CLICK, (void *)FAV_CLICK, st.rate_ctx);
+    widget_on(fav, EVT_CLICK, rate_fav_click, st.rate_ctx);
+    widget_on(fav, EVT_POINTER_DOWN, rate_down, (void *)0);
+    st.rate_badge = label(P(fav, W_PARENT), I(fav, W_X) + I(fav, W_W) - 18, I(fav, W_Y) + 6, 16, 16,
+                          "s_scrlabel_white20c", 12, 0xffffffffu);
+    widget_on(win, EVT_DESTROY, rate_gone, win);
+    st.rate_tick = timer_add(rate_tick, (void *)0, 500);
+    rate_badge();
+}
+
+/* The Library's Ratings row: its menu, then a page of one list's songs, as Most Played's. */
+static int fav_songs(void *unused) {
+    (void)unused;
+    return getAllFav(); /* select * from myfav, stock's song rows */
+}
+
+static int rt_play(void *ctx, void *event) {
+    (void)event;
+    play_folder(st.rt_list, (int)(long)ctx, 0xf001);
+    return 0;
+}
+
+/* Each of songs' hearts into h: 5 for My Fav's, else the kept 1-4.
+ * ponytail: every song against every rated one, fine for thousands rated; a sorted table if not. */
+static void rate_all(void *songs, unsigned char *h) {
+    int nf, kept = 0;
+    void *favs = staged(fav_songs, 0, &nf);
+    unsigned nfav = deque_size(favs), n = deque_size(songs), *t = rates();
+    unsigned *keys = calloc(nfav + RATE_SLOTS + 1, sizeof *keys);
+    for (unsigned i = 0; keys && i < nfav; i++) keys[i] = listen_key(deque_at(favs, i)) | 7;
+    for (int i = 0; keys && t && i < RATE_SLOTS; i++)
+        if (t[i]) keys[nfav + kept++] = t[i];
+    for (unsigned i = 0; keys && i < n; i++) {
+        unsigned key = listen_key(deque_at(songs, i));
+        h[i] = 0;
+        for (unsigned j = 0; j < nfav + (unsigned)kept && h[i] < 5; j++)
+            if ((keys[j] ^ key) < 8) h[i] = j < nfav ? 5 : (unsigned char)(keys[j] & 7);
+    }
+    free(keys);
+    deque_destroy(favs);
+}
+
+/* Top Rated (4-5 hearts), Loved (5), All Rated (1-5) and Disliked (1): most hearts first, then
+ * the library's title order, each row's hearts under its title. */
+static const char *const rt_names[] = { "Top Rated", "Loved", "All Rated", "Disliked" };
+static int rated_open(void *ctx, void *event) {
+    (void)event;
+    static const unsigned char lo[] = { 4, 5, 1, 1 }, hi[] = { 5, 5, 5, 1 };
+    int k = (int)(long)ctx, n;
+    if (st.rt_page || !(st.rt_page = page_open("rated_page", page_closed, page_keyup))) return 0;
+    void *songs = staged(all_songs, 0, &n), *list = _create_deque("stSongInfo");
+    unsigned size = deque_size(songs);
+    unsigned char *h = calloc(size + 1, 1), *of = calloc(size + 1, 1);
+    deque_init(list);
+    if (h && of) {
+        rate_all(songs, h);
+        for (int v = hi[k]; v >= lo[k]; v--)
+            for (unsigned i = 0; i < size; i++)
+                if (h[i] == v)
+                    of[deque_size(list)] = (unsigned char)v,
+                    _deque_push_back(list, deque_at(songs, i));
+    }
+    if (st.rt_list) deque_destroy(st.rt_list);
+    st.rt_list = list;
+    deque_destroy(songs);
+    int count = (int)deque_size(list);
+    void *view = page_list(st.rt_page, st.rt_page, 0, rt_names[k], count ? count : 1, 64);
+    char name[512], detail[300], hs[16];
+    for (int i = 0; i < count; i++) {
+        void *t = deque_at(list, (unsigned)i);
+        const char *artist = P(t, REC_ARTIST);
+        tk_snprintf(detail, sizeof detail, artist && *artist ? "%s · %s" : "%s%s",
+                    hearts_text(hs, of[i]), artist && *artist ? artist : "");
+        page_row_detail(view, i, track_name(name, sizeof name, t), detail, rt_play);
+    }
+    if (!count)
+        page_row_detail(view, 0, "No songs yet", "Hold the heart on Now Playing to rate", 0);
+    free(h);
+    free(of);
+    return 0;
+}
+
+static int ratings_menu(void *ctx, void *event) {
+    (void)ctx;
+    (void)event;
+    if (st.rt_menu || !(st.rt_menu = page_open("ratings_page", page_closed, page_keyup))) return 0;
+    void *view = page_list(st.rt_menu, st.rt_menu, 0, "Ratings", 4, 48);
+    for (int i = 0; i < 4; i++) page_row_detail(view, i, rt_names[i], 0, rated_open);
     return 0;
 }
 
@@ -3704,7 +4016,13 @@ int ringnav_localmusic(void *win, void *ctx) {
     widget_restack(library_into(view, "local_shuffle", shuffle_menu, 0, "Shuffle"), n++);
     static const unsigned char middle[] = { L_ARTISTS,   L_ALBUMS, L_SONGS, L_GENRES,
                                             L_PLAYLISTS, L_FAV,    L_ADDED, L_RECENT };
-    for (unsigned i = 0; i < sizeof middle; i++) widget_restack(stock[middle[i]], n++);
+    for (unsigned i = 0; i < sizeof middle; i++)
+        if (middle[i] == L_FAV) { /* My Fav is Ratings' Loved, its row kept hidden */
+            widget_restack(library_into(view, "local_fav", ratings_menu, 0, "Ratings"), n++);
+            widget_set_visible(stock[L_FAV], 0, 0);
+            widget_restack(stock[L_FAV], n++);
+        } else
+            widget_restack(stock[middle[i]], n++);
     widget_restack(library_row(view, "local_frequentplay", most_played, 0, "Most Played"), n++);
     widget_restack(stock[L_FREQUENT], n++);
     widget_restack(stock[L_HIRES], n++);
@@ -3864,6 +4182,8 @@ static int qm_run(const void *unused) {
         st.qm_choice = 0;
     } else if (r && (a == QA_NEXT_GROUP || a == QA_PREV_GROUP)) {
         if (!playback_group_skip(a == QA_NEXT_GROUP)) toast("No other group");
+    } else if (r && a == QA_RATE) {
+        rate_open();
     } else if (r && a >= QA_ADV_SHUFFLE && a <= QA_GROUP) {
         st.qm_choice = a - QA_ADV_SHUFFLE + 1;
         qm_open(0);
@@ -3971,7 +4291,8 @@ static int qm_open(const void *unused) {
     /* Songs favourite, as stock's heart, and go to their album and artist; collections shuffle.
      * Go to is left out where its single-instance page is already open, or the album is the page.
      */
-    unsigned char acts[11], n = 0;
+    unsigned char acts[12], n = 0;
+    if (st.qm_kind == QM_PLAYING && st.rate_win) acts[n++] = QA_RATE; /* the heart's hold */
     /* Shuffle Albums/Folders: skipping the group comes first */
     int group_first = st.qm_kind == QM_PLAYING && playback_option(0) >= 3;
     if (group_first) acts[n++] = QA_NEXT_GROUP, acts[n++] = QA_PREV_GROUP;
@@ -4004,14 +4325,22 @@ static int qm_open(const void *unused) {
                                         "Repeat",
                                         "Group by",
                                         "Next album",
-                                        "Previous album" };
+                                        "Previous album",
+                                        "Rate" };
+    char rated[32];
     for (int i = 0; i < n; ++i) { /* stock sortselect row geometry and styles */
         void *item = list_item_create(view, 0, i * 78, 375, 78);
         widget_use_style(item, "s_listitem_black");
         void *label = hscroll_label_create(item, 30, 0, 266, 70);
         widget_use_style(label, "s_scrlabel_white24l");
+        if (acts[i] == QA_RATE) {
+            int h = checkFavExist(r) ? 5 : rate_kept(listen_key(r));
+            char hs[16];
+            tk_snprintf(rated, sizeof rated, h ? "Rate  %s" : "Rate", hearts_text(hs, h));
+        }
         widget_set_text_utf8(label,
-                             acts[i] == QA_GROUP
+                             acts[i] == QA_RATE ? rated
+                             : acts[i] == QA_GROUP
                                  ? (playback_option(2) ? "Group by: Folder" : "Group by: Album")
                              : acts[i] == QA_NEXT_GROUP && playback_option(2) ? "Next folder"
                              : acts[i] == QA_PREV_GROUP && playback_option(2) ? "Previous folder"
@@ -4766,6 +5095,8 @@ int ringnav(void *ctx, void *event) {
 #else
     if (key == KEY_RETURN) st.touch_mode = 0; /* Back by button: the page behind shows its row. */
 #endif
+    if (key == KEY_RETURN && rate_key(window_manager_get_top_window(window_manager()), key))
+        return STOP; /* the rating picker closes, unsaved, and Now Playing stays */
     if (key != KEY_CENTER && key != KEY_PREV && key != KEY_NEXT) return result;
     if (key == KEY_CENTER) {
         drop_spin();
@@ -4789,6 +5120,7 @@ int ringnav(void *ctx, void *event) {
         return result;
     }
     void *wm = window_manager(), *top = window_manager_get_top_window(wm);
+    if (rate_key(top, key)) return STOP; /* Now Playing's rating picker */
     if (spot_key(top, key)) return STOP; /* Spotify's page: Centre scrubs */
     if (xfade_key(top, key))
         return STOP; /* Crossfade's page: Centre toggles, the wheel sets the length */

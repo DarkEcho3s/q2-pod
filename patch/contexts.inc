@@ -17,6 +17,8 @@
 { "books_page", CTX_DYNAMIC, 0 },     /* runtime window (patch/books.c) */
 { "mostplayed_page", CTX_FIXED, 0 }, /* runtime window (patch/navigation.c); fixed: the hold menu */
 { "shuffle_page", CTX_DYNAMIC, 0 },   /* runtime window (patch/navigation.c) */
+{ "ratings_page", CTX_DYNAMIC, 0 },   /* runtime window (patch/navigation.c) */
+{ "rated_page", CTX_FIXED, 0 },      /* runtime window (patch/navigation.c); fixed: the hold menu */
 { "radio_page", CTX_DYNAMIC, 0 },     /* runtime window (patch/radio.c) */
 { "album_page", CTX_LOCAL, 0 },
 { "albuminfo_page", CTX_LOCAL, RING },
