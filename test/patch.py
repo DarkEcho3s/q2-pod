@@ -6894,13 +6894,8 @@ assert RDIR in m.tree and RDIR+'/favourites.m3u' not in m.files
 assert m.labels()==['Internet Radio','Favourites','Featured','Top Stations','By Country','By Genre'] and m.nodes[m.find('scroll_view')]['_ringnav_index']==0
 m.row(0); assert m.labels()==['No favourites']; m.back()
 m.row(1); featured=m.labels(); assert len(featured)==7 and featured[:3]==['Featured','Radio Paradise','SomaFM Groove Salad']; m.back()
-# 1.0.1 seeded favourites.m3u with them: a copy never changed goes, an edited one stays.
-starters=b''.join(b'#EXTINF:-1,%s\n%s\n'%(n.encode(),u.encode()) for n,u in (
-    ('Radio Paradise','http://stream.radioparadise.com/mp3-128'),('SomaFM Groove Salad','http://ice1.somafm.com/groovesalad-128-mp3'),
-    ('BBC World Service','http://stream.live.vc.bbcmedia.co.uk/bbc_world_service'),('KEXP','https://kexp-mp3-128.streamguys1.com/kexp128.mp3'),
-    ('FIP','http://icecast.radiofrance.fr/fip-midfi.mp3'),('NTS 1','https://stream-relay-geo.ntslive.net/stream')))
-m.close(); m.files[RDIR+'/favourites.m3u']=bytearray(b'#EXTM3U\n'+starters); radio_open(m); assert RDIR+'/favourites.m3u' not in m.files
-m.close(); m.files[RDIR+'/favourites.m3u']=bytearray(b'#EXTM3U\n'+starters[:-1]); radio_open(m); assert RDIR+'/favourites.m3u' in m.files
+# The user's favourites.m3u is never touched by opening the page.
+m.close(); m.files[RDIR+'/favourites.m3u']=bytearray(b'#EXTM3U\n'); radio_open(m); assert RDIR+'/favourites.m3u' in m.files
 # Search, from the page's pull-down (radio_search): a T9 box over the title, focused for its keyboard.
 # Its text, %-encoded, is the directory's byname query; Return goes back to the menu. Left empty,
 # or without a search, the page is as it was.
