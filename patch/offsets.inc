@@ -279,6 +279,8 @@
  * Now Playing's heart RATE_HOLD_MS opens the picker. */
 #define RATE_SLOTS 4096
 #define RATE_HOLD_MS 500
+/* Long Songs (docs/internals.md#long-songs): songs longer than this. */
+#define LONG_SONG_S 600
 /* End bump and wrap, audited row lists only (see ring_list in patch/navigation.c). A detent past an
  * end nudges the outline; further detents stop there while the wheel keeps turning, and the first
  * same-direction detent after a pause of EDGE_PAUSE_MS moves to the other end of the same list. */

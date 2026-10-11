@@ -5,7 +5,7 @@
 [x] Ratings: 0-5 hearts, long-press heart / Hold Play "Rate" picker, My Fav = 5♥
 [x] Ratings submenu: Top Rated, Loved, All Rated, Disliked
 [x] Shuffle skips 1♥ (setting)
-[ ] Long Songs (>10 min) — BLOCKED: songtable has no duration column (time/time_end are CUE bounds); needs per-file probe, ask
+[x] Long Songs (>10 min): TagLib length probed once on a worker, cached in /mnt/data/ringnav-lengths
 [x] Double-Centre screen-off on every page (video keeps Centre for seek)
 [x] Hold Return: Now Playing ⇄ origin (Stock + iPod)
 [x] Setting: artist albums as Grid / Coverflow

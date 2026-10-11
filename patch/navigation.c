@@ -3483,10 +3483,14 @@ static int page_keyup(void *ctx, void *event) {
     return STOP;
 }
 
+static void ls_closed(void);
 static int page_closed(void *ctx, void *event) {
     (void)ctx;
     (void)event;
-    if (ctx == st.rt_page) st.rt_page = 0;
+    if (ctx == st.rt_page) {
+        st.rt_page = 0;
+        ls_closed();
+    }
     if (ctx == st.rt_menu) st.rt_menu = 0;
     if (ctx == st.mp_page) st.mp_page = 0;
     if (ctx == st.sp_page) st.sp_page = 0;
@@ -3922,6 +3926,209 @@ static int ratings_menu(void *ctx, void *event) {
     return 0;
 }
 
+/* Long Songs (docs/internals.md#long-songs): the library's songs over LONG_SONG_S, longest first.
+ * The database keeps no length, so each file's is probed once, through stock's TagLib, on a worker
+ * thread, and kept in LENGTHS_FILE by path hash: {key, seconds} pairs sorted by key, 0 seconds for
+ * a file TagLib can't read. A CUE track with both ends needs no probe. */
+#define LENGTHS_FILE "/mnt/data/ringnav-lengths"
+typedef struct {
+    unsigned key, sec;
+} length_t;
+static struct {
+    length_t *tab, *jobs; /* the cache, sorted; the files to probe, sec filled as done */
+    char **paths;         /* the jobs' files, the worker's own copies */
+    unsigned n, read, timer;
+    unsigned long thread;
+    int total, running;
+    volatile int done, cancel;
+    void *songs, *title; /* the library, while its lengths are probed, and the count's title */
+} ls __attribute__((section(".scratch")));
+
+static void lengths_read(void) {
+    if (ls.read) return;
+    ls.read = 1;
+    void *f = fopen(LENGTHS_FILE, "rb");
+    long size = f && !fseek(f, 0, 2) ? ftell(f) : -1;
+    unsigned n = size > 0 ? (unsigned)size / sizeof(length_t) : 0;
+    if (n && !fseek(f, 0, 0) && (ls.tab = calloc(n, sizeof(length_t))) &&
+        fread(ls.tab, sizeof(length_t), n, f) == n)
+        ls.n = n;
+    if (f) fclose(f);
+}
+
+/* key's seconds, -1 when never probed. */
+static int length_of(unsigned key) {
+    unsigned lo = 0, hi = ls.n;
+    while (lo < hi) {
+        unsigned mid = lo + (hi - lo) / 2;
+        if (ls.tab[mid].key < key)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return lo < ls.n && ls.tab[lo].key == key ? (int)ls.tab[lo].sec : -1;
+}
+
+static unsigned file_key(void *r) { return fnv(FNV_SEED, P(r, REC_PATH)); }
+
+/* r's seconds: a CUE track's from its ends (to the file's end for the last), else the file's;
+ * -1 when the file was never probed. */
+static int song_length(void *r) {
+    int start = I(r, REC_CUE_START), end = I(r, REC_CUE_END), len;
+    if (end > start) return end - start;
+    len = length_of(file_key(r));
+    return len < 0 ? -1 : len > start ? len - start : 0;
+}
+
+static int by_key(const void *a, const void *b) {
+    unsigned x = ((const length_t *)a)->key, y = ((const length_t *)b)->key;
+    return (x > y) - (x < y);
+}
+
+/* AudioProperties::length(), as libtag_c's taglib_audioproperties_length calls it: vtable +0xc. */
+static void *ls_worker(void *unused) {
+    (void)unused;
+    while (ls.done < ls.total && !ls.cancel) {
+        void *f = taglib_file_new(ls.paths[ls.done]);
+        void *p = f ? taglib_file_audioproperties(f) : (void *)0;
+        int sec = p ? ((int (*)(void *))(*(void ***)p)[3])(p) : 0;
+        ls.jobs[ls.done].sec = sec > 0 ? (unsigned)sec : 0;
+        if (f) taglib_file_free(f);
+        ++ls.done;
+    }
+    return 0;
+}
+
+/* The worker stopped, what it probed merged into the cache and saved, its jobs freed. */
+static void ls_stop(void) {
+    if (!ls.jobs || !ls.paths) {
+        free(ls.jobs);
+        free(ls.paths);
+        ls.jobs = 0;
+        ls.paths = 0;
+        return;
+    }
+    worker_stop(ls.thread, &ls.running, &ls.cancel, &ls.timer);
+    unsigned n = ls.n + (unsigned)ls.done;
+    length_t *tab = calloc(n + 1, sizeof *tab);
+    if (tab && ls.done) {
+        if (ls.n) memcpy(tab, ls.tab, ls.n * sizeof *tab);
+        memcpy(tab + ls.n, ls.jobs, (unsigned)ls.done * sizeof *tab);
+        qsort(tab, n, sizeof *tab, by_key);
+        free(ls.tab);
+        ls.tab = tab;
+        ls.n = n;
+        blob_io(LENGTHS_FILE, LENGTHS_FILE ".tmp", ls.tab, ls.n * sizeof *ls.tab, 1);
+    } else
+        free(tab);
+    for (int i = 0; i < ls.total; i++) free(ls.paths[i]);
+    free(ls.paths);
+    free(ls.jobs);
+    ls.paths = 0;
+    ls.jobs = 0;
+    ls.total = ls.done = ls.cancel = 0;
+}
+
+static int by_length(const void *a, const void *b) {
+    unsigned x = ((const length_t *)a)->sec, y = ((const length_t *)b)->sec;
+    return (x < y) - (x > y);
+}
+
+/* The page's list: the songs over LONG_SONG_S, longest first, each row's artist and length under
+ * its title, a row playing the list from itself as Most Played's. */
+static void ls_show(void) {
+    void *songs = ls.songs, *list = _create_deque("stSongInfo");
+    unsigned size = deque_size(songs), n = 0;
+    length_t *v = calloc(size + 1, sizeof *v); /* key: the song's index */
+    deque_init(list);
+    for (unsigned i = 0; v && i < size; i++) {
+        int sec = song_length(deque_at(songs, i));
+        if (sec > LONG_SONG_S) v[n].key = i, v[n++].sec = (unsigned)sec;
+    }
+    if (n) qsort(v, n, sizeof *v, by_length);
+    for (unsigned i = 0; i < n; i++) _deque_push_back(list, deque_at(songs, v[i].key));
+    if (st.rt_list) deque_destroy(st.rt_list);
+    st.rt_list = list;
+    void *view = page_list(st.rt_page, st.rt_page, 0, "Long Songs", n ? (int)n : 1, 64);
+    char name[512], detail[300], t[16];
+    for (unsigned i = 0; i < n; i++) {
+        void *r = deque_at(list, i);
+        const char *artist = P(r, REC_ARTIST);
+        toolsTimeItoa(t, (int)v[i].sec);
+        tk_snprintf(detail, sizeof detail, artist && *artist ? "%s · %s" : "%s%s",
+                    artist && *artist ? artist : "", t);
+        page_row_detail(view, (int)i, track_name(name, sizeof name, r), detail, rt_play);
+    }
+    if (!n) page_row_detail(view, 0, "No songs over 10 minutes", 0, 0);
+    free(v);
+    deque_destroy(songs);
+    ls.songs = 0;
+}
+
+/* The page gone: what was probed is kept. */
+static void ls_closed(void) {
+    ls_stop();
+    if (ls.songs) deque_destroy(ls.songs);
+    ls.songs = 0;
+}
+
+static int ls_done(const void *unused) {
+    (void)unused;
+    ls.timer = 0;
+    ls_stop();
+    if (st.rt_page && ls.songs) ls_show();
+    return 0;
+}
+
+static int ls_cancel(void *ctx, void *event) {
+    (void)ctx, (void)event;
+    ls.cancel = 1; /* the poll shows what is known */
+    return 0;
+}
+
+static int ls_poll(const void *unused) {
+    (void)unused;
+    if (ls.done >= ls.total || ls.cancel) return ls_done(0);
+    char t[64];
+    tk_snprintf(t, sizeof t, "Measuring songs\xe2\x80\xa6 %d/%d", ls.done, ls.total);
+    widget_set_text_utf8(ls.title, t);
+    return 8; /* RET_REPEAT */
+}
+
+/* Long Songs' row: the files never probed are probed first, with their count and Cancel, which
+ * keeps what is done; the page closing does the same. */
+static int long_songs(void *ctx, void *event) {
+    (void)ctx, (void)event;
+    if (st.rt_page || !(st.rt_page = page_open("longsongs_page", page_closed, page_keyup)))
+        return 0;
+    int n;
+    lengths_read();
+    ls.songs = staged(songs_unsorted, 0, &n);
+    unsigned size = deque_size(ls.songs);
+    ls.jobs = calloc(size + 1, sizeof *ls.jobs);
+    ls.paths = calloc(size + 1, sizeof *ls.paths);
+    for (unsigned i = 0; ls.jobs && ls.paths && i < size; i++) {
+        void *r = deque_at(ls.songs, i);
+        unsigned key = file_key(r);
+        if (song_length(r) >= 0 || !P(r, REC_PATH)) continue;
+        int dup = 0; /* a CUE image's tracks share a file, listed together */
+        for (int j = ls.total - 1; j >= 0 && j >= ls.total - 64 && !dup; j--)
+            dup = ls.jobs[j].key == key;
+        if (!dup && (ls.paths[ls.total] = strdup(P(r, REC_PATH)))) ls.jobs[ls.total++].key = key;
+    }
+    if (ls.total && !pthread_create(&ls.thread, 0, ls_worker, 0)) {
+        ls.running = 1;
+        page_row_detail(page_list(st.rt_page, st.rt_page, &ls.title, "", 1, 48), 0, "Cancel", 0,
+                        ls_cancel);
+        ls.timer = timer_add(ls_poll, (void *)0, 250);
+        ls_poll(0);
+    } else {
+        ls_stop();
+        ls_show();
+    }
+    return 0;
+}
+
 /* Upload Scrobbles: the log goes up on scrobble.c's thread, and a timer reports how it went. */
 static int upload_wait(const void *unused) {
     (void)unused;
@@ -4079,6 +4286,7 @@ int ringnav_localmusic(void *win, void *ctx) {
     widget_restack(library_row(view, "local_frequentplay", most_played, 0, "Most Played"), n++);
     widget_restack(stock[L_FREQUENT], n++);
     widget_restack(stock[L_HIRES], n++);
+    widget_restack(library_row(view, "local_longsongs", long_songs, 0, "Long Songs"), n++);
     /* Podcasts, Audiobooks, Photos, Books and Videos, each only with its folder. */
     static const char *const icons[] = { "local_podcasts", "local_audiobooks", "local_photos",
                                          "local_books", "local_videos" };
@@ -4111,7 +4319,7 @@ int ringnav_stream(void *win, void *ctx) {
     if (view) {
         library_into(view, "stream_spotify", spot_open, 0, "Spotify");
         library_into(view, "stream_radio", radio_open, 0, "Internet Radio");
-        library_into(view, "netservice_airplay", airplay_open, 0, "AirPlay");
+        library_into(view, "stream_airplay", airplay_open, 0, "AirPlay");
     }
     return result;
 }

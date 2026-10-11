@@ -74,6 +74,10 @@ Charge limit applies while the Q2 is on; charging while it's powered off is stoc
 - **Pop-ups** (iPod): the wheel moves between OK and Cancel.
 - **Key Tone:** the speaker clicks, playing or not, whenever no headphones (3.5/4.4 mm), Bluetooth or USB DAC are connected. iPod: once per row, not per tick.
 
+### Long Songs
+
+**Library → Long Songs** (after Hi-Res) lists the songs over 10 minutes, longest first, with their length. The library doesn't store lengths, so the first open measures every song once ("Measuring songs… n/N"); later opens measure only new ones. **Cancel** keeps what was measured.
+
 ### Ratings
 
 Every song can have 0 to 5 hearts.
@@ -104,7 +108,7 @@ On **Now Playing**, hold **Play/Pause** for **Shuffle**, **Repeat** and **Group 
 - **Next album / Previous album** in the hold menu skips the rest of the group, or returns to the start of the previously played group. Folder grouping shows **Next folder / Previous folder**.
 - Choosing a stock play mode clears the advanced options, except Shuffle during Shuffle Albums or Folders, which keeps the groups. In those modes, **Next album / Previous album** (or folder) lead the hold menu.
 
-Advanced queues, options, traversal and history restore after reboot from `/mnt/data/ringnav-queue`; missing files are skipped. Restored queues keep their Library or Folder playback origin, so Folder Skip applies only to Folder playback; Coverflow albums, Most Played and Shuffle Songs are never folder plays. **Memory playback → Location** restores elapsed time, **Track** starts at the beginning, and **In-Vehicle mode** plays automatically. Invalid snapshots fall back to stock resume. Queues up to 65,536 occurrences can use advanced playback. Long Songs is deferred.
+Advanced queues, options, traversal and history restore after reboot from `/mnt/data/ringnav-queue`; missing files are skipped. Restored queues keep their Library or Folder playback origin, so Folder Skip applies only to Folder playback; Coverflow albums, Most Played and Shuffle Songs are never folder plays. **Memory playback → Location** restores elapsed time, **Track** starts at the beginning, and **In-Vehicle mode** plays automatically. Invalid snapshots fall back to stock resume. Queues up to 65,536 occurrences can use advanced playback.
 
 ### Photos, Books and Videos
 

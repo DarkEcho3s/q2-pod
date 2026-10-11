@@ -5670,10 +5670,12 @@ view=m.node('scroll_view','scroll_view_localmusic',stock); m.top=m.node('window'
 assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0
 assert m.calls[0][:3]==('stock_localmusic',m.top,5)
 # Library order: Shuffle; Artist, Album, All Songs, Genre, Playlist, Ratings (in My Fav's place, hidden);
-# Recently Added, Recent, Most Played, Frequent, Hi-Res; then Update Local Music, last (stock rows by
+# Recently Added, Recent, Most Played, Frequent, Hi-Res, Long Songs; then Update Local Music, last (stock rows by
 # get_localmusic_showinfo index).
-kids=m.nodes[view]['children']; row,rated,top=kids[0],kids[6],kids[10]
-assert [kids[i] for i in (*range(1,6),7,8,9,11,12,13)]==[stock[i] for i in (3,2,1,4,10,6,9,8,7,5,0)] and m.nodes[row]['style']=='s_listitem_black'
+kids=m.nodes[view]['children']; row,rated,top,long=kids[0],kids[6],kids[10],kids[13]
+assert [kids[i] for i in (*range(1,6),7,8,9,11,12,14)]==[stock[i] for i in (3,2,1,4,10,6,9,8,7,5,0)] and m.nodes[row]['style']=='s_listitem_black'
+icon,label=m.nodes[m.nodes[long]['children'][0]]['children']
+assert m.nodes[icon]['image']=='local_longsongs' and m.nodes[label]['text']=='Long Songs'
 assert m.nodes[stock[6]]['visible']==0 and all(m.nodes[k].get('visible',1) for k in kids if k!=stock[6])
 icon,label=m.nodes[m.nodes[top]['children'][0]]['children']
 assert m.nodes[icon]['image']=='local_frequentplay' and m.nodes[label]['text']=='Most Played'
@@ -5815,8 +5817,10 @@ class RateMachine(ShuffleMachine):
         self.budget=2_000_000  # a RATE_SLOTS table scan or two a call
         self.word(O['MCL_POS'],1)  # B of ABC plays
         self.files={'/mnt/data/ringnav-ratings':saved} if saved else {}; self.open_files={}; self.fav_songs=[]
-        for n in ('fopen@GLIBC_2.2','fread@GLIBC_2.0','fwrite@GLIBC_2.0','fclose@GLIBC_2.2','rename@GLIBC_2.0','getAllFav'):
+        for n in ('fopen@GLIBC_2.2','fread@GLIBC_2.0','fwrite@GLIBC_2.0','fclose@GLIBC_2.2','rename@GLIBC_2.0','getAllFav',
+                  'fseek@GLIBC_2.0','ftell@GLIBC_2.0','taglib_file_new','taglib_file_audioproperties','taglib_file_free'):
             self.handlers[syms[n]]='r:'+n
+        self.lengths={}; self.probed=[]; self.handlers[0x1000030]='r:length'  # AudioProperties::length(), vtable +0xc
         self.handlers[FAV_CLICK]='r:fav_click'
         self.fav=self.node('image','img_fav'); self.word(self.fav+O['W_X'],303); self.word(self.fav+O['W_Y'],176)
         self.word(self.fav+O['W_W'],50); self.word(self.fav+O['W_H'],50); self.nodes[self.fav]['image']='play_unfav'
@@ -5835,7 +5839,14 @@ class RateMachine(ShuffleMachine):
         if name=='fopen':
             path,mode=self.text(a),self.text(b)
             if mode=='wb' or path in self.files: ret=0x2000000+len(self.open_files)*16; self.open_files[ret]=[path,b'']
-        elif name=='fread': data=self.files[self.open_files[d][0]]; ret=int(len(data)>=b*c); u.mem_write(a,data[:b*c].ljust(b*c,b'\0'))
+        elif name=='fread': data=self.files[self.open_files[d][0]]; ret=min(c,len(data)//b); u.mem_write(a,data[:b*c].ljust(b*c,b'\0'))
+        elif name=='fseek': ret=0
+        elif name=='ftell': ret=len(self.files[self.open_files[a][0]])
+        elif name=='taglib_file_new':
+            path=self.text(a); self.probed.append(path)
+            if path in self.lengths: ret=self.alloc(8); props=self.alloc(8); vt=self.alloc(16); self.word(props,vt); self.word(vt+12,0x1000030); self.word(ret,props); self.word(props+4,self.lengths[path])
+        elif name=='taglib_file_audioproperties': ret=self.get(a)
+        elif name=='length': ret=self.get(a+4)
         elif name=='fwrite': self.open_files[d][1]+=bytes(u.mem_read(a,b*c)); ret=c
         elif name=='fclose':
             path,data=self.open_files.pop(a)
@@ -5938,15 +5949,45 @@ m.found=[m.song('Z')]; m.fav_songs=[]; m.calls=[]; row=m.nodes[m.find('scroll_vi
 m.call(address=g,args=(c,m.event,0,0),gap=0); m.page=m.top
 assert m.texts()==['Top Rated','No songs yet','Hold the heart on Now Playing to rate']; passed()
 
+# Long Songs: over LONG_SONG_S, longest first. Files never probed are probed once by TagLib on a worker (a CUE track
+# with both ends needs none) and kept by path hash in /mnt/data/ringnav-lengths, sorted; 0 for an unreadable file.
+cached=struct.pack('<2I',fnv('/p/E'),1200)
+m=RateMachine(); m.files['/mnt/data/ringnav-lengths']=cached
+m.found=[m.song(n) for n in 'ABCDE']; m.word(m.found[2]+O['REC_CUE_END'],900)
+m.lengths={'/p/A':700,'/p/B':300}
+m.top=m.node('window','localmusic_page'); view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)])
+m.nodes[m.top]['children']=[view]; m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)
+f,ctx=m.handler(m.nodes[m.nodes[view]['children'][13]]['children'][0],O['EVT_CLICK'])
+assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0; m.page=m.top
+assert m.nodes[m.page]['name']=='longsongs_page' and m.texts()==['Measuring songs… 0/3','Cancel'] and len(m.threads)==1
+worker,arg=m.threads[0]; assert m.call(address=worker,args=(arg,0,0,0),gap=0)==0 and m.probed==['/p/A','/p/B','/p/D']
+m.advance(250)
+want=['Long Songs','E','Artist · 20:00','C','Artist · 15:00','A','Artist · 11:40']
+assert m.texts()==want,m.texts()
+saved=m.files['/mnt/data/ringnav-lengths']; pairs=sorted(struct.unpack(f'<{len(saved)//4}I',saved)[0::2])
+assert pairs==sorted(fnv('/p/'+n) for n in 'EABD') and dict(zip(*[iter(struct.unpack(f'<{len(saved)//4}I',saved))]*2))[fnv('/p/D')]==0
+r=m.nodes[m.find('scroll_view')]['children'][2]; g,c=m.handler(r,O['EVT_CLICK'])
+assert m.call(address=g,args=(c,m.event,0,0),gap=0)==0 and m.queued==['E','C','A']; passed()
+# Again, nothing to probe: the list at once. Cancel keeps what was measured.
+m.close(); m.probed=[]; m.threads=[]; m.call(address=f,args=(ctx,m.event,0,0),gap=0); m.page=m.top
+assert not m.threads and not m.probed and m.texts()==want; m.close(); passed()
+m=RateMachine(); m.found=[m.song(n) for n in 'AB']; m.lengths={'/p/A':700,'/p/B':900}
+m.top=m.node('window','localmusic_page'); view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)])
+m.nodes[m.top]['children']=[view]; m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)
+f,ctx=m.handler(m.nodes[m.nodes[view]['children'][13]]['children'][0],O['EVT_CLICK']); m.call(address=f,args=(ctx,m.event,0,0),gap=0); m.page=m.top
+cancel=m.nodes[m.find('scroll_view')]['children'][0]; g,c=m.handler(cancel,O['EVT_CLICK']); m.call(address=g,args=(c,m.event,0,0),gap=0)
+worker,arg=m.threads[0]; m.call(address=worker,args=(arg,0,0,0),gap=0); assert m.probed==[]  # cancelled before the first
+m.advance(250); assert m.texts()==['Long Songs','No songs over 10 minutes'] and m.joins==[77]; passed()
+
 # Upload Scrobbles: the second-last row, above Update Local Music, only with an account in the card's .scrobble.ini (a
 # ListenBrainz token or all four Last.fm keys). Without Wi-Fi it only says so; otherwise scrobble.c's thread
 # starts, a second press finds it running, and a timer reports the result once the thread ends.
 m=ShuffleMachine(); m.config.update(USER='u',PASSWORD='p',API_KEY='k')  # no API_SECRET: no row
 view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)]); m.top=m.node('window','localmusic_page',[view])
-assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==14
+assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==15
 assert ('/mnt/mmc/.scrobble.ini','LASTFM','API_SECRET','') in m.config_reads
 m.config['TOKEN']='tok'; m.nodes[view]['children']=[m.node('list_item') for _ in range(11)]
-assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==15
+assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==16
 button=m.nodes[m.nodes[view]['children'][-2]]['children'][0]; icon,label=m.nodes[button]['children']
 assert m.nodes[icon]['image']=='local_scrobble' and m.nodes[label]['text']=='Upload Scrobbles' and not m.nodes[button].get('name')
 f,ctx=m.handler(button,O['EVT_CLICK'])
@@ -5964,7 +6005,7 @@ m=ShuffleMachine(); m.card=[('Music',4),('PODCASTS',4),('Audiobooks',8)]
 m.handlers[int(manifest['patch_symbols']['stock_folder_trampoline'],16)]='stock_folder'
 m.handlers[int(manifest['patch_symbols']['stock_folder_back_trampoline'],16)]='stock_folder_back'
 view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)]); m.top=m.node('window','localmusic_page',[view])
-assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==15
+assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0)==0 and len(m.nodes[view]['children'])==16
 button=m.nodes[m.nodes[view]['children'][-2]]['children'][0]; icon,label=m.nodes[button]['children']
 assert m.nodes[icon]['image']=='local_podcasts' and m.nodes[label]['text']=='Podcasts' and not m.nodes[button].get('name')
 f,ctx=m.handler(button,O['EVT_CLICK']); m.calls=[]
@@ -6083,7 +6124,7 @@ m=PhotosMachine(tree,data)
 view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)]); m.top=m.node('window','localmusic_page',[view])
 assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0,count=5_000_000)==0
 button=m.nodes[m.nodes[view]['children'][-1]]['children'][0]; icon,label=m.nodes[button]['children']
-assert m.nodes[icon]['image']=='local_photos' and m.nodes[label]['text']=='Photos' and len(m.nodes[view]['children'])==15
+assert m.nodes[icon]['image']=='local_photos' and m.nodes[label]['text']=='Photos' and len(m.nodes[view]['children'])==16
 f,ctx=m.handler(button,O['EVT_CLICK']); assert m.call(address=f,args=(ctx,m.event,0,0),gap=0,count=5_000_000)==0
 page=m.top; assert m.nodes[page]['name']=='photos_page' and m.nodes[page]['style:normal:bg_color']==-0x1000000
 albums,grid,viewer=m.nodes[page]['children']; assert not m.nodes[grid]['visible'] and not m.nodes[viewer]['visible']
@@ -6238,7 +6279,7 @@ m=BooksMachine(tree,files)
 view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)]); m.top=m.node('window','localmusic_page',[view])
 assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0,count=5_000_000)==0
 button=m.nodes[m.nodes[view]['children'][-1]]['children'][0]; icon,label=m.nodes[button]['children']
-assert m.nodes[icon]['image']=='local_books' and m.nodes[label]['text']=='Books' and len(m.nodes[view]['children'])==15
+assert m.nodes[icon]['image']=='local_books' and m.nodes[label]['text']=='Books' and len(m.nodes[view]['children'])==16
 f,ctx=m.handler(button,O['EVT_CLICK']); assert m.call(address=f,args=(ctx,m.event,0,0),gap=0,count=5_000_000)==0
 page=m.page=m.top; assert m.nodes[page]['name']=='books_page' and m.nodes[page]['style:normal:bg_color']==-0x1000000
 books,reader=m.nodes[page]['children']; sheet,info=m.nodes[reader]['children']
@@ -6293,7 +6334,7 @@ m=BooksMachine(tree,{})
 view=m.node('scroll_view','scroll_view_localmusic',[m.node('list_item') for _ in range(11)]); m.top=m.node('window','localmusic_page',[view])
 assert m.call(address=HOOKS['localmusic_page_init'][0],args=(m.top,5,0,0),gap=0,count=5_000_000)==0
 button=m.nodes[m.nodes[view]['children'][-1]]['children'][0]; icon,label=m.nodes[button]['children']
-assert m.nodes[icon]['image']=='local_videos' and m.nodes[label]['text']=='Videos' and len(m.nodes[view]['children'])==15
+assert m.nodes[icon]['image']=='local_videos' and m.nodes[label]['text']=='Videos' and len(m.nodes[view]['children'])==16
 f,ctx=m.handler(button,O['EVT_CLICK']); assert m.call(address=f,args=(ctx,m.event,0,0),gap=0,count=5_000_000)==0
 page=m.page=m.top; videos,_=m.nodes[page]['children']
 assert m.nodes[page]['name']=='books_page' and labels(videos)==['Videos','c','a','b']; passed()
@@ -6416,7 +6457,7 @@ def stream_page(m):
     assert len(m.nodes[view]['children'])==4
     # AirPlay, last: stock's own receiver, its switch on System settings' Network service page, one press away.
     airplay=m.nodes[m.nodes[view]['children'][3]]['children'][0]; icon,label=m.nodes[airplay]['children'][:2]
-    assert m.nodes[icon]['image']=='netservice_airplay' and m.nodes[label]['text']=='AirPlay'
+    assert m.nodes[icon]['image']=='stream_airplay' and m.nodes[label]['text']=='AirPlay'
     top=m.top; f,ctx=m.handler(airplay,O['EVT_CLICK']); m.calls=[]; assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0
     assert [m.text(c[1]) for c in m.calls if c[0]=='navigator_to']==['systemset/netservice_page']; m.top=top
     return m.nodes[m.nodes[view]['children'][1]]['children'][0]

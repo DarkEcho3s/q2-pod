@@ -433,6 +433,10 @@ FUNCTIONS = {
  'getMusicByAlbumAndGenre': ('int', 'const char *, const char *, int'),
  'checkFavExist': ('int', 'void *'),
  'getAllFav': ('int', 'void'),
+ # Long Songs (navigation.c): a file's length, probed once, as stock's scanner reads tags
+ 'taglib_file_new': ('void *', 'const char *'),
+ 'taglib_file_audioproperties': ('void *', 'void *'),
+ 'taglib_file_free': ('void', 'void *'),
  'deleteMusicFromFav': ('int', 'void *'),
  'batch_init_selectrecord': ('int', 'int'),
  'batch_set_selectitem': ('int', 'int'),
@@ -555,7 +559,7 @@ CONTEXT_DATA = {'bt_showcoding': 4, 'g_memory_info': 3476, 'g_folder_path': 1024
                 'pdeq_albumcoverlist': 4, 'aclist_mutex': 24,
                 'tidalStreamingLevelNow': 4}  # the quality the Tidal URL thread asked for
 # Windows the payload creates at runtime (window_create), so no rootfs asset names them.
-PAYLOAD_WINDOWS = {'coverflow_page', 'photos_page', 'books_page', 'mostplayed_page', 'shuffle_page', 'ratings_page', 'rated_page', 'spotify_page',
+PAYLOAD_WINDOWS = {'coverflow_page', 'photos_page', 'books_page', 'mostplayed_page', 'shuffle_page', 'ratings_page', 'rated_page', 'longsongs_page', 'spotify_page',
                    'radio_page', 'radionp_page'}
 ICONS = ['menu_coverflow.png', 'menu_coverflowdown.png']
 # The stock EQ preset page and the images only it and the stock equalizer page show: the PEQ
@@ -875,9 +879,10 @@ def build(zip_path, out, logo, ipod=False, dev=False):
                                      else cat(xx+like)) for n, like in dict(
         shuffle='playset_playmode.png', scrobble='wifiset_wifi.png', podcasts='netservice_dlna.png',
         audiobooks='playset_foldercover.png', photos='playset_covermode.png', books='system_language.png',
-        videos='system_display.png').items()})
+        videos='system_display.png', longsongs='system_time.png').items()})
     for n in ('spotify', 'radio'):  # Streaming's Spotify and Internet Radio rows
         icons[f'stream_{n}.png'] = ('list_tidal.png', (ROOT/'assets/icons'/f'stream_{n}.png').read_bytes())
+    icons['stream_airplay.png'] = ('list_tidal.png', cat(xx+'netservice_airplay.png'))  # iPod resizes stock's
     if ipod:  # Home's placeholder, drawn at the art panel's 290px
         icons['default_album_home.png'] = ('default_album_big.png', (ROOT/'assets/icons/default_album_home.png').read_bytes())
     added = []
