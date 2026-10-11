@@ -313,27 +313,29 @@ static void drop_unknown(void) {
 
 /* Sort, the card before Refresh (docs/internals.md#coverflow-sort): Album is the stock order;
  * Artist sorts by artist without a leading article, as every library list does (ringnav_sort_key),
- * then year, then album; Recently Added by the newest song's time_create; Most Played by the
+ * then year, then album; Year newest first, undated last; Recently Added by the newest song's time_create; Most Played by the
  * album's listens (navigation.c album_plays); Random by playback.c's rand_below, reshuffled whenever
  * the list is rebuilt. Ties keep the stock order, and the Unknown row stays last. Ranks come from ALBUM_SQL with another ORDER BY (toolsQueryDbTable without its name sort),
  * matched back to the rows by album_cmp. */
-enum { SORT_ALBUM, SORT_ARTIST, SORT_ADDED, SORT_PLAYED, SORT_RANDOM, SORT_N, SORT_RATING = SORT_N, SORT_YEAR };
+enum { SORT_ALBUM, SORT_ARTIST, SORT_ADDED, SORT_PLAYED, SORT_RANDOM, SORT_RATING, SORT_YEAR };
 #define SORT_FILE PEQ_ROOT "/mnt/data/ringnav-coversort"
 /* The rated albums' Sort: most hearts first, Album, Artist, then Year (newest first, undated last). */
 #define RATED_SORT_FILE PEQ_ROOT "/mnt/data/ringnav-ratedsort"
 static const unsigned char rated_sorts[] = { SORT_RATING, SORT_ALBUM, SORT_ARTIST, SORT_YEAR };
+/* The library's Sort: Year (newest first, undated last) after Artist; saved values are the enum's. */
+static const unsigned char all_sorts[] = { SORT_ALBUM, SORT_ARTIST, SORT_YEAR, SORT_ADDED, SORT_PLAYED, SORT_RANDOM };
 #define ALBUM_SQL "select id,album,songer,fileurl,albumsonger from songtable group by album COLLATE NOCASE," \
     "ifnull(albumsonger,'') COLLATE NOCASE,case ifnull(albumsonger,'') when '' then rtrim(fileurl,replace(fileurl,'/','')) end"
 #define SORT_SQL ALBUM_SQL " order by "
 static const char *const sort_names[] = { "Sort: Album", "Sort: Artist", "Sort: Recently Added",
                                           "Sort: Most Played", "Sort: Random", "Sort: Rating", "Sort: Year" };
-/* The order step after cf.sort (dir 1), or cf.sort itself (0), in the page's own orders; a
- * rated order not among them is Rating. */
+/* The order step after cf.sort (dir 1), or cf.sort itself (0), in the page's own orders; an
+ * order not among them is the first (Album, or the rated albums' Rating). */
 static int sort_next(int dir) {
-    if (!cf.scoped) return (cf.sort + dir) % SORT_N;
-    unsigned i = 0;
-    while (i < sizeof rated_sorts && rated_sorts[i] != cf.sort) ++i;
-    return i == sizeof rated_sorts ? SORT_RATING : rated_sorts[(i + (unsigned)dir) % sizeof rated_sorts];
+    const unsigned char *o = cf.scoped ? rated_sorts : all_sorts;
+    unsigned n = cf.scoped ? sizeof rated_sorts : sizeof all_sorts, i = 0;
+    while (i < n && o[i] != cf.sort) ++i;
+    return i == n ? o[0] : o[(i + (unsigned)dir) % n];
 }
 extern void album_plays(int (*album_of)(void *), unsigned *sum);
 extern unsigned rand_below(unsigned n);
@@ -1387,8 +1389,7 @@ static void load(void) {
     }
     if (n > 0 && !cf.albums) {
         if (!cf.sort_read) BLOB_IO(SORT_FILE, cf.sort, 0), cf.sort_read = 1;
-        if (cf.scoped) cf.sort = sort_next(0);
-        else if ((unsigned)cf.sort >= SORT_N) cf.sort = SORT_ALBUM;
+        cf.sort = sort_next(0);
         cf.albums = sorted();
     }
     if (n <= 0) {

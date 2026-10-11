@@ -14,3 +14,4 @@
 [x] Album ratings: Hold Play/Pause on a Coverflow cover, Library Album or artist album row → Add/Remove from Favourites, Rate album (0-5♥, /mnt/data/ringnav-album-ratings); Library → Ratings → Albums: rated albums in Coverflow, Sort Rating/Album/Artist/Year
 [ ] Audiobooks → Add .m4b audiobook support
 [ ] Airpods → Add AirPods Support (connect card with battery, ear detection, stem buttons, volume sync)
+[ ] Artist pages (Grid + Coverflow) → sort albums by Release Year (Discord backlog)

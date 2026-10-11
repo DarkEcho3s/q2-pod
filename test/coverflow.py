@@ -721,6 +721,12 @@ static void sorting(void) {
     assert(coverflow_jump(slide(), 0, 1, &letter) == 8 && letter == 'B');
     assert(coverflow_jump(slide(), 1, 1, &letter) == 7 && letter == 'B');
     assert(coverflow_jump(slide(), 8, -1, &letter) == 8 && letter == 'A');
+    /* Year: the query's order (newest first, undated last), the rest after. */
+    ranked[0] = "New", ranked[1] = "a", ranked[2] = 0;
+    press_sort();
+    assert(saved_sort() == 6);
+    order_is((const char *const[]){ "New", "A", "Cover", "Folder", "Embedded", "None", "B", "C", "Tight", 0 });
+    assert(coverflow_jump(slide(), 0, 1, &letter) == 1 && !letter);
     /* Recently Added: the query's order (a name in another case still matches), the rest after. */
     ranked[0] = "C", ranked[1] = "a", ranked[2] = "New", ranked[3] = "COVER", ranked[4] = "Gone", ranked[5] = 0;
     press_sort();
@@ -801,7 +807,7 @@ static void unknown_card(void) {
     press_sort();
     assert(!strcmp(album_at(albums), "Unknown Album") && !strcmp(album_at(0), "None"));
     ranked[0] = 0;
-    for (int i = 0; i < 3; ++i) press_sort(); /* to Random */
+    for (int i = 0; i < 4; ++i) press_sort(); /* to Random */
     assert(!strcmp(album_at(albums), "Unknown Album"));
     press_sort(); /* back to Album */
     close_page();
@@ -1188,7 +1194,7 @@ def main():
     print('Coverflow: art order, locks, markers, resume, cancel, Refresh, album list reuse, low space and empty library passed;'
           ' depth renderer (exact centre, clipping, symmetry, reflection, continuity),'
           ' its texture window, centre click, small libraries and flat fallback passed;'
-          ' Sort by artist, recently added, most played and random, kept across opens, passed; an artist\'s albums alone passed;'
+          ' Sort by artist, year, recently added, most played and random, kept across opens, passed; an artist\'s albums alone passed;'
           ' iPod Home art sources, fit, clip, cache and Split/Full layout in both themes passed.')
 
 
