@@ -5282,10 +5282,10 @@ def routed(m,status=3,way=0,po=0,bal=0):
     for n in ('mclGetPlayStatus','mclGetOutputWay'): m.handlers.pop(syms[n],None)
     m.word(PLAY_STATUS,status); m.word(OUTPUT_WAY,way); m.byte(syms['g_po_status'],po); m.byte(syms['g_bal_status'],bal)
     return m
-# Every Key Tone click (stock's three and ringnav()'s) goes through buzzeer_switch: stopped or paused
-# with nothing plugged in, the buzzer as stock; while music plays, or with either jack plugged in or a
-# Bluetooth (1) or USB (2) output, none; Key Tone off, none.
-for kw,want in (({'status':1},1),({},1),({'status':2},0),({'po':1},0),({'bal':1},0),({'way':1},0),
+# Every Key Tone click (stock's three and ringnav()'s) goes through buzzeer_switch: with nothing plugged
+# in, the buzzer as stock, playing or not; with either jack plugged in or a Bluetooth (1) or USB (2)
+# output, none; Key Tone off, none.
+for kw,want in (({'status':1},1),({},1),({'status':2},1),({'po':1},0),({'bal':1},0),({'way':1},0),
                 ({'way':2},0),({'status':2,'po':1},0)):
     m=routed(audible(Machine()),**kw); m.call(address=syms['buzzeer_switch'],args=(1,0,0,0))
     assert buzzes(m)==want,kw
@@ -5433,12 +5433,15 @@ if variant=='ipod':
     keys=(CENTER,RETURN,O['KEY_PLAY'],222,223)
     m,w,es=long_list(8,audible(Machine()))
     assert [tick(m,key) for key in keys]==stock(keys)==[1]*5 and m.selected(w)==0; passed()
-    # Headphones in, or music playing: the buttons and a row change are silent.
-    for kw in ({'po':1},{'way':1},{'status':2}):
+    # Either jack or Bluetooth in: the buttons and a row change are silent.
+    for kw in ({'po':1},{'bal':1},{'way':1}):
         m,w,es=long_list(8,routed(audible(Machine()),**kw))
         assert tick(m)==0 and m.selected(w)==1 and [tick(m,key) for key in keys]==[0]*5
         assert m.u.mem_read(TONE,1)==b'\x01'
     passed()
+    # Music playing with nothing plugged in: the speaker still clicks.
+    m,w,es=long_list(8,routed(audible(Machine()),status=2))
+    assert tick(m)==1 and m.selected(w)==1 and [tick(m,key) for key in keys]==[1]*5; passed()
     # A held key clicks once: stock's latch holds through its repeats and the long-press event.
     m,w,es=long_list(8,audible(long_machine()))
     assert [press(m,RETURN),press(m,RETURN,gap=500)]==[1,0]; long_return(m); assert not buzzes(m) and lift(m,RETURN)==0

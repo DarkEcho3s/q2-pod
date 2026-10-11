@@ -16,7 +16,7 @@ Things people often don't know are already there:
 - **Coverflow order:** the **Sort** card, just before Refresh library, switches to Artist, Recently Added or Most Played.
 - **Screen waking in your pocket?** **System settings → Power → Wake: Double press**; stock's **Buttons lock** also keeps the buttons and volume still while the screen is off.
 - **Want stock's EQ presets?** **Equalizer → Presets → Stock presets** has Pop, Rock, Jazz and the rest; the ten default bands work as a 10-band graphic EQ.
-- **Wheel click gone?** Key Tone is the Q2's own speaker, so it stays quiet while music plays or headphones, Bluetooth or a USB DAC are connected.
+- **Wheel click gone?** Key Tone is the Q2's own speaker, so it stays quiet while headphones, Bluetooth or a USB DAC are connected.
 - **Lock screen is black?** It shows your own images: see [Lock screen](#lock-screen).
 - **Importing an M3U playlist?** It has to be in `_explaylist_data/`: see [Playlists](#playlists).
 
@@ -73,7 +73,7 @@ Charge limit applies while the Q2 is on; charging while it's powered off is stoc
 - **Position memory:** recent folders, albums, searches and menus reopen where you were, until power-off.
 - **Artists:** open on Albums, with All Songs one tap away. Browse by the Album Artist tag with **Audio settings → Artists**.
 - **Pop-ups** (iPod): the wheel moves between OK and Cancel.
-- **Key Tone:** the speaker clicks only when nothing plays and no headphones (3.5/4.4 mm), Bluetooth or USB DAC are connected. iPod: once per row, not per tick.
+- **Key Tone:** the speaker clicks, playing or not, whenever no headphones (3.5/4.4 mm), Bluetooth or USB DAC are connected. iPod: once per row, not per tick.
 
 ### Shuffle, repeat and grouping
 
