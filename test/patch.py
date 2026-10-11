@@ -1096,8 +1096,8 @@ for page in ('home_page', 'folder_page', 'playing_page', 'sysset_page'):
     assert long_return(m) == 0
     dest = destinations(m)
     assert len(dest) == 1
-    assert dest[0][0] == ('navigator_switch_to_with_context' if variant == 'ipod' and page != 'playing_page' else 'navigator_back_to_home')
-    if variant == 'ipod' and page != 'playing_page':
+    assert dest[0][0] == ('navigator_switch_to_with_context' if page != 'playing_page' else 'navigator_back_to_home')
+    if page != 'playing_page':
         assert m.text(dest[0][1]) == 'playing_page'
         assert [m.get(dest[0][2] + 4*i) for i in range(4)] == [0, 0, 255, 2]
     # Here the navigator is only recorded, so the switch never lands and the latch is left
@@ -1111,13 +1111,13 @@ for page in ('home_page', 'folder_page', 'playing_page', 'sysset_page'):
     assert m.call(170, gap=0) == held
 passed()
 
-# The stock long-key gates stay effective. iPod adds the shared navigation restrictions.
+# The stock long-key gates stay effective, with the shared navigation restrictions added.
 for flag, value in GATES:
     m = long_machine(); m.page('folder_page'); m.byte(syms[flag], value)
     long_return(m)
     # Stock itself blocks power-off, guide and test mode; iPod adds the shared restrictions
-    # checked by usable(), so every listed flag blocks there. Stock ignores the rest on Return.
-    blocked = True if variant == 'ipod' else flag in ('g_poweroff_state', 'g_guideflag', 'g_testmode_flag')
+    # checked by usable(), so every listed flag blocks in both builds.
+    blocked = True
     assert bool(destinations(m)) == (not blocked), flag
 for light in (0, 1):
     for lock in (0, 1):
@@ -1126,11 +1126,10 @@ for light in (0, 1):
             m.byte(syms['g_backlight_status'], light)
             m.byte(syms['g_keylock_flag'], lock); m.byte(syms['g_keylock_mode'], mode)
             long_return(m)
-            blocked = not light and lock and mode in (2, 3)
-            if variant == 'ipod': blocked = not light
+            blocked = not light
             assert bool(destinations(m)) == (not blocked)
 passed()
-if variant == 'ipod':
+if True:
     m = long_machine(); m.page_list()
     assert m.call(O['KEY_CENTER']) == 11 and m.timers
     long_return(m)
@@ -1142,6 +1141,18 @@ if variant == 'ipod':
     long_return(m)
     assert not destinations(m)
     assert m.call(170, gap=0) == 11
+passed()
+# Hold Return on Now Playing goes back to the page it opened over while that lies right under it; otherwise,
+# or with no such page, Home.
+for under,want in ((True,'navigator_back'),(False,'navigator_back_to_home')):
+    m = long_machine(); m.mock('navigator_back'); m.page('folder_page'); folder = m.top
+    assert long_return(m) == 0 and destinations(m)[0][0] == 'navigator_switch_to_with_context'
+    np = m.node('window', 'playing_page'); other = m.node('window', 'sysset_page')
+    m.nodes[m.wm] = {'children': [folder, np] if under else [folder, other, np]}; m.top = np
+    m.call(170, gap=0); m.calls = []
+    assert long_return(m) == 0 and [c[0] for c in m.calls if c[0] in ('navigator_back', 'navigator_back_to_home')] == [want]
+    m.call(170, gap=0); m.calls = []
+    assert long_return(m) == 0 and [c[0] for c in m.calls if c[0] in ('navigator_back', 'navigator_back_to_home')] == ['navigator_back_to_home']
 passed()
 # Other long-key paths remain byte-for-byte stock; exercise the inert keys and power gate.
 # Home is not a local list, so a Play/Pause hold there stays stock too (queue menu below).

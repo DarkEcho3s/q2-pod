@@ -155,6 +155,7 @@ typedef struct {
         cpu_marked, skip_disliked;
     void *pod_label[5];
     unsigned wake_at; /* Wake: Double press, the screen-off centre press a second one must follow */
+    void *np_origin;  /* the page Hold Return opened Now Playing over */
     void *dc_top;     /* the page of the last centre press no list click took, and its time */
     unsigned dc_at;
     unsigned charge_at, last_input, cpu_retry;
@@ -2934,7 +2935,20 @@ int ipod_list_layout(void *layout, void *view) {
     return ret;
 }
 
-/* Called only by stock long Return, after its power/lock gates and release guard. */
+/* Replaces home_page_init's boot resume, navigator_to_with_context("playing_page", ctx) with ctx
+ * {queue, index, class, mode}. Car mode (mode 2, plays) keeps that call; otherwise this is the
+ * paused start playing_page_init would make, without the page. */
+void ringnav_boot(const char *page, const int *ctx) {
+    if (ctx[3] == 2)
+        navigator_to_with_context(page, ctx);
+    else if (ctx[2] != 0xff)
+        player_start((void *)ctx[0], ctx[1], ctx[2], ctx[3]);
+}
+#endif
+
+/* Called only by stock long Return (both builds), after its power/lock gates and release guard.
+ * Elsewhere it opens Now Playing over the page, remembered as np_origin; on Now Playing it goes
+ * back to that page while it lies right under it, else Home. */
 int compact_now_playing(void) {
     pull_cancel();
     drop_input();
@@ -2942,10 +2956,18 @@ int compact_now_playing(void) {
     void *top = window_manager_get_top_window(wm);
     fx_cancel();
     if (usable() && top && !window_manager_is_animating(wm)) {
-        if (!tk_strcmp(widget_get_prop_str(top, "name", ""), "playing_page"))
-            navigator_back_to_home();
-        else {
+        if (!tk_strcmp(widget_get_prop_str(top, "name", ""), "playing_page")) {
+            unsigned n = st.np_origin ? widget_count_children(wm) : 0;
+            int back = n >= 2 && widget_get_child(wm, n - 1) == top &&
+                       widget_get_child(wm, n - 2) == st.np_origin;
+            st.np_origin = (void *)0;
+            if (back)
+                navigator_back();
+            else
+                navigator_back_to_home();
+        } else {
             static const int context[4] = { 0, 0, 0xff, 2 };
+            st.np_origin = top;
             navigator_switch_to_with_context("playing_page", context, 0);
             /* The window switch stops the hold's key-up from reaching the stock release
              * filter, so the latch it armed would otherwise swallow the next Return. Drop it
@@ -2957,17 +2979,6 @@ int compact_now_playing(void) {
     }
     return 0;
 }
-
-/* Replaces home_page_init's boot resume, navigator_to_with_context("playing_page", ctx) with ctx
- * {queue, index, class, mode}. Car mode (mode 2, plays) keeps that call; otherwise this is the
- * paused start playing_page_init would make, without the page. */
-void ringnav_boot(const char *page, const int *ctx) {
-    if (ctx[3] == 2)
-        navigator_to_with_context(page, ctx);
-    else if (ctx[2] != 0xff)
-        player_start((void *)ctx[0], ctx[1], ctx[2], ctx[3]);
-}
-#endif
 
 /* Play/Pause hold queue menu (docs/internals.md). Stock long press fires once per press, so a hold
  * on a local song, album, artist/composer/genre or folder row opens the stock sortselect dialog

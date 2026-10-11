@@ -293,10 +293,11 @@ under `CLOCK_MIN` fails the build.
 ## Hold Return
 
 The stock long-key function at 0x4e873c retains all instructions except the final
-Home call at 0x4e8924. Stock power, lock, test and key-lock gates and its release
-latch execute first. iPod cancels centre confirmation and spin state, checks
-the shared screen/navigation restrictions, and then either calls the stock Home
-destination when Now Playing is already the top window, or calls the stock switch
+Home call at 0x4e8924, in both builds (`HOLD_RETURN`). Stock power, lock, test and key-lock gates and its release
+latch execute first. The payload cancels centre confirmation and spin state, checks
+the shared screen/navigation restrictions, and then, on Now Playing, goes back
+(`navigator_back`) when the page it opened over (`np_origin`) lies right under it, or
+calls the stock Home destination otherwise; anywhere else it remembers the page and calls the stock switch
 function with `playing_page` and `{0, 0, 0xff, 2}`. The `0xff` context skips
 player_start, so playback is not restarted. The switch keeps the hold's key-up
 from reaching the stock release filter, which would leave the latch that filter

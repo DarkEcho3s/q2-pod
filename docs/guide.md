@@ -9,7 +9,7 @@ Things people often don't know are already there:
 - **Hold Play/Pause** on Now Playing for the queue, favourites, playlists, shuffle and repeat. During Shuffle Albums or Folders it also has **Next album / Previous album**.
 - **Rate songs with hearts:** hold the heart on Now Playing (or **Hold Play/Pause → Rate**), turn to 0-5 hearts, Centre to save. Five hearts is My Fav; **Library → Ratings** lists them.
 - **Double-press the centre button** to turn the screen off on any page (videos excepted); on Now Playing a single press does it.
-- **Hold Return** (iPod) jumps to Now Playing from anywhere.
+- **Hold Return** jumps to Now Playing from anywhere; hold it again there to go back where you were.
 - **Brightness, volume limits, balance, date and time and the sleep timer** take the wheel: turn to change, Centre to go back or move to the next field and then OK. In the pull-down, the wheel sets the brightness.
 - **Longer battery:** **System settings → Power → Low power** and **Charge limit**.
 - **Guest artists splitting albums?** **Audio settings → Artists → Album Artist**.
@@ -64,7 +64,7 @@ Charge limit applies while the Q2 is on; charging while it's powered off is stoc
 | **Centre button**         | Opens the highlighted item. Double-press turns the screen off (single press on Now Playing).                                                                                                                       |
 | **Hold Play/Pause**       | Song or local Now Playing track: rate (Now Playing), queue, favourite, playlist, go to album or artist. Album, artist, genre or folder: queue, shuffle, playlist; a Coverflow album: queue, shuffle, go to artist. |
 | **Fast Coverflow turn**   | Album/Artist sorts jump one populated initial per tick; Sort and Refresh remain individual stops.                                                                                                                  |
-| **Hold Return** (iPod)    | Opens Now Playing; the next Return goes back.                                                                                                                                                                      |
+| **Hold Return**           | Opens Now Playing; Return or another hold goes back.                                                                                                                                                               |
 | **Scrub** (iPod)          | On Now Playing, double-press centre, then turn: 5 s per tick. Double-press, Return, touch or wait 3 s to jump.                                                                                                     |
 | **Pull to search** (iPod) | At the top of Library (Local Songs), pull down until "Release to search" appears.                                                                                                                                  |
 

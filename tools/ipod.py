@@ -726,9 +726,6 @@ def patch_code(data, symbols):
         word(int(address, 16), int(instruction, 16),
              0x0c000000 | (symbols['compact_set_row_layout'] >> 2), group['purpose'])
     word(0x522410, 0x0320f809, 0, 'folder rebind retains the width owned by its row layouter')
-    # Only the final long-Return call changes. All stock gates and its release guard precede it.
-    word(0x4e8924, 0x04110fdf, 0x0c000000 | (symbols['compact_now_playing'] >> 2),
-         'long Return destination after stock input gates')
     # Playlist page's Import/Export tiles: no icon (0 wide), the label spans the 164px tile in
     # stock's centred s_scrlabel_white24c (0x769220) instead of 91px after the icon.
     for icon, style in ((0x4b2fa0, 0x4b3028), (0x4b30a4, 0x4b3130)):

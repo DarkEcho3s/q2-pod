@@ -169,6 +169,9 @@ WATCHDOG_SLEEP = (b'\tsleep 2\n', b'\tsleep 10\n')
 RTC_WRITE = (b'hwclock -w\0\0', b'hwclock -wu\0')
 # mclNextSong's shuffle pick; the payload calls the stock pick, then applies a pending Play next.
 SHUFFLE_CALL = (0x5addf0, 0x0411e8cb)  # bal mcl_shuffle_pick; its delay slot (a0=1) stays
+# Hold Return: only on_wm_keylong_fun's final Home call (bal) changes; all stock gates and its release
+# guard precede it. It becomes jal compact_now_playing (docs/ipod.md#hold-return).
+HOLD_RETURN = (0x4e8924, 0x04110fdf)
 # device_standby's bal awake_screen after the resume from Standby; Wake: Double press keeps it dark.
 STANDBY_WAKE = (0x4f7d24, 0x0411ff26)
 # The bal toolsTrimLeft on each name copy in the two library name comparators (0x5b9d40, 0x5ba658, the
@@ -783,6 +786,8 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         patch_word(patched, address, old, new, 'artist detail opens on Albums')
     patch_word(patched, *SHUFFLE_CALL, 0x0c000000 | (ps['ringnav_shuffle'] >> 2),
                'shuffle honours Play next')
+    patch_word(patched, *HOLD_RETURN, 0x0c000000 | (ps['compact_now_playing'] >> 2),
+               'long Return destination after stock input gates')
     patch_word(patched, *STANDBY_WAKE, 0x0c000000 | (ps['ringnav_standby_wake'] >> 2),
                'Wake: Double press after Standby')
     scan, load, limit, count = SCAN_LIMIT
