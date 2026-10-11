@@ -7055,8 +7055,8 @@ for config,text in (({'XFADE':'1','XFADESEC':'7'},'Crossfade: 7 s'),({'XFADE':'1
 passed()
 
 # The power poll, on the UI loop. Charge limit: the charger stops (switch_charge_enable(0), the
-# BQ25890's /CE) at CHARGE_STOP, again whenever it charges meanwhile, and is handed back at
-# CHARGE_RESUME: on, or USB mode's own choice while its page is open. Every CHARGE_POLL_MS.
+# active-low charge enable) at CHARGE_STOP, again whenever it charges meanwhile, and is handed
+# back at CHARGE_RESUME: on, or USB mode's own choice while its page is open. Every CHARGE_POLL_MS.
 class PowerMachine(ResumeMachine):
     def __init__(self,config={},files=None):
         super().__init__(files); self.config.update(config); self.writes=[]

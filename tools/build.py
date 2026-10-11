@@ -514,7 +514,7 @@ FUNCTIONS = {
  'mclSetPcmMode': ('int', 'void'),
  'mclSetMute': ('int', 'int'),
  'toolsTrimLeft': ('void', 'char *'),
- 'switch_charge_enable': ('int', 'int'),  # 1 charges: the BQ25890's /CE on GPIO PE22 (usbmode_page_init)
+ 'switch_charge_enable': ('int', 'int'),  # 1 charges: the active-low charge enable on GPIO PE22 (usbmode_page_init)
  # Coverflow's Sort: another ORDER BY over getAllAlbum's grouping, filled by its own row callback
  'toolsQueryDbTable': ('int', 'const char *, const char *, void *, int'),  # db, sql, row, name sort
  'album_row': ('int', 'void *, int, char **, char **'),

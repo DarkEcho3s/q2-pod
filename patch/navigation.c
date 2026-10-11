@@ -4995,11 +4995,11 @@ static void resume_poll(void) {
 }
 
 /* Charge limit (docs/internals.md#charge-limit): get_battery_capacity keeps g_power_capacity and
- * the BQ25890's g_power_chargestate (1 pre-charge, 2 fast charge, else 0); switch_charge_enable
- * drives its /CE pin, as stock's USB mode does with g_usbdac_chargeflag. At CHARGE_STOP charging
- * stops, and again whenever something else (USB mode's exit, AirPlay) turned it back on, until
- * the level falls to CHARGE_RESUME; then, or with the limit off, charging is handed back as stock
- * would have it: USB mode's and AirPlay's own choice while their page is open, else on. */
+ * g_power_chargestate (1 Charging, 2 Full, the AXP2101's battery status); switch_charge_enable
+ * drives the charge enable, as stock's USB mode does with g_usbdac_chargeflag. At CHARGE_STOP
+ * charging stops, and again whenever something else (USB mode's exit, AirPlay) turned it back on,
+ * until the level falls to CHARGE_RESUME; then, or with the limit off, charging is handed back as
+ * stock would have it: USB mode's and AirPlay's own choice while their page is open, else on. */
 static void charge_poll(void) {
     unsigned now = time_now_ms();
     if (st.charge_at && now - st.charge_at < CHARGE_POLL_MS) return;
