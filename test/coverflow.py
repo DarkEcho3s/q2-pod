@@ -48,7 +48,7 @@ widget_set_text_utf8 widget_restack widget_animator_prop_create widget_animator_
 widget_get_prop_str widget_on widget_destroy_children widget_invalidate_force
 widget_count_children widget_get_child widget_lookup widget_move_resize widget_get_visible
 canvas_get_clip_rect canvas_set_clip_rect widget_set_sensitive widget_get_type tk_strcmp
-timer_add timer_remove navigator_back_to_home navigator_to_with_context bitmap_create_ex bitmap_destroy bitmap_unlock_buffer
+timer_add timer_remove navigator_back_to_home navigator_back navigator_to_with_context bitmap_create_ex bitmap_destroy bitmap_unlock_buffer
 bitmap_lock_buffer_for_read bitmap_lock_buffer_for_write bitmap_get_line_length
 canvas_draw_image slide_menu_set_spacer window_manager
 """.split() for r, a in [PROTOTYPES[n]]) + r"""
@@ -187,6 +187,7 @@ const char *widget_get_type(void *x) { return W(x)->type; }
 int widget_get_visible(void *x) { return W(x)->visible; }
 int tk_strcmp(const char *a, const char *b) { return strcmp(a ? a : "", b ? b : ""); }
 int navigator_back_to_home(void) { return 0; }
+int navigator_back(void) { return 0; }
 int navigator_to_with_context(const char *n, const void *c) { (void)n; (void)c; return 0; }
 /* slide_menu: square items as high as the menu, plus the spacer. */
 int slide_menu_item_width(void *x) { return *(int *)(W(x)->raw + W_H); }
@@ -752,6 +753,36 @@ static void sorting(void) {
     rescan();
 }
 
+/* Artist albums: Coverflow (navigation.c): an artist's albums alone, in their order, no Sort or
+   Refresh card; the library's list is back once the page closes. */
+int coverflow_artist(void *albums);
+static void artist_only(void) {
+    rescan();
+    open_page();
+    int all = slide()->nkids;
+    close_page();
+    deque *d = _create_deque(0);
+    d->at[d->n++] = records[6], d->at[d->n++] = records[8];
+    page = &w[nw + 1];
+    assert(coverflow_artist(d));
+    run();
+    assert(slide()->nkids == 2);
+    order_is((const char *const[]){ "B", "Tight", 0 });
+    deque *again = _create_deque(0);
+    again->at[again->n++] = records[0];
+    assert(!coverflow_artist(again)); /* one Coverflow page at a time; the caller keeps its list */
+    free(again);
+    close_page();
+    open_page();
+    assert(slide()->nkids == all);
+    order_is((const char *const[]){ "Cover", "Folder", 0 });
+    close_page();
+    deque *none = _create_deque(0);
+    assert(!coverflow_artist(none));
+    free(none);
+    assert(loads == unloads);
+}
+
 /* The Unknown Album card shows only when its press would find a song: getAllAlbum appends it even
    when every song carries an album tag. It stays last whatever the Sort. */
 static void unknown_card(void) {
@@ -986,6 +1017,7 @@ int main(void) {
     assert(loads == unloads);
     depth();
     sorting();
+    artist_only();
     unknown_card();
     same_name();
     disc_folders();
@@ -1155,7 +1187,7 @@ def main():
     print('Coverflow: art order, locks, markers, resume, cancel, Refresh, album list reuse, low space and empty library passed;'
           ' depth renderer (exact centre, clipping, symmetry, reflection, continuity),'
           ' its texture window, centre click, small libraries and flat fallback passed;'
-          ' Sort by artist, recently added, most played and random, kept across opens, passed;'
+          ' Sort by artist, recently added, most played and random, kept across opens, passed; an artist\'s albums alone passed;'
           ' iPod Home art sources, fit, clip, cache and Split/Full layout in both themes passed.')
 
 

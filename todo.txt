@@ -8,7 +8,7 @@
 [ ] Long Songs (>10 min) — BLOCKED: songtable has no duration column (time/time_end are CUE bounds); needs per-file probe, ask
 [x] Double-Centre screen-off on every page (video keeps Centre for seek)
 [x] Hold Return: Now Playing ⇄ origin (Stock + iPod)
-[ ] Setting: artist albums as Grid / Coverflow
+[x] Setting: artist albums as Grid / Coverflow
 [ ] Streaming → AirPlay (stock AirPlay 1), verified on device
 [ ] Later, own repo: shairport-sync 4.x AirPlay 2 add-on
 [ ] Not in 1.1.2: line-out warning toggle, sort albums by year

@@ -3500,6 +3500,22 @@ for path,artist,want in (('/p/x','Artist','Album\x1fBaroness'),('/z/x','STP','Al
     m.call(address=HOOKS['load_localartist_list'][0],args=(0,0,0,0),gap=0)
     m.call(address=art['ringnav_artist_art_name'],args=(buf,0x100,0,m.string('Album')),gap=0); assert m.text(buf)=='Album'
 passed()
+# Artist albums: Coverflow (Audio settings): the albums tab's split albums go to Coverflow once the artist page is
+# up, once per page, so coming back from it shows the grid; Grid, the songs tab or another page leave it stock.
+class ArtistCoverflow(ArtistMachine):
+    def hook(self,u,address,size,unused):
+        if address!=payload_syms['coverflow_artist']: return super().hook(u,address,size,unused)
+        self.handed.append(len(self.items(u.reg_read(REGS[0])))); u.reg_write(UC_MIPS_REG_V0,1); u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA))
+for on,tab,page,want in ((1,1,'artistinfo_page',[2]),(0,1,'artistinfo_page',[]),(1,0,'artistinfo_page',[]),(1,1,'localclass_page',[])):
+    m=ArtistCoverflow(page='localclass_page',cls=0xff01,rows=2); m.handed=[]
+    if on: m.config['ARTISTCF']='1'
+    m.split=[m.song('Baroness'),m.song('STP')]
+    m.call(address=HOOKS['load_localartist_list'][0],args=(tab,0,0,0),gap=0)
+    m.top=m.node('window',page); m.advance(0)
+    assert m.handed==want,(on,tab,page,m.handed)
+    if want:  # back from Coverflow, the tab loads again on the same page: the grid stays
+        m.call(address=HOOKS['load_localartist_list'][0],args=(tab,0,0,0),gap=0); m.advance(0); assert len(m.handed)==1
+    passed()
 # A local art job that finishes after a list rebuild must not mark the new row ready.
 # Run the worker's real completion call site, including its stack-buffer argument, then stock's
 # readiness check (used by the renderer and by the request queue to skip completed covers).
@@ -6900,17 +6916,19 @@ assert click(2)==[(0,'Q2POD','WAKEDOUBLE')] and resume()==['awake_screen']; pass
 m,rows,texts,*_=settings_page('power','scroll_view_powermanager',{'CHARGELIMIT':'1','LOWPOWER':'1','WAKEDOUBLE':'1'})
 assert texts()==[f"Charge limit: {O['CHARGE_STOP']}%",'Low power: On','Wake: Double press']; passed()
 m,rows,texts,icons,click=settings_page('audioset','scroll_view_playset',stock_rows=15)
-assert len(rows)==3 and icons==['playset_playmode','playset_folderjump','playset_gapless'] and texts()==['Skip disliked: Off','Artists: Artist','Crossfade: Off']
-assert click(1)==[(1,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==1 and texts()==['Skip disliked: Off','Artists: Album Artist','Crossfade: Off']
-assert click(1)==[(0,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==0
-assert click(0)==[(1,'Q2POD','SKIPDISLIKED')] and texts()[0]=='Skip disliked: On'; passed()
+assert len(rows)==4 and icons==['playset_playmode','playset_covermode','playset_folderjump','playset_gapless']
+assert texts()==['Skip disliked: Off','Artist albums: Grid','Artists: Artist','Crossfade: Off']
+assert click(2)==[(1,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==1 and texts()[2]=='Artists: Album Artist'
+assert click(2)==[(0,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==0
+assert click(0)==[(1,'Q2POD','SKIPDISLIKED')] and texts()[0]=='Skip disliked: On'
+assert click(1)==[(1,'Q2POD','ARTISTCF')] and texts()[1]=='Artist albums: Coverflow'; passed()
 # Playback Setting restacks by use (navigation.c playset_order): stock's rows by id, then ours.
 def stacked(m,view_name): return [(m.entries+rows).index(c) for c in m.nodes[named(m,m.top,view_name)]['children']]
-assert stacked(m,'scroll_view_playset')==[3,15,2,0,10,17,9,4,5,11,1,8,16,13,14,12,6,7]; passed()
+assert stacked(m,'scroll_view_playset')==[3,15,2,0,10,18,9,4,5,11,1,8,17,16,13,14,12,6,7]; passed()
 # Crossfade (crossfade.c): the row shows the saved length while on; an unreadable one is the default.
 for config,text in (({'XFADE':'1','XFADESEC':'7'},'Crossfade: 7 s'),({'XFADE':'1','XFADESEC':'11'},'Crossfade: 5 s'),({'XFADESEC':'7'},'Crossfade: Off')):
     m,rows,texts,*_=settings_page('audioset','scroll_view_playset',config,stock_rows=15)
-    assert texts()[2]==text and m.nodes[m.nodes[m.nodes[rows[2]]['children'][0]]['children'][1]].get('name')=='label_xfade'
+    assert texts()[3]==text and m.nodes[m.nodes[m.nodes[rows[3]]['children'][0]]['children'][1]].get('name')=='label_xfade'
 passed()
 
 # The power poll, on the UI loop. Charge limit: the charger stops (switch_charge_enable(0), the

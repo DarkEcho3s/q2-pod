@@ -152,8 +152,10 @@ typedef struct {
      * the check, 1 usable, 2 refused by an earlier boot's stall, 3 refused by the kernel;
      * last_input times the screen-on idle. */
     int pod_read, charge_limit, low_power, wake_double, wake_pass, charge_held, cpu_off, cpu_bad,
-        cpu_marked, skip_disliked;
-    void *pod_label[5];
+        cpu_marked, skip_disliked, artist_cf;
+    void *pod_label[6];
+    void *art_cf_win, *art_cf_list; /* the artist page given its Coverflow, the albums pending */
+    unsigned art_cf_timer;
     unsigned wake_at; /* Wake: Double press, the screen-off centre press a second one must follow */
     void *np_origin;  /* the page Hold Return opened Now Playing over */
     void *dc_top;     /* the page of the last centre press no list click took, and its time */
@@ -1731,15 +1733,16 @@ static void *list_row(void *view, const char *icon, int (*click)(void *, void *)
  * docs/internals.md#album-artists). */
 #define STR_(x) #x
 #define STR(x) STR_(x)
-enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_SKIP, POD_ARTISTS };
+enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_SKIP, POD_ARTIST_CF, POD_ARTISTS };
 static int *const pod_values[] = { &st.charge_limit, &st.low_power, &st.wake_double,
-                                   &st.skip_disliked };
+                                   &st.skip_disliked, &st.artist_cf };
 static void pod_settings(void) {
     if (st.pod_read) return;
     st.charge_limit = config_value("Q2POD", "CHARGELIMIT", 2);
     st.low_power = config_value("Q2POD", "LOWPOWER", 2);
     st.wake_double = config_value("Q2POD", "WAKEDOUBLE", 2);
     st.skip_disliked = config_value("Q2POD", "SKIPDISLIKED", 2);
+    st.artist_cf = config_value("Q2POD", "ARTISTCF", 2);
     st.pod_read = 1;
 }
 static void pod_text(int i) {
@@ -1748,6 +1751,7 @@ static void pod_text(int i) {
         { "Low power: Off", "Low power: On" },
         { "Wake: Single press", "Wake: Double press" },
         { "Skip disliked: Off", "Skip disliked: On" },
+        { "Artist albums: Grid", "Artist albums: Coverflow" },
         { "Artists: Artist", "Artists: Album Artist" },
     };
     int v = i < POD_ARTISTS ? *pod_values[i] : I(artist_type, 0) == 1;
@@ -1764,8 +1768,8 @@ static int pod_click(void *ctx, void *event) {
         I(artist_type, 0) = v;
         write_int_config(v, "PLAYSET", "ARTISTTYPE");
     } else {
-        static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE",
-                                            "SKIPDISLIKED" };
+        static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE", "SKIPDISLIKED",
+                                            "ARTISTCF" };
         int *value = pod_values[i];
         *value = !*value;
         write_int_config(*value, "Q2POD", keys[i]);
@@ -1804,11 +1808,11 @@ static void reorder(void *view, const unsigned char *order, unsigned n) {
 
 /* Playback Setting: what is changed while listening first, then library behaviour, then output. */
 static const unsigned char playset_order[] = {
-    3 /* Play Mode */,   15 /* Skip disliked */, 2 /* EQ */,           0 /* Gain */,
-    10 /* ReplayGain */, 17 /* Crossfade */,     9 /* Gapless */,      4 /* Max Volume */,
-    5 /* Default Vol */, 11 /* Balance */,       1 /* Filters */,      8 /* Memory play */,
-    16 /* Artists */,    13 /* Folder art */,    14 /* Folder skip */, 12 /* Enlarged art */,
-    6 /* DSD Output */,  7 /* USB Audio */,
+    3 /* Play Mode */,     15 /* Skip disliked */, 2 /* EQ */,          0 /* Gain */,
+    10 /* ReplayGain */,   18 /* Crossfade */,     9 /* Gapless */,     4 /* Max Volume */,
+    5 /* Default Vol */,   11 /* Balance */,       1 /* Filters */,     8 /* Memory play */,
+    17 /* Artists */,      16 /* Artist albums */, 13 /* Folder art */, 14 /* Folder skip */,
+    12 /* Enlarged art */, 6 /* DSD Output */,     7 /* USB Audio */,
 };
 /* System Setting: connections and display first, boot/update/reset/about last. */
 static const unsigned char sysset_order[] = {
@@ -1819,9 +1823,10 @@ static const unsigned char sysset_order[] = {
 };
 
 int ringnav_audioset(void *win, void *ctx) {
-    static const char *const icons[] = { "playset_playmode", "playset_folderjump" };
+    static const char *const icons[] = { "playset_playmode", "playset_covermode",
+                                         "playset_folderjump" };
     int result = stock_audioset_trampoline(win, ctx);
-    pod_rows(win, "scroll_view_playset", POD_SKIP, 2, icons);
+    pod_rows(win, "scroll_view_playset", POD_SKIP, 3, icons);
     void *view = win ? widget_lookup(win, "scroll_view_playset", 1) : (void *)0;
     if (view) xfade_row(list_row(view, "playset_gapless", xfade_open, (void *)0)); /* crossfade.c */
     reorder(view, playset_order, sizeof playset_order);
@@ -3239,6 +3244,20 @@ static int artist_album(void *all, void *r, int by_dir) {
     }
     return -1;
 }
+extern int coverflow_artist(void *albums);
+static int artist_cf_open(const void *unused) {
+    (void)unused;
+    void *top = window_manager_get_top_window(window_manager()), *all = st.art_cf_list;
+    st.art_cf_timer = 0;
+    st.art_cf_list = (void *)0;
+    if (top && top != st.art_cf_win &&
+        !tk_strcmp(widget_get_prop_str(top, "name", ""), "artistinfo_page") &&
+        coverflow_artist(all))
+        st.art_cf_win = top;
+    else
+        deque_destroy(all);
+    return 0;
+}
 int ringnav_artist_list(int tab) {
     int n = stock_artist_trampoline(tab);
     void *list = P(p_deque_showlist, 0), *all;
@@ -3256,7 +3275,14 @@ int ringnav_artist_list(int tab) {
         if (j < 0) j = artist_album(all, r, 0);
         if (j >= 0 && (k = split_key(buf, all, (unsigned)j))) st.art_keys[i] = strdup(k);
     }
-    deque_destroy(all);
+    /* Artist albums: Coverflow: the albums go to Coverflow once the page is up, once per page,
+     * so coming back from it shows the stock grid. */
+    pod_settings();
+    if (st.artist_cf && !st.art_cf_list) {
+        st.art_cf_list = all;
+        rearm(&st.art_cf_timer, artist_cf_open, 0);
+    } else
+        deque_destroy(all);
     return n;
 }
 static const char *artist_key(char *buf, void *list, unsigned i) {

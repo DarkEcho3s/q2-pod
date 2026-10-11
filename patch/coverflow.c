@@ -28,7 +28,7 @@
 #define ART_NEAR 3 /* real art only this many covers either side, like PictureFlow's cache */
 #define PLACEHOLDER "default_album_big"
 #define HOME_PLACEHOLDER "default_album_home" /* Classic Home's, at 290px (stock's: 110) */
-#define CARDS 2 /* after the albums: Sort, then Refresh library */
+#define CARDS (cf.artist_only ? 0 : 2) /* after the albums: Sort, then Refresh library */
 
 extern int stock_home_trampoline(void *win, void *ctx), stock_scan_all_trampoline(void *, void *),
     stock_scan_folder_trampoline(void *, void *), stock_delete_song_trampoline(void *, void *);
@@ -51,6 +51,10 @@ static struct {
     unsigned saved_album, albums_gen; /* albums_gen: library_gen when albums was queried */
     int screen, album, running;
     volatile int done, total, cancel;
+    /* An artist's albums (coverflow_artist): albums holds them while the page is open, all_albums
+     * the library's, back on close; no cards, no saved album. */
+    int artist_only;
+    void *all_albums;
 } cf __attribute__((section(".scratch")));
 
 static int pick(void *ctx, void *event);
@@ -633,7 +637,7 @@ static unsigned initial(int i) {
 int coverflow_jump(void *w, int from, int dir, unsigned *letter) {
     int n = cf.albums ? (int)deque_size(cf.albums) : 0;
     *letter = 0;
-    if (w != cf.slide || cf.screen != COVERS || cf.sort > SORT_ARTIST ||
+    if (w != cf.slide || cf.screen != COVERS || cf.sort > SORT_ARTIST || cf.artist_only ||
         from < 0 || from >= n) return 1;
     unsigned c = initial(from);
     int to = from + dir;
@@ -1240,7 +1244,7 @@ static int changed(void *ctx, void *event) {
         cover(widget_get_child(cf.slide, i), i, d <= ART_NEAR || n - d <= ART_NEAR);
     }
     void *r = c + CARDS < n ? deque_at(cf.albums, c) : (void *)0;
-    if (r) cf.saved_album = album_key(r);
+    if (r && !cf.artist_only) cf.saved_album = album_key(r);
     widget_set_text_utf8(cf.name, r ? P(r, REC_ALBUM) : c + 1 < n ? sort_names[cf.sort] : "Refresh library");
     widget_set_text_utf8(cf.artist, r ? P(r, REC_ARTIST) : 0);
     return 0;
@@ -1324,8 +1328,10 @@ static void load(void) {
     cf.body = widget_factory_create_widget(widget_factory(), "view", cf.page, 0, 0, 375, 290);
     int n = 0;
     unsigned gen = library_gen;
-    if (cf.albums_gen != gen) drop_albums();
-    if (cf.stock)
+    if (cf.albums_gen != gen && !cf.artist_only) drop_albums();
+    if (cf.artist_only)
+        n = (int)deque_size(cf.albums);
+    else if (cf.stock)
         n = (int)deque_size(cf.stock);
     else if (!*(volatile int *)SCAN_THREAD || *(volatile int *)SCAN_DONE) {
         cf.stock = staged(albums, 0, &n);
@@ -1351,7 +1357,7 @@ static void load(void) {
     for (unsigned i = 0; i < count; ++i) {
         void *r = deque_at(cf.albums, i);
         unsigned key = album_key(r);
-        if (key == cf.saved_album && !on_sort) cf.album = (int)i;
+        if (key == cf.saved_album && !on_sort && !cf.artist_only) cf.album = (int)i;
         job_t *j = cf.jobs ? &cf.jobs[cf.total] : 0;
         if (j && P(r, REC_PATH) && access(art_path(path, key, ""), 0) && (j->track = strdup(P(r, REC_PATH)))) {
             j->key = key;
@@ -1460,8 +1466,10 @@ static int to_tracks(const void *unused) {
     int n;
     char name[512];
     void *r = deque_at(cf.albums, (unsigned)cf.album);
-    cf.saved_album = album_key(r);
-    BLOB_IO(LAST_ALBUM, cf.saved_album, 1); /* a power-off on the tracks keeps it too */
+    if (!cf.artist_only) {
+        cf.saved_album = album_key(r);
+        BLOB_IO(LAST_ALBUM, cf.saved_album, 1); /* a power-off on the tracks keeps it too */
+    }
     if (cf.tracks) deque_destroy(cf.tracks);
     cf.tracks = coverflow_album_tracks(r);
     n = (int)deque_size(cf.tracks);
@@ -1525,6 +1533,8 @@ static int keyup(void *ctx, void *event) {
     if (I(event, EVENT_KEY) != KEY_RETURN) return 0;
     if (cf.screen == TRACKS || cf.screen == PREPARING)
         rearm(&cf.timer, to_covers, 0);
+    else if (cf.artist_only)
+        navigator_back(); /* to the artist */
     else
         navigator_back_to_home();
     return 11; /* RET_STOP */
@@ -1535,6 +1545,11 @@ static int closed(void *ctx, void *event) {
     if (cf.saved_album) BLOB_IO(LAST_ALBUM, cf.saved_album, 1);
     drop();
     cf.page = cf.body = cf.covers = cf.slide = 0;
+    if (cf.artist_only) {
+        deque_destroy(cf.albums);
+        cf.albums = cf.all_albums;
+        cf.artist_only = 0;
+    }
     return 0;
 }
 
@@ -1544,6 +1559,20 @@ static int coverflow_open(void *ctx, void *event) {
     if (cf.page || !(cf.page = page_open("coverflow_page", closed, keyup))) return 0;
     load();
     return 0;
+}
+
+/* Audio settings' Artist albums: Coverflow (navigation.c): albums, coverflow_split's, as the
+ * covers, which the page owns; 0 when Coverflow is open already, and albums is the caller's. */
+int coverflow_artist(void *albums) {
+    if (cf.page || !deque_size(albums) ||
+        !(cf.page = page_open("coverflow_page", closed, keyup)))
+        return 0;
+    cf.all_albums = cf.albums;
+    cf.albums = albums;
+    cf.artist_only = 1;
+    cf.album = 0;
+    load();
+    return 1;
 }
 
 /* The queue's playing record, or 0; *pos and *n get its index and the queue length. */
