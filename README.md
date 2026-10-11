@@ -58,12 +58,12 @@ The updater skips a build that's already installed, so updating to a newer relea
 
 ## Everyday use
 
-| Control                   | Action                                                                   |
-| ------------------------- | ------------------------------------------------------------------------ |
-| **Wheel**                 | Scroll. Spin faster to speed up. Change a setting when a slider is open. |
-| **Centre**                | Open the selected item. Double-press to turn the screen off.             |
-| **Hold Play/Pause**       | Open the track, queue, playlist and shuffle/repeat options.              |
-| **Hold Return**           | Jump to Now Playing; hold again to go back.                              |
+| Control             | Action                                                                   |
+| ------------------- | ------------------------------------------------------------------------ |
+| **Wheel**           | Scroll. Spin faster to speed up. Change a setting when a slider is open. |
+| **Centre**          | Open the selected item. Double-press to turn the screen off.             |
+| **Hold Play/Pause** | Open the track, queue, playlist and shuffle/repeat options.              |
+| **Hold Return**     | Jump to Now Playing; hold again to go back.                              |
 
 Run **Library → Update Local Music** after adding music. The [user guide](docs/guide.md) covers all [controls](docs/guide.md#controls), [EQ](docs/guide.md#parametric-eq), [Coverflow](docs/guide.md#coverflow) and [tips](docs/guide.md#tips).
 
