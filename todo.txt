@@ -10,5 +10,8 @@
 [x] Hold Return: Now Playing ⇄ origin (Stock + iPod)
 [x] Setting: artist albums as Grid / Coverflow
 [x] Streaming → AirPlay row → stock Network service page (AirPlay 1 switch). [ ] still: stream from an iPhone on device
+[ ] Audiobooks → Add .m4b audiobook support
+[ ] Airpods → Add AirPods Support (connect card with battery, ear detection, stem buttons, volume sync)
+	https://github.com/DiamondBond/q2-pod/commit/6799d59d708c667ea050e7ab5776c96ad21fef4c
 [ ] Later, own repo: shairport-sync 4.x AirPlay 2 add-on
 [ ] Not in 1.1.2: line-out warning toggle, sort albums by year
