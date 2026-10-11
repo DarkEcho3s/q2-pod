@@ -302,7 +302,6 @@ def fileoff(b, a):
     raise ValueError(f'Unmapped address {a:x}')
 
 FUNCTIONS = {
- 'playlist_create': ('int', 'void *, void *'),
  'widget_on': ('unsigned', 'void *, unsigned, int (*)(void *, void *), void *'),
  'widget_set_visible': ('int', 'void *, int, int'),
  'widget_set_opacity': ('int', 'void *, unsigned'),
