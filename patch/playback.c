@@ -34,15 +34,16 @@ typedef struct {
 static playback s __attribute__((section(".scratch")));
 static volatile int sensitivity __attribute__((section(".scratch")));
 static int wheel_read __attribute__((section(".scratch")));
+#define WHEEL_DEFAULT 50 /* % until set: 28 units a tick */
 
 void wheel_load(void) {
     if (wheel_read) return;
     char buf[256] = "";
-    toolsReadConfig("/mnt/data/config.ini", "Q2POD", "WHEELSENSITIVITY", buf, "100");
+    toolsReadConfig("/mnt/data/config.ini", "Q2POD", "WHEELSENSITIVITY", buf, "");
     int v = atoi(buf);
     char canonical[8];
     tk_snprintf(canonical, sizeof canonical, "%d", v);
-    sensitivity = v >= 50 && v <= 200 && !(v % 10) && !strcmp(buf, canonical) ? v : 100;
+    sensitivity = v >= 50 && v <= 200 && !(v % 10) && !strcmp(buf, canonical) ? v : WHEEL_DEFAULT;
     wheel_read = 1;
 }
 int wheel_value(void) {
@@ -54,19 +55,64 @@ void wheel_set(int v) {
     sensitivity = v;
     write_int_config(v, "Q2POD", "WHEELSENSITIVITY");
 }
-/* Same strict threshold and half-turn boundaries as stock get_direction. Called by the
- * encoder: no config, allocation, UI or volume work on this thread. */
-int ringnav_direction(int now, int before, int threshold) {
-    int v = sensitivity ? sensitivity : 100;
-    threshold = (threshold * 100 + v / 2) / v;
-    int d = now - before;
-    if (d < -100)
-        d += 200;
-    else if (d > 100)
-        d -= 200;
-    if (d == -100 || d == 100 || (d < 0 ? -d : d) <= threshold) return 0;
-    return d > 0 ? -1 : 1;
+/* Knob units scaled by Wheel sensitivity; safe on the encoder thread. */
+static int wheel_scale(int units) {
+    int v = sensitivity ? sensitivity : WHEEL_DEFAULT;
+    return (units * 100 + v / 2) / v;
 }
+/* The wheel's ticks. Stock's encoder thread looks at the wheel once per 80 ms (200 ms after
+ * touching) and ticks at most once a look, dropping any travel past its threshold: on the device
+ * a tick took 27 units of travel against a threshold of 12, a fast half turn gave a single tick,
+ * and a touch's first 200 ms none. Here every WHEEL_TICK_UNITS of travel is a tick and the rest
+ * carries; a reversal starts the count again, so turning back is as precise as starting. The
+ * encoder's ts_read call (build.py WHEEL_TS_READ) runs through ringnav_ts_read, which posts the
+ * ticks as stock does and then hands stock a still finger (the touch-down x), so it posts none. */
+static int wh_last __attribute__((section(".scratch")));
+static int wh_acc __attribute__((section(".scratch")));
+static int wh_anchor __attribute__((section(".scratch"))); /* touch-down x (1-200); 0 lifted */
+
+static void wheel_post(char *info, int key) {
+    for (int type = 0x110; type <= 0x114; type += 4) { /* key down, then up */
+        *(int *)(info + WHEEL_INFO_KEY) = key;
+        *(int *)(info + WHEEL_INFO_EVENT) = type;
+        ((void (*)(void *))WHEEL_POST)(info);
+    }
+}
+
+/* struct ts_sample {int x, y; unsigned pressure; struct timeval tv;} */
+void wheel_sample(int *s, int ret, char *info) {
+    if (ret <= 0) return;
+    if (!s[2]) { /* lifted */
+        if (wh_anchor) s[0] = wh_anchor;
+        wh_anchor = 0;
+        return;
+    }
+    if (!wh_anchor) {
+        wh_anchor = wh_last = s[0];
+        wh_acc = 0;
+        return;
+    }
+    int d = s[0] - wh_last, travel = wheel_scale(WHEEL_TICK_UNITS);
+    d = d < -100 ? d + 200 : d > 100 ? d - 200 : d;
+    wh_last = s[0];
+    if ((d ^ wh_acc) < 0) wh_acc = 0; /* reversed */
+    wh_acc += d;
+    while (wh_acc >= travel || wh_acc <= -travel) {
+        int dir = wh_acc > 0 ? 1 : -1;
+        wh_acc -= dir * travel;
+        wheel_post(info, dir > 0 ? KEY_PREV : KEY_NEXT); /* x rising is back, as stock */
+    }
+    s[0] = wh_anchor;
+}
+
+/* $t9 still holds ts_read, which stock loaded for its jalr; $s1 is the thread's info, which stock
+ * hands its poster. tslib_thread_run's touch screen reads stay stock. */
+__asm__(".set noreorder\n.globl ringnav_ts_read\nringnav_ts_read:\n"
+        "addiu $sp, $sp, -32\nsw $ra, 28($sp)\nsw $a1, 20($sp)\n"
+        "jalr $t9\nnop\n"
+        "sw $v0, 16($sp)\nlw $a0, 20($sp)\nmove $a1, $v0\n"
+        "jal wheel_sample\nmove $a2, $s1\n"
+        "lw $v0, 16($sp)\nlw $ra, 28($sp)\njr $ra\naddiu $sp, $sp, 32\n.set reorder\n");
 static void *queue(void) { return P(mcl_pdeqplaylist, 0); }
 static void close_preload(void) {
     if (M(MCL_PRELOAD) == 1 && M(MCL_FD) != -1) send(M(MCL_FD), "{mcl-closegapless\\null}", 23, 0);

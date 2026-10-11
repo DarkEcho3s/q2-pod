@@ -7,7 +7,7 @@ import argparse, hashlib, io, json, pathlib, re, shlex, struct, subprocess, tarf
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ZIP_SHA = '154c17822d09be001be35c03d2d3488424dee195221790bd70864480d55b0f00'
 DEMO_SHA = '2c5f06142850b4fc168f82b44a81550cce0a5b4b9fe1c179dced4a08a3049138'
-VERSION = '1.0.5'  # major.minor.patch, single digits, shown as is (About, release tag and ZIPs)
+VERSION = '1.0.6'  # major.minor.patch, single digits, shown as is (About, release tag and ZIPs)
 # The updater's identity (firmware_v20.info and demo's version literal) must be 5 characters and
 # differ from the installed one, so it packs the digits: 1.0.1 is V101I. About shows the stock
 # firmware version and a CFW. Version row with VERSION and the edition instead (ringnav_about).
@@ -104,7 +104,6 @@ GP = 0xa26cc0
 IPOD_LEAF = ('style_get_gradient', 0x649f3c, 'ringnav_style_gradient', (0x10800009, 0, 0x8c820000))
 # Videos: window_manager_paint is a leaf too (null-checks the manager and its vtable at +0x94, then
 # tail-calls paint, +0xc); the payload does the whole of it and skips it while q2video plays.
-WHEEL_LEAF = ('get_direction', 0x62587c, 'ringnav_direction', (0x00852023, 0x248500c8, 0x2887ff9c))
 WM_PAINT_LEAF = ('window_manager_paint', 0x66d46c, 'ringnav_wm_paint', (0x10800009, 0, 0x8c820094))
 # Videos' player (patch/video.c): a separate executable against the rootfs's own libraries,
 # with display_logo's inode metadata.
@@ -198,11 +197,9 @@ LDAC_HQ = ((0x4f033c, 0x00042080, 0x00041880),   # sll $3,$4,2
            (0x4f0360, 0x24040016, 0x8fa40014))   # lw $4,0x14($sp), was li $4,0x16
 # check_mem_thd's "open failed, skip the write" beq becomes b: it never writes 3 to drop_caches.
 DROP_CACHES = (0x5120a8, 0x12220006, 0x10000006)
-# The knob's travel per tick: get_direction's threshold (knob units, 200 a turn) in the rotation
-# handler, stock 20 for a gesture's first tick (and a release without one) and 10 after, scaled by
-# WHEEL_TRAVEL. At stock a small nudge moved a row. Tuned on the device.
-WHEEL_TRAVEL = 1.2
-WHEEL_THRESHOLDS = ((0x625ce0, 0x24060014), (0x625cdc, 0x2403000a), (0x625ba0, 0x24060014))
+# The encoder thread's ts_read call (jalr $t9) becomes jal ringnav_ts_read, which makes the wheel's
+# ticks from the samples (playback.c wheel_sample).
+WHEEL_TS_READ = (0x625b6c, 0x0320f809)
 # English labels renamed: Now Playing More's queue, which stock calls "Playlists" (player_playlist,
 # used nowhere else; Local Music's are "Playlist"), System settings' Idle (system_powermanager) and
 # its standby/shutdown row.
@@ -583,7 +580,7 @@ def compile_payload(out, ipod=False):
     run('clang',*FLAGS,'-c',out/'trampoline.S','-o',out/'trampoline.o')
     run('ld.lld','-m','elf32ltsmip','--gc-sections','-T',ROOT/'patch/link.ld','-e','ringnav',
         *[f'--undefined={name}' for _, name in hooks(ipod).values()], *[f'--undefined={IPOD_LEAF[2]}'] * ipod,
-        f'--undefined={WM_PAINT_LEAF[2]}', f'--undefined={WHEEL_LEAF[2]}', '--undefined=ringnav_bootmode',
+        f'--undefined={WM_PAINT_LEAF[2]}', '--undefined=ringnav_bootmode', '--undefined=ringnav_ts_read',
         out/'navigation.o',out/'trampoline.o',*extra,'-o',out/'patch.elf')
     run('llvm-objcopy','-O','binary',out/'patch.elf',out/'patch.bin')
     return symbols(out/'patch.elf')
@@ -746,7 +743,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         gp = ((prolog[0] & 65535) << 16) + (low if low < 32768 else low - 65536) + address
         check(gp == GP, f'{name}: unexpected GOT base')
         jump(off, replacement)
-    for name, address, replacement, words in [WM_PAINT_LEAF, WHEEL_LEAF] + [IPOD_LEAF] * ipod:
+    for name, address, replacement, words in [WM_PAINT_LEAF] + [IPOD_LEAF] * ipod:
         off = fileoff(patched, address)
         check(syms[name] == address and struct.unpack_from('<III', patched, off) == words, f'{name}: unexpected code')
         jump(off, replacement)
@@ -784,9 +781,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     patch_word(patched, *DROP_CACHES, 'keep the page cache')
     for address, old, new in LDAC_HQ:
         patch_word(patched, address, old, new, 'LDAC HQ sends 990 kbps')
-    for address, old in WHEEL_THRESHOLDS:
-        patch_word(patched, address, old, old & 0xffff0000 | round((old & 0xffff) * WHEEL_TRAVEL),
-                   'wheel travel per tick')
+    patch_word(patched, WHEEL_TS_READ[0], WHEEL_TS_READ[1], 0x0c000000 | ps['ringnav_ts_read'] >> 2, 'wheel ticks')
     for address in SORT_TRIMS:
         patch_word(patched, address, 0x04110000 | (syms['toolsTrimLeft'] - address - 4) >> 2 & 0xffff,
                    0x0c000000 | (ps['ringnav_sort_key'] >> 2), 'sort without a leading article')

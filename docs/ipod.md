@@ -409,7 +409,7 @@ and the shade band behind it show for `BC_MS` (3 s), then fade out together over
 
 **Scrub.** A double press of the centre button starts scrubbing, as on an iPod classic, and the bar fill turns white
 while it lasts. Each wheel tick moves 5 seconds, times a ramp of one more step per 100 ms of spin
-(up to 40 seconds a tick; the lists' gentler ramp and overshoot filter do not apply), within the
+(up to 40 seconds a tick; the lists' gentler ramp does not apply), within the
 track. Both times and the bar follow the target at once;
 the track jumps there once, when the scrub ends. A press of the centre button confirms it at once
 and leaves the screen on (a double press does too), as do Return, a touch and

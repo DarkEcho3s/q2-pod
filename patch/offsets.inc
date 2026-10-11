@@ -290,6 +290,21 @@
 #define KEY_BACK_BTN 222 /* the previous and next buttons: on_wm_keyup_fun, prev_quick_click */
 #define KEY_FWD_BTN 223
 #define KEY_LOCKOUT 0xa37c89 /* stock: a centre key sets 8, on_wm_timer_setup_state counts it down per 100 ms */
+/* Stock drops wheel ticks while KEY_LOCKOUT is set, 800 ms after Centre, so a press that brushes
+ * the wheel cannot scroll; only its first LOCKOUT_KEEP x 100 ms are kept (ringnav). */
+#define LOCKOUT_KEEP 2
+/* Wheel ticks during a page's slide or before its list loads wait up to HOLD_MS, at most HOLD_MAX
+ * of them, then play into the page one per HOLD_POLL_MS, so a turn begun on Back or Select carries
+ * on instead of being lost. */
+#define HOLD_MS 1200
+#define HOLD_MAX 8
+#define HOLD_POLL_MS 16
+/* The wheel (playback.c wheel_sample): knob units per tick at 100% sensitivity, 200 a turn, and
+ * stock's poster encoderknob_thread_run+0x150, which dispatches the thread info's key event. */
+#define WHEEL_TICK_UNITS 14
+#define WHEEL_POST 0x6257f0
+#define WHEEL_INFO_EVENT 0x20 /* event type: 0x110 key down, 0x114 key up */
+#define WHEEL_INFO_KEY 0x38   /* the event's key (EVENT_KEY) */
 #define BOOT_KEY_GUARD 0xa37c8a /* no symbol: set after a Standby resume, on_wm_keyup_fun drops the next centre release */
 #define RETURN_RELEASE_LATCH 0xa37c8b /* stock long Return arms it; the key-up filter consumes it */
 

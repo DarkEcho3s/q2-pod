@@ -3,7 +3,7 @@
 Run: python3 test/playback.py BUILD_DIRECTORY
 """
 import pathlib
-from unicorn import UC_HOOK_MEM_READ
+from unicorn import UC_HOOK_MEM_READ, UC_HOOK_CODE
 from functools import cmp_to_key
 # Load only fixture definitions; the full UI suite remains independently runnable.
 source = pathlib.Path(__file__).with_name('patch.py').read_text()
@@ -484,23 +484,30 @@ m=PlaybackMachine(); m.u.mem_map(0x1200000,0x1000000); q=m.get(syms['mcl_pdeqpla
 m.deqs[q][1]=[m.song('t')]*65537
 assert m.fn('playback_set',0,1)==0 and m.fn('playback_successor',1)==-1; checks+=1
 
-# Shared wheel threshold: compare the patched leaf directly to stock at 100% for every
-# pair, and check strict scaled boundaries, half turns, and wraparound at 50/200%.
-for value in (50,100,200):
-    m=PlaybackMachine(); m.fn('wheel_set',value)
-    for threshold in (12,24):
-        scaled=(threshold*100+value//2)//value
-        for now in range(200):
-            for before in (0,1,50,99,100,150,199):
-                d=now-before
-                if d < -100: d+=200
-                elif d > 100: d-=200
-                want=0 if abs(d)<=scaled or abs(d)==100 else -1 if d>0 else 1
-                assert m.fn('ringnav_direction',now,before,threshold)==want
-    checks+=1
+# The wheel's ticks (wheel_sample): one per WHEEL_TICK_UNITS of travel, the rest carried; a reversal
+# starts again; the 200 -> 1 seam wraps; Wheel sensitivity scales it; stock is handed the touch-down
+# x, so its own logic sees a still finger. Ticks go to stock's poster as key down, then up.
+def wheel(value, samples):
+    m=PlaybackMachine(); m.fn('wheel_set',value); m.handlers[O['WHEEL_POST']]='wheel_post'
+    info,s=m.alloc(0x60),m.alloc(20); posted=[]; seen=[]
+    m.u.hook_add(UC_HOOK_CODE,lambda u,a,n,_: posted.append((m.get(info+O['WHEEL_INFO_EVENT']),
+                 m.get(info+O['WHEEL_INFO_KEY']))),begin=O['WHEEL_POST'],end=O['WHEEL_POST'])
+    for x,p in samples:
+        m.word(s,x); m.word(s+8,p); m.fn('wheel_sample',s,1,info); seen.append(m.get(s))
+    assert posted[0::2]==[(0x110,k) for _,k in posted[0::2]] and posted[1::2]==[(0x114,k) for _,k in posted[0::2]]
+    return [k for _,k in posted[0::2]],seen
+P,N,U=O['KEY_PREV'],O['KEY_NEXT'],O['WHEEL_TICK_UNITS']
+assert wheel(100,[(50,1),(50+U//2,1),(52+U,1),(50+2*U,1),(50+2*U,0)])==([P,P],[50]*5)  # the 2 past a tick carries
+assert wheel(100,[(50,1),(48+U,1),(44+U,1),(48,1),(48,0)])[0]==[N]       # U-2 on, then U back from the turn
+assert wheel(100,[(195,1),((195+U)%200,1)])[0]==[P] and wheel(100,[((195+U)%200,1),(195,1)])[0]==[N]  # the seam
+assert wheel(100,[(10,1),(10+2*U,1)])[0]==[P,P]                          # one sample, two ticks
+assert wheel(50,[(10,1),(9+2*U,1)])[0]==[] and wheel(50,[(10,1),(10+2*U,1)])[0]==[P]
+assert wheel(200,[(10,1),(10+U,1)])[0]==[P,P]
+assert wheel(100,[(50,1),(52+U,1),(52+U,0),(52+U,1),(51+2*U,1)])[0]==[P]  # a lift drops the carry
+checks+=1
 for invalid in ('49','201','105','100x','-100','', '0100'):
     m=PlaybackMachine(); m.config['WHEELSENSITIVITY']=invalid
-    assert m.fn('wheel_value')==100
+    assert m.fn('wheel_value')==50
 # UI wiring in both variants: stock-style choice menu, selected marker, touch and wheel slider.
 m=PlaybackMachine(); m.top=m.node('window','playing_page'); m.stack=[m.top]; m.word(m.top+O['W_PARENT'],m.wm)
 m.press(100); assert m.hold()==11
@@ -523,7 +530,7 @@ for child,parent in ((view,lst),(lst,m.top),(m.top,m.wm)): m.word(child+O['W_PAR
 assert m.fn('ringnav_display',m.top,0)==0
 item=m.nodes[view]['children'][-1]; button,=m.nodes[item]['children']
 label=m.nodes[button]['children'][1]
-assert m.nodes[label]['text']=='Wheel sensitivity: 100%'
+assert m.nodes[label]['text']=='Wheel sensitivity: 50%'
 assert not any(n.get('type')=='slider' for n in m.nodes.values())
 f,ctx=m.handler(button,O['EVT_CLICK'])
 def open_wheel():
@@ -546,15 +553,6 @@ arrow=m.back
 back,owner=m.handler(arrow,O['EVT_CLICK'])
 m.call(address=back,args=(owner,m.event,0,0),event_type=O['EVT_CLICK'],gap=0)
 assert m.top==m.stack[0] and m.fn('wheel_value')==150
-checks+=1
-
-# At default sensitivity, execute stock's original leaf too, including both wrap directions.
-stock=Machine(patched=False); m=PlaybackMachine()
-for threshold in (12,24):
-    for now in range(200):
-        for before in (0,99,100,199):
-            want=signed(stock.call(address=syms['get_direction'],args=(now,before,threshold,0),gap=0))
-            assert m.fn('ringnav_direction',now,before,threshold)==want
 checks+=1
 
 # Manual Next/Prev at the queue ends runs stock player_change_music through ringnav_change. Stock

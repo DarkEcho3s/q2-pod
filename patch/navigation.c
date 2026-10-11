@@ -56,10 +56,6 @@ extern const char *track_name(char *buf, unsigned size, void *t);
 #define HOME_SLIDE_MS 200
 #define HOME_FAST_SLIDE_MS 120
 #define WHEEL_RUN_MS 140
-/* iPod row lists: the second tick after a stall is overshoot when it comes this long after the
- * first: sooner is a spin, later a tick of its own. Tuned on the device. */
-#define OVERSHOOT_MIN_MS 80
-#define OVERSHOOT_MAX_MS 140
 #define WHEEL_RAMP_MS 100 /* scrub, the pixel fallback and Stock: one step for this long, then */
 #define WHEEL_MAX_STEP 8  /* one more per this much spin, up to this many */
 #define LIST_FIRST_MS 300 /* iPod row lists: one row per step for this long, */
@@ -100,13 +96,17 @@ typedef struct {
     unsigned last_wheel;  /* time of the previous wheel detent */
     int wheel_dir;        /* direction of that detent */
     unsigned wheel_run;   /* continuous same-direction spin ms + 1; capped at full speed */
-    int wheel_tick; /* that detent's place in its run: 1 first, 2 overshoot, 3 later; 0 none */
-    int touch_mode; /* session-wide drawing preference, independent of selection */
+    int touch_mode;       /* session-wide drawing preference, independent of selection */
     void *wheel_top, *wheel_surface;
     unsigned wheel_scope;
     int wheel_ctx;
     /* iPod: a Return by button ends touch mode once stock has handled it */
     unsigned untouch_timer;
+    /* wheel ticks held while a page slides or loads (hold_wheel), replayed into it */
+    int held;
+    unsigned held_at, held_timer;
+    void *held_ctx;
+    unsigned held_event[12];
     position_t pos[POS_MEM]; /* most recently selected first; keyed by context and scope */
     void *reveal_surface;    /* surface of the interrupted recall glide, 0 when none */
     int reveal_id;           /* logical row that glide was bringing into view */
@@ -302,16 +302,12 @@ static int clamp_step(int offset, int maximum, int delta) {
 /* One-row steps until a sustained run of accepted same-direction ticks has spun for `first` ms;
  * the step is then two and gains one per `more` ms, capped at WHEEL_MAX_STEP. A pause longer than
  * WHEEL_RUN_MS, a reversal or a change of menu resets the run, so stopping and reversing stay
- * precise. wheel_tick places the tick in its run for iPod's overshoot filter: the first after a
- * stall, a reversal or a change of menu, a second one OVERSHOOT_MIN_MS to OVERSHOOT_MAX_MS behind
- * it, or any other. */
+ * precise. */
 static int ramp(void *top, void *surface, unsigned scope, int ctx, int dir, unsigned now, int first,
                 int more) {
     int same = st.wheel_dir == dir && st.wheel_top == top && st.wheel_surface == surface &&
                st.wheel_scope == scope && st.wheel_ctx == ctx;
     unsigned gap = now - st.last_wheel;
-    int run = same && st.wheel_tick && gap <= OVERSHOOT_MAX_MS;
-    st.wheel_tick = !run ? 1 : st.wheel_tick == 1 && gap >= OVERSHOOT_MIN_MS ? 2 : 3;
     if (same && st.wheel_run && gap <= WHEEL_RUN_MS)
         st.wheel_run =
             (unsigned)clamp_step(st.wheel_run, first + (WHEEL_MAX_STEP - 2) * more + 1, gap);
@@ -407,10 +403,7 @@ static void cancel_center(void) {
 }
 
 /* The list's spin ramp starts over, and the next tick is the first of its run. */
-static void drop_wheel(void) {
-    st.wheel_run = 0;
-    st.wheel_tick = 0;
-}
+static void drop_wheel(void) { st.wheel_run = 0; }
 
 /* A wheel or centre step supersedes any run: drop the spin ramp and home slide. */
 static void drop_spin(void) {
@@ -4758,6 +4751,42 @@ static void edit_paint(void *w, void *canvas) {
     canvas_set_stroke_color(canvas, old);
 }
 
+static int replay_wheel(const void *info);
+int ringnav(void *ctx, void *event);
+/* A wheel tick the page cannot take yet: counted (a reversal cancels), its event kept for replay.
+ */
+static int hold_wheel(void *ctx, void *event, int dir) {
+    unsigned now = (unsigned)time_now_ms();
+    if (!st.held) st.held_at = now;
+    if (st.held * dir < HOLD_MAX) st.held += dir;
+    st.held_ctx = ctx;
+    if (event != st.held_event) memcpy(st.held_event, event, sizeof st.held_event);
+    if (!st.held_timer) st.held_timer = timer_add(replay_wheel, 0, HOLD_POLL_MS);
+    return STOP;
+}
+
+static int replay_wheel(const void *info) {
+    (void)info;
+    void *wm = window_manager();
+    if (!st.held || (unsigned)time_now_ms() - st.held_at > HOLD_MS || !usable()) {
+        st.held = 0;
+        st.held_timer = 0;
+        return 0; /* anything but RET_REPEAT removes the timer */
+    }
+    if (window_manager_is_animating(wm) || window_manager_get_pointer_pressed(wm)) return 8;
+    int dir = st.held > 0 ? 1 : -1;
+    unsigned key = dir > 0 ? KEY_NEXT : KEY_PREV;
+    st.held_event[EVENT_KEY / 4] = key;
+#if IPOD
+    st.tone_key = key; /* clicks on its row change, as a live tick whose press was silenced */
+#endif
+    ringnav(st.held_ctx, st.held_event); /* held again: hold_wheel counts it back in */
+    st.held -= dir;
+    if (st.held) return 8; /* RET_REPEAT */
+    st.held_timer = 0;
+    return 0;
+}
+
 int ringnav(void *ctx, void *event) {
     pull_cancel();
     /* The stock filter dereferences the event before returning. */
@@ -4771,7 +4800,10 @@ int ringnav(void *ctx, void *event) {
     int owned = st.tone_key == key;
     st.tone_key = 0;
 #endif
-    if (key != KEY_PREV && key != KEY_NEXT) st.wheel_tick = 0; /* a button ends the run */
+    if ((key == KEY_PREV || key == KEY_NEXT) &&
+        *(volatile signed char *)KEY_LOCKOUT <= 8 - LOCKOUT_KEEP)
+        *(volatile unsigned char *)KEY_LOCKOUT = 0;
+    if (key == KEY_CENTER || key == KEY_RETURN) st.held = 0; /* a button ends a held turn */
     int result = stock_keyup_trampoline(ctx, event);
     if (key == KEY_PLAY && hold_released()) return STOP;
     /* Spotify's or the radio's while it was the last to play; on local Now Playing they are local
@@ -4847,17 +4879,17 @@ int ringnav(void *ctx, void *event) {
         drop_input();
         return result;
     }
+    int dir = key == KEY_NEXT ? 1 : key == KEY_PREV ? -1 : 0;
     if (window_manager_is_animating(wm) || window_manager_get_pointer_pressed(wm)) {
         drop_input();
-        return STOP;
+        return dir && window_manager_is_animating(wm) ? hold_wheel(ctx, event, dir) : STOP;
     }
     if (books_key(top, key)) return STOP; /* the reader's pages and caption */
-    int dir = key == KEY_NEXT ? 1 : key == KEY_PREV ? -1 : 0;
     void *w = surface_under(top, (void *)0, (void *)0, dir != 0);
     if (!is_home(top, w) || w != st.home_surface) st.home_surface = (void *)0;
     if (!w || !load(&g_menu, w, 1)) {
         drop_input();
-        return dir ? STOP : result;
+        return dir ? hold_wheel(ctx, event, dir) : result;
     }
     if (st.center_timer && !pending_matches(top, &g_menu)) cancel_center();
     int touch = widget_get_prop_int(w, TOUCH, 0);
@@ -4921,14 +4953,6 @@ int ringnav(void *ctx, void *event) {
     } else if (g_menu.n) {
         int id = widget_get_prop_int(w, SEL, -1);
 #if IPOD
-        /* The overshoot tick (ramp) only wakes the list. Revealing the selection and a turn against
-         * an end are never dropped, so every tick there bumps and the wrap pause is timed between
-         * ticks. */
-        if (id >= 0 && st.wheel_tick == 2 && clamp_step(id, g_menu.rows - 1, dir) != id) {
-            stop_scroll(&g_menu);
-            widget_invalidate_force(w, (void *)0);
-            return STOP;
-        }
         if (step > 1) rearm(&st.letter_timer, letter_expire, LETTER_MS);
 #endif
         int next = clamp_step(id < 0 ? (cur >= 0 ? g_menu.id[cur] : 0) : id, g_menu.rows - 1,

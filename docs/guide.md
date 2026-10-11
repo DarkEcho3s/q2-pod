@@ -30,7 +30,7 @@ Things people often don't know are already there:
 | **Accent**            | Classic only: Graphite (default), Crimson (stock red), Tidal, Champagne |
 | **Home**              | Split (menu beside the playing album's cover) or Full (menu only)       |
 | **Battery**           | Icon (default), Percent, Icon + Percent                                 |
-| **Wheel sensitivity** | 50–200% in 10% steps; default 100%, in both builds                      |
+| **Wheel sensitivity** | 50–200% in 10% steps; default 50%, in both builds                       |
 
 ## Battery and library settings
 
