@@ -1568,15 +1568,23 @@ static int pick(void *ctx, void *event) {
 }
 
 /* Return: tracks -> covers (the slide_menu kept its album), preparing -> cancel and covers,
- * covers or the message -> Home. */
+ * covers or the message -> Home, or back out of a scoped page. */
 static int keyup(void *ctx, void *event) {
     (void)ctx;
     if (I(event, EVENT_KEY) != KEY_RETURN) return 0;
     if (cf.screen == TRACKS || cf.screen == PREPARING)
         rearm(&cf.timer, to_covers, 0);
-    else if (cf.scoped)
-        navigator_back(); /* to the artist */
-    else
+    else if (cf.scoped) {
+        /* An artist's covers: the unseen artist page under them closes first, unanimated (its
+         * own Return is navigator_back too; its cleanup runs on EVT_WINDOW_CLOSE), so Return
+         * lands on the Artists list. */
+        void *wm = window_manager(), *under = 0;
+        unsigned n = cf.scoped == ARTIST_ALBUMS ? widget_count_children(wm) : 0;
+        if (n >= 2 && widget_get_child(wm, n - 1) == cf.page) under = widget_get_child(wm, n - 2);
+        if (under && !tk_strcmp(widget_get_prop_str(under, "name", ""), "artistinfo_page"))
+            window_manager_close_window_force(wm, under);
+        navigator_back();
+    } else
         navigator_back_to_home();
     return 11; /* RET_STOP */
 }

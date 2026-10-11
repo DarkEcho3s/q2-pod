@@ -13,7 +13,5 @@
 [x] Library artist browsing stays in place; System settings → Display → Artist albums toggles Grid / Coverflow, limited to the selected artist’s albums (Artist and Album Artist).
 [x] Fix bug animation artist album - when coverflow mode is enabled for that you end up seeing this glitch where artist album is visible for a split second before coverflow is shown, pls fix, it must be smooth and consistently reliably rendering coverflow, UX matters, think carefully; ~/git/q2/q2-pod/VID20261012014225.mp4
 [x] Album ratings: Hold Play/Pause on a Coverflow cover, Library Album or artist album row → Add/Remove from Favourites, Rate album (0-5♥, /mnt/data/ringnav-album-ratings); Library → Ratings → Albums: rated albums in Coverflow, Sort Rating/Album/Artist/Year
-    [ ] on device: rate from Coverflow, artist Coverflow, artist grid and Library Album; picker wheel/Centre/Return/tap; Return lands on the artist page; Ratings → Albums sort cycles and is kept after reboot
-[ ] Audiobooks → Add .m4b audiobook support (deferred)
-[ ] Airpods (deferred) → Add AirPods Support (connect card with battery, ear detection, stem buttons, volume sync)
-	https://github.com/DiamondBond/q2-pod/commit/6799d59d708c667ea050e7ab5776c96ad21fef4c
+[ ] Audiobooks → Add .m4b audiobook support
+[ ] Airpods → Add AirPods Support (connect card with battery, ear detection, stem buttons, volume sync)

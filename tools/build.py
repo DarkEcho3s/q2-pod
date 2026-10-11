@@ -424,6 +424,7 @@ FUNCTIONS = {
  'hscroll_label_set_ellipses': ('int', 'void *, int'),
  'widget_off_by_func': ('int', 'void *, unsigned, void *, void *'),
  'window_close': ('int', 'void *'),
+ 'window_manager_close_window_force': ('int', 'void *, void *'),
  'navigator_to': ('int', 'const char *'),
  'navigator_to_with_context': ('int', 'const char *, const void *'),
  'window_manager_get_input_device_status': ('char *', 'void *'),

@@ -48,7 +48,7 @@ widget_set_text_utf8 widget_restack widget_animator_prop_create widget_animator_
 widget_get_prop_str widget_on widget_destroy_children widget_invalidate_force
 widget_count_children widget_get_child widget_lookup widget_move_resize widget_get_visible
 canvas_get_clip_rect canvas_set_clip_rect widget_set_sensitive widget_get_type tk_strcmp
-timer_add timer_remove navigator_back_to_home navigator_back navigator_to_with_context bitmap_create_ex bitmap_destroy bitmap_unlock_buffer
+timer_add timer_remove navigator_back_to_home navigator_back window_manager_close_window_force navigator_to_with_context bitmap_create_ex bitmap_destroy bitmap_unlock_buffer
 bitmap_lock_buffer_for_read bitmap_lock_buffer_for_write bitmap_get_line_length
 canvas_draw_image slide_menu_set_spacer window_manager
 """.split() for r, a in [PROTOTYPES[n]]) + r"""
@@ -188,6 +188,7 @@ int widget_get_visible(void *x) { return W(x)->visible; }
 int tk_strcmp(const char *a, const char *b) { return strcmp(a ? a : "", b ? b : ""); }
 int navigator_back_to_home(void) { return 0; }
 int navigator_back(void) { return 0; }
+int window_manager_close_window_force(void *m, void *x) { (void)m; (void)x; return 0; }
 int navigator_to_with_context(const char *n, const void *c) { (void)n; (void)c; return 0; }
 /* slide_menu: square items as high as the menu, plus the spacer. */
 int slide_menu_item_width(void *x) { return *(int *)(W(x)->raw + W_H); }

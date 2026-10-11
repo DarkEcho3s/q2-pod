@@ -4666,6 +4666,12 @@ m=AlbumRateMachine(); dq=m.deque(m.albums[:2]); m.top=m.node('window','artistinf
 assert m.call(address=payload_syms['coverflow_artist'],args=(dq,0,0,0),gap=0)==1; m.page=m.top; m.slide=m.find('slide_menu')
 assert m.menu()==[*COVER_ALBUM,'Go to artist'] and m.rate(5)=='Album rated  ♥♥♥♥♥' and m.kept()==[(m.aid(m.albums[0])&~7)|5]
 assert m.run(4) is None and m.call(O['KEY_RETURN'])==11 and m.panel() is None and m.top==m.page; passed()
+# The covers' Return closes the unseen artist page under them first, so the Artists list is next.
+artist=m.stack[0]; m.stack.insert(0,m.node('window','localclass_page')); m.nodes[m.wm]={'children':m.stack}; m.mock('navigator_back','window_manager_close_window_force')
+f,ctx=m.handler(m.page,O['EVT_KEY_UP'])
+assert m.call(O['KEY_RETURN'],address=f,args=(ctx,m.event,0,0),gap=0)==11
+calls=[c for c in m.calls if c[0] in ('window_manager_close_window_force','navigator_back')]
+assert [c[0] for c in calls]==['window_manager_close_window_force','navigator_back'] and calls[0][1:3]==(m.wm,artist); passed()
 # Library Albums rows rate as covers do, their album split as Coverflow's.
 m=AlbumRateMachine(page='album_page',cls=O['CLASS_ALBUMS']); m.page=m.top; a0=m.aid(m.row(0))
 assert m.menu()==[*COVER_ALBUM,'Add to playlist','Go to artist']
