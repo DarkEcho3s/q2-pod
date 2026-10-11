@@ -2967,7 +2967,6 @@ for stale in (False,True):
 class PlaylistMachine(PlayingPlaylistMachine):
     def __init__(self, count=0, mode=1):
         super().__init__()
-        self.handlers.pop(syms['playlist_create'])
         self.mock('button_create','list_item_create','image_create','view_create','hscroll_label_create',
                   'widget_use_style','widget_set_name','widget_set_text_utf8','widget_set_visible',
                   'image_set_draw_type','image_base_set_image','set_hscroll_label_attribute',
