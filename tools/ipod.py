@@ -11,7 +11,7 @@ import math
 import pathlib
 import re
 import struct
-from build import ROOT, check as require, fileoff
+from build import ROOT, check, fileoff
 
 AUDIT = json.loads((pathlib.Path(__file__).resolve().parents[1]/'patch/ipod.json').read_text())
 UI_ASSETS = AUDIT['assets'] | AUDIT['navbar_only'] | AUDIT['slide_only']
@@ -102,7 +102,7 @@ NP_FILL = '#' + re.search(r'#define ACCENTS \{ 0x\w+, 0x\w+, 0x(\w+),', INC)[1]
 
 
 def decode(data):
-    require(data[:4] == bytes.fromhex('12122211'), 'Unexpected AWTK UI magic')
+    check(data[:4] == bytes.fromhex('12122211'), 'Unexpected AWTK UI magic')
     i = 4
 
     def string():
@@ -114,7 +114,7 @@ def decode(data):
 
     def node():
         nonlocal i
-        require(i + 48 <= len(data), 'Truncated UI widget')
+        check(i + 48 <= len(data), 'Truncated UI widget')
         kind = data[i:i+32].split(b'\0')[0].decode('ascii')
         i += 32
         geometry = list(struct.unpack_from('<4i', data, i))
@@ -122,7 +122,7 @@ def decode(data):
         props = {}
         while data[i]:
             key, value = string(), string()
-            require(key not in props, 'Duplicate UI property')
+            check(key not in props, 'Duplicate UI property')
             props[key] = value
         i += 1
         children = []
@@ -132,7 +132,7 @@ def decode(data):
         return [kind, geometry, props, children]
 
     root = node()
-    require(i == len(data), 'Trailing UI data')
+    check(i == len(data), 'Trailing UI data')
     return root
 
 
@@ -166,17 +166,17 @@ def artist_tabs(root):
         name = n[2].get('name')
         if name in ARTIST_TABS:
             text, key = ARTIST_TABS[name]
-            require(n[0] == 'tab_button' and n[2].get('text') == text, f'{name}: unexpected tab')
+            check(n[0] == 'tab_button' and n[2].get('text') == text, f'{name}: unexpected tab')
             n[2] = {('tr_text' if k == 'text' else k): (key if k == 'text' else v) for k, v in n[2].items()}
             if name == 'btn_album':
                 n[2]['value'] = 'true'
             found.append(name)
         # tab_button loads before its pages sibling and can't sync it, so show the Albums view too.
         if n[0] == 'pages':
-            require('value' not in n[2], 'Unexpected artist pages')
+            check('value' not in n[2], 'Unexpected artist pages')
             n[2]['value'] = '1'
             found.append('pages')
-    require(sorted(found) == sorted([*ARTIST_TABS, 'pages']), 'Unexpected artist tabs')
+    check(sorted(found) == sorted([*ARTIST_TABS, 'pages']), 'Unexpected artist tabs')
 
 
 # Both variants. Coverflow's Home card: a clone of Local Music at index 2 with its own icon; its image
@@ -189,13 +189,13 @@ LIBRARY = {'name': 'label_library', 'text': 'Library'}
 
 def home_card(root):
     menu = [n for n in root[3] if n[0] == 'slide_menu']
-    require(len(menu) == 1, 'Unexpected home carousel')
+    check(len(menu) == 1, 'Unexpected home carousel')
     cards = [n[2].get('name') for n in menu[0][3]]
-    require(cards[:2] == ['btn_playing', 'btn_localmusic'], 'Unexpected home cards')
+    check(cards[:2] == ['btn_playing', 'btn_localmusic'], 'Unexpected home cards')
     card = copy.deepcopy(menu[0][3][1])
     card[2]['name'] = 'btn_coverflow'
     image, label = card[3]
-    require(image[2].get('name') == 'img_localmusic' and label[2].get('name') == 'label_localmusic',
+    check(image[2].get('name') == 'img_localmusic' and label[2].get('name') == 'label_localmusic',
             'Unexpected Local Music card')
     image[2]['name'] = 'img_coverflow'
     label[2]['name'] = 'label_coverflow'
@@ -250,8 +250,8 @@ def home_list(name, rows, extra=None):
 
 
 def ipod_home(root):
-    require([n[0] for n in root[3]] == ['slide_menu', 'image', 'image'], 'Unexpected home carousel')
-    require([n[2]['name'] for n in root[3][0][3]] == ['btn_' + r for r in
+    check([n[0] for n in root[3]] == ['slide_menu', 'image', 'image'], 'Unexpected home carousel')
+    check([n[2]['name'] for n in root[3][0][3]] == ['btn_' + r for r in
             ('playing', 'localmusic', 'folder', 'stream', 'playset', 'sysset')], 'Unexpected home cards')
     # An image for the playing track's art, moved to the right panel and fitted by coverflow_home_art.
     root[3] = [['image', [0, 0, 375, 290], {'name': 'img_homeart', 'draw_type': 'fill'}, []],
@@ -261,7 +261,7 @@ def ipod_home(root):
 def style_props(data):
     """Yield (widget, style, state, prop, value offset, value) for each property of an AWTK style file."""
     magic, _, count = struct.unpack_from('<3I', data)
-    require(magic == 0xfafbfcfd, 'Unexpected AWTK style magic')
+    check(magic == 0xfafbfcfd, 'Unexpected AWTK style magic')
     for i in range(count):
         at, *names = struct.unpack_from('<I32s32s32s', data, 12 + 100*i)
         state, style, widget = (n.split(b'\0')[0].decode() for n in names)
@@ -275,13 +275,13 @@ def style_props(data):
 
 def patch_style(data, audit):
     """Replace each edit's old value, same size, in the n states of widget/style that hold it."""
-    require(hashlib.sha256(data).hexdigest() == audit['sha256'], 'Unaudited style file')
+    check(hashlib.sha256(data).hexdigest() == audit['sha256'], 'Unaudited style file')
     out, props = bytearray(data), list(style_props(data))
     for widget, style, prop, old, new, n in audit['edits']:
         old, new = bytes.fromhex(old), bytes.fromhex(new)
-        require(len(old) == len(new), f'{style}.{prop}: edit changes size')
+        check(len(old) == len(new), f'{style}.{prop}: edit changes size')
         sites = [at for w, s, _, p, at, value in props if (w, s, p, value) == (widget, style, prop, old)]
-        require(len(sites) == n, f'{style}.{prop}: expected {n} states with {old.hex()}, found {len(sites)}')
+        check(len(sites) == n, f'{style}.{prop}: expected {n} states with {old.hex()}, found {len(sites)}')
         for at in sites:
             out[at:at+len(new)] = new
     return bytes(out)
@@ -311,13 +311,13 @@ CLOCK_GAP = 4
 def status_bar(root):
     left, right = root[3]
     root[2]['style:normal:bg_color'] = '#000000'
-    require([left[2].get('name'), right[2].get('name')] == ['view_left', 'view_right'], 'Unexpected status bar')
+    check([left[2].get('name'), right[2].get('name')] == ['view_left', 'view_right'], 'Unexpected status bar')
     widgets = {n[2]['name']: n for n in left[3] + right[3]}
-    require(sorted([*widgets, 'view_battery']) == sorted(STATUS_LEFT + STATUS_RIGHT + STATUS_HIDDEN), 'Unexpected status bar widgets')
+    check(sorted([*widgets, 'view_battery']) == sorted(STATUS_LEFT + STATUS_RIGHT + STATUS_HIDDEN), 'Unexpected status bar widgets')
     pct = widgets['label_battery']
     pct[1][2] = BATT_PCT_W
     for s in ('normal', 'disable', 'focused'):
-        require(pct[2][f'style:{s}:font_size'] == '18', 'Unexpected battery label')
+        check(pct[2][f'style:{s}:font_size'] == '18', 'Unexpected battery label')
         pct[2].update({f'style:{s}:font_size': str(BATT_PCT_PX), f'style:{s}:text_align_h': 'right'})
     pct[2]['visible'] = 'false'
     widgets['view_battery'] = ['view', [0, 0, BATT_H_W, 0], {'name': 'view_battery', 'visible': 'false'}, []]
@@ -325,15 +325,15 @@ def status_bar(root):
     right[3] = [widgets[n] for n in STATUS_RIGHT]
     for view in (left, right):
         layout = view[2]['children_layout']
-        require('xm=50,s=5)' in layout, 'Unexpected status bar layout')
+        check('xm=50,s=5)' in layout, 'Unexpected status bar layout')
         view[2]['children_layout'] = layout.replace('xm=50', f'xm={STATUS_MARGIN}')
     shown = [[n for n in v[3] if n[2]['name'] not in BATT_MODES] for v in (left, right)]
     extent = max(STATUS_MARGIN + sum(n[1][2] for n in v) + 5 * (len(v) - 1) for v in shown)
     width = 375 - 2 * extent
-    require(width >= CLOCK_MIN and right[1][0] + right[1][2] == 375, f'Status bar clock {width}px, too narrow')
+    check(width >= CLOCK_MIN and right[1][0] + right[1][2] == 375, f'Status bar clock {width}px, too narrow')
     room = int(375 - STATUS_MARGIN - (375 / 2 + CLOCK_TEXT / 2 + CLOCK_GAP))
     reach = BT_REACH + 5 + widgets['img_wifi'][1][2] + 5 + max(BATT_PCT_W, BATT_H_W)
-    require(BATT_ROOM == room and reach <= room, f'Status bar battery needs {reach}px of {room}px')
+    check(BATT_ROOM == room and reach <= room, f'Status bar battery needs {reach}px of {room}px')
     for name in STATUS_HIDDEN:
         g = widgets[name][1]
         g[0], g[3] = -200, 30  # still updated by stock, drawn off-screen
@@ -368,7 +368,7 @@ def plain_slider(props, track, fill, bar):
 
 def playing_page(root):
     named = {n[2].get('name'): n for n in walk(root)}
-    require([n[2].get('name') for n in root[3]] == [
+    check([n[2].get('name') for n in root[3]] == [
         'view_buttons', 'scrlabel_title', 'scrlabel_artist', 'label_playtime', 'label_playlen',
         'slide_view_view', 'slider_play', 'img_repeata', 'img_repeatb', 'image_wait'], 'Unexpected Now Playing page')
     buttons, title, artist = root[3][:3]
@@ -464,28 +464,28 @@ QS_GRID = {'wifiswitch': 'wifi', 'btswitch': 'bt', 'lock': 'lock', 'gain': 'gain
 
 def quick_settings(root):
     menu, light = root[3]
-    require([menu[2].get('name'), light[2].get('name')] == ['view_menu', 'view_backlight'], 'Unexpected quick settings')
+    check([menu[2].get('name'), light[2].get('name')] == ['view_menu', 'view_backlight'], 'Unexpected quick settings')
     named = {n[2]['name']: n for n in menu[3]}
-    require(sorted(named) == sorted([f'img_{k}' for k in QS_GRID] + [f'label_{v}' for v in QS_GRID.values()]),
+    check(sorted(named) == sorted([f'img_{k}' for k in QS_GRID] + [f'label_{v}' for v in QS_GRID.values()]),
             'Unexpected quick settings controls')
     for i, (icon, label) in enumerate(QS_GRID.items()):
         image, text = named['img_' + icon], named['label_' + label]
         x, y, w, h = image[1]
-        require((w, h) == (QS_ICON, QS_ICON) and y == (0, 112)[i // 4] and text[2].get('style') == 's_label_white18c',
+        check((w, h) == (QS_ICON, QS_ICON) and y == (0, 112)[i // 4] and text[2].get('style') == 's_label_white18c',
                 f'{icon}: unexpected quick settings control')
         image[1][1] = (i // 4) * QS_PITCH
         text[1] = [x + (QS_ICON - QS_LABEL_W) // 2, image[1][1] + QS_ICON + QS_LABEL_GAP, QS_LABEL_W, QS_LABEL_H]
         text[2].update({'style': 's_label_white16c', 'style:normal:text_align_v': 'top'})
     menu[1] = [0, QS_TOP, 375, 2 * QS_PITCH - QS_ROW_GAP]
     slider, dim, bright = light[3]
-    require([n[2]['name'] for n in light[3]] == ['slider_backlight', 'image0', 'image1'] and
+    check([n[2]['name'] for n in light[3]] == ['slider_backlight', 'image0', 'image1'] and
             (dim[1][2], bright[1][2]) == (QS_SUN, QS_SUN), 'Unexpected brightness row')
     light[1] = [0, menu[1][1] + menu[1][3] + QS_ROW_GAP, 375, QS_TOUCH]
-    require(light[1][1::2] == [inc('VOL_PANEL_Y'), inc('VOL_PANEL_H')], 'The volume panel must cover the brightness row')
+    check(light[1][1::2] == [inc('VOL_PANEL_Y'), inc('VOL_PANEL_H')], 'The volume panel must cover the brightness row')
     dim[1] = [QS_EDGE, (QS_TOUCH - QS_SUN) // 2, QS_SUN, QS_SUN]
     bright[1] = [375 - QS_EDGE - QS_SUN, (QS_TOUCH - QS_SUN) // 2, QS_SUN, QS_SUN]
     track = [QS_EDGE + QS_SUN + 12, 0, 375 - 2 * (QS_EDGE + QS_SUN + 12), QS_TOUCH]
-    require(slider[2].get('slide_with_bar') == 'true', 'Unexpected brightness slider')
+    check(slider[2].get('slide_with_bar') == 'true', 'Unexpected brightness slider')
     props = plain_slider(slider[2], QS_TRACK, '#FFFFFF', QS_BAR)
     props.update(self_layout='default(x={},y=0,w={},h={})'.format(*track[::2], QS_TOUCH), dragger_size=str(QS_TOUCH))
     slider[1], slider[2] = track, props
@@ -499,7 +499,7 @@ CONFIRM_TOP, CONFIRM_ROW = 208, 48  # Cancel and OK, under the prompt
 
 
 def confirm_dialog(root):
-    require([n[2].get('name') for n in root[3]] == ['img_cancel', 'img_enter'] and
+    check([n[2].get('name') for n in root[3]] == ['img_cancel', 'img_enter'] and
             all(n[1][2:] == [CONFIRM_TILE, CONFIRM_TILE] for n in root[3]), 'Unexpected confirm dialog')
     # Two full-width text rows under the prompt instead of the disc tiles, so the wheel's selection
     # is the lists' own bar or card. Stock looks both up by name and binds the same callbacks.
@@ -522,7 +522,7 @@ VOLUME = 'dialog/volume_dialog.bin'
 
 
 def volume_dialog(root):
-    require(root[0] == 'dialog' and root[2].get('name') == 'volume_dialog' and
+    check(root[0] == 'dialog' and root[2].get('name') == 'volume_dialog' and
             root[2].get('highlight') == 'default(alpha=200)', 'Unexpected volume dialog')
     del root[2]['highlight']
 
@@ -545,14 +545,14 @@ SET_ICON, SET_STOCK_ICON = inc('SET_ICON'), inc('SET_STOCK_ICON')
 
 def png_header(data):
     """(width, height, bit depth, colour type) from a PNG's IHDR."""
-    require(data[:8] == b'\x89PNG\r\n\x1a\n' and data[12:16] == b'IHDR', 'Not a PNG')
+    check(data[:8] == b'\x89PNG\r\n\x1a\n' and data[12:16] == b'IHDR', 'Not a PNG')
     return struct.unpack('>IIBB', data[16:26])
 
 
 def imagemagick(*args, data):
     import shutil, subprocess
     tool = shutil.which('magick') or shutil.which('convert')
-    require(tool is not None, 'ImageMagick (magick or convert) is required for the iPod settings icons')
+    check(tool is not None, 'ImageMagick (magick or convert) is required for the iPod settings icons')
     return subprocess.run([tool, *args], input=data, stdout=subprocess.PIPE, check=True).stdout
 
 
@@ -562,13 +562,13 @@ PNG_OUT = ['-strip', '-define', 'png:exclude-chunks=date,time', '-define', 'png:
 
 
 def settings_icon(name, data):
-    require(hashlib.sha256(data).hexdigest() == SETTINGS_ICONS.get(name), f'{name}: unaudited settings icon')
-    require(png_header(data) == (SET_STOCK_ICON, SET_STOCK_ICON, 8, 6), f'{name}: unexpected stock icon format')
+    check(hashlib.sha256(data).hexdigest() == SETTINGS_ICONS.get(name), f'{name}: unaudited settings icon')
+    check(png_header(data) == (SET_STOCK_ICON, SET_STOCK_ICON, 8, 6), f'{name}: unexpected stock icon format')
     out = imagemagick('png:-', '-alpha', 'on', '-filter', 'Lanczos', '-resize', f'{SET_ICON}x{SET_ICON}!',
                       *PNG_OUT, data=data)
-    require(png_header(out) == (SET_ICON, SET_ICON, 8, 6), f'{name}: filtered icon is not {SET_ICON}px RGBA')
+    check(png_header(out) == (SET_ICON, SET_ICON, 8, 6), f'{name}: filtered icon is not {SET_ICON}px RGBA')
     opaque = [imagemagick('png:-', '-format', '%[opaque]', 'info:', data=d) for d in (data, out)]
-    require(opaque[0] == opaque[1], f'{name}: filtering changed the transparency')
+    check(opaque[0] == opaque[1], f'{name}: filtering changed the transparency')
     return out
 
 
@@ -583,7 +583,7 @@ def slider_discs(path, root):
         return
     endpoints = [n for n in walk(root) if n[0] == 'image' and n[2].get('image') in (
         'drop_lighleft', 'drop_lightright', 'balance_left', 'balance_right', 'vol_left', 'vol_right')]
-    require(len(endpoints) == 2, f'{path}: unexpected slider endpoints')
+    check(len(endpoints) == 2, f'{path}: unexpected slider endpoints')
     for n, x in zip(endpoints, (46, 293)):
         n[1] = [x, 77, 36, 36]
         n[2]['draw_type'] = 'center'
@@ -593,7 +593,7 @@ def slider_discs(path, root):
 
 
 def quiet_icon(name, data):
-    require(hashlib.sha256(data).hexdigest() == QUIET_ICONS.get(name), f'{name}: unaudited control icon')
+    check(hashlib.sha256(data).hexdigest() == QUIET_ICONS.get(name), f'{name}: unaudited control icon')
     return imagemagick('png:-', '-trim', '+repage', '-filter', 'Lanczos', '-resize', '24x24',
                       '-channel', 'RGB', '-fill', '#aaaaaa' if name == 'play_moredown.png' else '#eeeeee',
                       '-colorize', '100', '+channel', '-gravity', 'center', '-background', 'none',
@@ -602,16 +602,16 @@ def quiet_icon(name, data):
 
 def patch_word(data, address, old, new, purpose, changes=None):
     off = fileoff(data, address)
-    require(struct.unpack_from('<I', data, off)[0] == old, f'{address:#x}: unexpected instruction')
+    check(struct.unpack_from('<I', data, off)[0] == old, f'{address:#x}: unexpected instruction')
     struct.pack_into('<I', data, off, new)
     if changes is not None:
         changes.append(dict(address=hex(address), original=hex(old), patched=hex(new), purpose=purpose))
 
 
 def patch_asset(path, data, ipod):
-    require(hashlib.sha256(data).hexdigest() == UI_ASSETS[path], f'{path}: unaudited UI asset')
+    check(hashlib.sha256(data).hexdigest() == UI_ASSETS[path], f'{path}: unaudited UI asset')
     root = decode(data)
-    require(encode(root) == data, f'{path}: UI round trip differs')
+    check(encode(root) == data, f'{path}: UI round trip differs')
     if path == ARTIST_PAGE:
         artist_tabs(root)
     whole = ({HOME_PAGE: ipod_home, STATUS_BAR: status_bar, PLAYING_PAGE: playing_page, QUICK_SETTINGS: quick_settings,
@@ -621,12 +621,12 @@ def patch_asset(path, data, ipod):
     if path in whole or not ipod:
         return encode(root)
     # Home is never reopened; Now Playing, Coverflow and the dialogs open at once.
-    require(root[0] == 'window' and not any(k.endswith('anim_hint') for k in root[2]), f'{path}: unexpected window')
+    check(root[0] == 'window' and not any(k.endswith('anim_hint') for k in root[2]), f'{path}: unexpected window')
     root[2]['anim_hint'] = SLIDE
     if path in AUDIT['slide_only']:  # the PEQ editor builds its own children (patch/peq_ui.c)
         return encode(root)
     nav = [n for n in root[3] if n[2].get('name') == 'view_navbar']
-    require(len(nav) == 1 and nav[0][1] in ([0, 0, 375, 50], [0, 0, 370, 50]), f'{path}: unexpected toolbar')  # 370: stream_page
+    check(len(nav) == 1 and nav[0][1] in ([0, 0, 375, 50], [0, 0, 370, 50]), f'{path}: unexpected toolbar')  # 370: stream_page
     # Keep the widget (and callback lookups) alive. Children may be recreated by stock.
     playlist = path == 'localmusic/playlist_page.bin'
     # The sleep timer's and Startup volume's on/off switches are in their toolbars, and their
@@ -646,24 +646,24 @@ def patch_asset(path, data, ipod):
             continue
         kind, g, props, _ = n
         if kind == 'list_view' and path in NAVBAR_ONLY:  # settings rows: see ipod_list_layout
-            require(g[1] == 50 and props.get('default_item_height') == str(SET_STOCK_ROW) and
+            check(g[1] == 50 and props.get('default_item_height') == str(SET_STOCK_ROW) and
                     'item_height' not in props, f'{path}: unexpected settings list')
             props['default_item_height'] = str(SET_ROW)
             g[1], g[3] = SET_TOP, SET_ROWS * SET_ROW
         elif kind in ('list_view', 'table_view', 'tab_control'):
-            require(g[1] in (50, 100), f'{path}: unexpected list position')
+            check(g[1] in (50, 100), f'{path}: unexpected list position')
             if not playlist:
                 g[1] -= 50
             g[3] = BOTTOM - g[1]
         elif props.get('name') == 'view_navbar_allplay':
-            require(g == [0, 50, 375, 50], f'{path}: unexpected action bar')
+            check(g == [0, 50, 375, 50], f'{path}: unexpected action bar')
             g[1] = 0
         elif kind == 'list_item':  # playlist editing actions
             g[1] = 10 + ((g[1] - 60) // 78) * PITCH
         elif props.get('name') == 'view':  # allmusic's stock empty-state panel
             g[1] -= 50
         elif path in NAVBAR_ONLY:  # settings panels and notes keep their size; text ends clear of a top corner
-            require(g[1] >= 50, f'{path}: unexpected content under the toolbar')
+            check(g[1] >= 50, f'{path}: unexpected content under the toolbar')
             g[1] -= 50
             if kind in ('label', 'hscroll_label') and corner_inset(30 + g[1]):
                 g[2] = min(g[2], 375 - g[0] - corner_x(30 + g[1], 0))
@@ -693,7 +693,7 @@ def patch_asset(path, data, ipod):
                 g[1] = ART_INSET
         if path == ARTIST_PAGE:
             if kind == 'pages':
-                require(props.get('self_layout') == 'default(x=0,y=40,w=100%,h=170)', 'Unexpected tabs layout')
+                check(props.get('self_layout') == 'default(x=0,y=40,w=100%,h=170)', 'Unexpected tabs layout')
                 props['self_layout'] = f'default(x=0,y=40,w=100%,h={BOTTOM - 40})'
                 g[3] = BOTTOM - 40
             if props.get('name') == 'list_view_album':

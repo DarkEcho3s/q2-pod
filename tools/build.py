@@ -511,13 +511,11 @@ FUNCTIONS = {
 }
 # Local stock routines in the SHA-256-pinned V1.32 executable.
 PRIVATE_FUNCTIONS = {
-    "playlist_rebuild": 0x4b2dac,  # picker init and re-entry rebuild all rows
-    "playlist_create": 0x4b1a88,  # stock naming dialog callback
-
+    "playlist_rebuild": IPOD_HOOKS['playlist_rebuild'][0],  # picker init and re-entry rebuild all rows
     "stock_search": 0x5241c4,
     "slide_menu_item_width": 0x5f3040,
     "slide_menu_on_scroll_done": 0x5f3654,
-    "mcl_preload": 0x5a8c1c,
+    "mcl_preload": HOOKS['mcl_preload'][0],
     "mcl_open_preload": 0x5a8948,
     "mcl_shuffle_pick": 0x5a8120,
     "album_row": 0x4fc324,  # getAllAlbum's sqlite3_exec callback: id, album, songer, fileurl to a record
