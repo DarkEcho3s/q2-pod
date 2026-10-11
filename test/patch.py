@@ -3476,7 +3476,25 @@ passed()
 # A local art job that finishes after a list rebuild must not mark the new row ready.
 # Run the worker's real completion call site, including its stack-buffer argument, then stock's
 # readiness check (used by the renderer and by the request queue to skip completed covers).
-m=ArtistMachine(rows=12); m.mock('pthread_mutex_lock@GLIBC_2.0','pthread_mutex_unlock@GLIBC_2.0')
+class CoverQueueMachine(ArtistMachine):
+    def __init__(self):
+        super().__init__(rows=12)
+        self.pending=[]
+        self.mock('pthread_mutex_lock@GLIBC_2.0','pthread_mutex_unlock@GLIBC_2.0')
+    def hook(self,u,address,size,unused):
+        if address not in (syms['list_clear'],syms['_list_push_back']):
+            return super().hook(u,address,size,unused)
+        if address==syms['list_clear']: self.pending.clear()
+        else:
+            p=u.reg_read(REGS[1])
+            self.pending.append(tuple(self.get(p+i) for i in (0,4,8)))
+        u.reg_write(UC_MIPS_REG_V0,0)
+        u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA))
+m=CoverQueueMachine()
+def cover_requests(start,big):
+    name='local_albumcover_task' if big else 'local_albumsmallcover_task'
+    m.call(address=syms[name],args=(start,9,0,0),gap=0)
+    return [row for row,kind,size in m.pending if kind==0 and size==big]
 def cover_ready(row,big):
     return m.call(address=syms['check_albumcover_flag'],args=(row,big,0,0),gap=0)
 def cover_done(row,big,key):
@@ -3498,6 +3516,7 @@ for visit in range(5):
         m.u.ctl_remove_cache(0x4edd98,0x4edda8)
         cover_done(11,1,'previous artist')
         assert cover_ready(11,1)==1  # stock falsely completes the last album
+        assert cover_requests(9,1)==[9,10]  # scrolling cannot request its missing art
         m.byte(m.items(m.get(syms['pdeq_albumcoverlist']))[11]+1,0)
         m.u.mem_write(0x4edd9c,fixed)
         m.u.ctl_remove_cache(0x4edd98,0x4edda8)
@@ -3505,8 +3524,10 @@ for visit in range(5):
         for big in (0,1):
             cover_done(row,big,f'Artist {visit-1} album {row}')
             assert cover_ready(row,big)==0, (visit,row,big)
+            assert row in cover_requests(row//9*9,big), (visit,row,big)
             cover_done(row,big,keys[row])
             assert cover_ready(row,big)==1, (visit,row,big)
+            assert row not in cover_requests(row//9*9,big), (visit,row,big)
     for row in (-1,12): cover_done(row,1,'gone')
 passed()
 # A row opens its name's songs (0xff10, getMusicByAlbum): only its own album's stay.
