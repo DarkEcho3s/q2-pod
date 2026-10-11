@@ -1,8 +1,51 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="375" height="320" viewBox="0 0 375 320">
-  <rect width="375" height="320" fill="#000"/>
-  <g transform="translate(187.5 160) scale(1.15) translate(-187.5 -144)" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="butt" stroke-linejoin="round">
-    <path d="M126 181.6 C107 180 91 165 91 144 C91 122 109 106 133 106 C157 106 175 122 175 144 C175 161 165 174 149 179 L141 182 H181"/>
-    <circle cx="126" cy="181.6" r="4" fill="#fff" stroke="none"/>
-    <path d="M204 127 C204 114 214 106 228 106 H262 C276 106 284 114 284 127 S276 148 262 148 H228 C213 148 204 159 204 173 V182 H284"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Capa_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 375 320">
+  <!-- Generator: Adobe Illustrator 30.8.2, SVG Export Plug-In . SVG Version: 2.1.4 Build 7)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #fff;
+      }
+
+      .st1 {
+        fill: none;
+        stroke: #fff;
+        stroke-linejoin: round;
+        stroke-width: 8px;
+      }
+    </style>
+  </defs>
+  <rect width="375" height="320"/>
+  <g id="Q2_logo">
+    <path class="st1" d="M126,176.05c-19-1.6-35-16.6-35-37.6s18-38,42-38,42,16,42,38c0,17-10,30-26,35l-8,3h40"/>
+    <circle class="st0" cx="126" cy="176.05" r="4"/>
+    <path class="st1" d="M204,121.45c0-13,10-21,24-21h34c14,0,22,8,22,21s-8,21-22,21h-34c-15,0-24,11-24,25v9h80"/>
+  </g>
+  <g id="Visualizer">
+    <rect id="_x35_0" class="st0" x="91.2" y="207.85" width="3.86" height="11.7"/>
+    <rect id="_x34_8" class="st0" x="99.06" y="201.65" width="3.86" height="17.9"/>
+    <rect id="_x34_6" class="st0" x="106.93" y="202.45" width="3.86" height="17.1"/>
+    <rect id="_x34_4" class="st0" x="114.79" y="209.55" width="3.86" height="10"/>
+    <rect id="_x34_2" class="st0" x="122.66" y="213.95" width="3.86" height="5.6"/>
+    <rect id="_x34_0" class="st0" x="130.52" y="217.05" width="3.86" height="2.5"/>
+    <rect id="_x33_8" class="st0" x="138.38" y="217.05" width="3.86" height="2.5"/>
+    <rect id="_x33_6" class="st0" x="146.25" y="216.35" width="3.86" height="3.2"/>
+    <rect id="_x33_4" class="st0" x="154.11" y="215.95" width="3.86" height="3.6"/>
+    <rect id="_x33_2" class="st0" x="161.98" y="216.15" width="3.86" height="3.4"/>
+    <rect id="_x33_0" class="st0" x="169.84" y="214.05" width="3.86" height="5.5"/>
+    <rect id="_x32_8" class="st0" x="177.7" y="208.15" width="3.86" height="11.4"/>
+    <rect id="_x32_6" class="st0" x="185.57" y="203.55" width="3.86" height="16"/>
+    <rect id="_x32_4" class="st0" x="193.43" y="204.75" width="3.86" height="14.8"/>
+    <rect id="_x32_2" class="st0" x="201.3" y="210.45" width="3.86" height="9.1"/>
+    <rect id="_x32_0" class="st0" x="209.16" y="214.95" width="3.86" height="4.6"/>
+    <rect id="_x31_8" class="st0" x="217.02" y="216.25" width="3.86" height="3.3"/>
+    <rect id="_x31_6" class="st0" x="224.89" y="216.95" width="3.86" height="2.6"/>
+    <rect id="_x31_4" class="st0" x="232.75" y="217.65" width="3.86" height="1.9"/>
+    <rect id="_x31_2" class="st0" x="240.62" y="217.35" width="3.86" height="2.2"/>
+    <rect id="_x31_0" class="st0" x="248.48" y="216.55" width="3.86" height="3"/>
+    <rect id="_x38_" class="st0" x="256.34" y="217.15" width="3.86" height="2.4"/>
+    <rect id="_x36_" class="st0" x="264.21" y="216.15" width="3.86" height="3.4"/>
+    <rect id="_x34_" class="st0" x="272.07" y="212.65" width="3.86" height="6.9"/>
+    <rect id="_x32_" class="st0" x="279.94" y="211.75" width="3.86" height="7.8"/>
   </g>
 </svg>
