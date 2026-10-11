@@ -536,3 +536,15 @@ PEQ's steady bypass skips its sample loop; the filter still requests float PCM, 
 - **drop_caches.** `check_mem_thd` (`0x512050`, started by `platform_init`) writes `3` to `/proc/sys/vm/drop_caches` every sixth second for the life of the player, throwing away the page, dentry and inode caches: the library database, the card's directories, the playing file's readahead and squashfs assets are read again. `toolsGetSysMemFree` has no callers, so nothing depends on it. The `beq` at `0x5120a8` that skips the write when the open failed becomes `b` (`DROP_CACHES` in `tools/build.py`); the thread keeps its one-second sleep and never writes.
 - **UI loop.** `main_loop_sleep_default` sleeps at most 8 ms (its expected-sleep argument can only shorten that), so AWTK's loop runs at 125 Hz, screen on or off. `ringnav_sleep` first sleeps `SCREEN_OFF_SLEEP_MS` (40 ms, `patch/offsets.inc`) with `sleep_ms` (`0x724928`) while `g_backlight_status` is clear; stock then finds its 8 ms gone, sleeps 0 and updates its own timestamps. The loop runs at about 20 Hz with the screen off, and a key pressed then waits at most 40 ms longer. The first pass with the backlight back on calls `widget_invalidate_force` on the window manager once, so the whole screen repaints on wake rather than only the regions that change next.
 - **Watchdog.** `platform_init` starts `checkappprocess.sh`, which forks `pgrep` every 2 s and reboots if `demo` is gone. Its `sleep 2` becomes `sleep 10` (`WATCHDOG` in `tools/build.py`, pinned by SHA-256), so a crashed player reboots within 10 s.
+
+## ALSA startup lock
+
+The stock ALSA 1.1.6 library can deadlock with an ioplug behind `plug`. Preparation locks the wrapper while the ioplug callback unlocks and relocks its slave, leaving a slave mutex owned by the setup thread, so the writer blocks at its first write. `q2video` sets `LIBASOUND_THREAD_SAFE=0` in its own process before opening ALSA. Its PCM calls are sequential: setup precedes the writer, and drop, prepare and close follow joining it. BlueALSA's locks, the local player, the codecs and the services are unchanged.
+
+To reproduce the old hang and verify the fix against the stock MIPS library, run `python3 test/alsa.py BUILD QEMU_MIPSEL`. The regression covers one and two plug layers and rate conversion.
+
+## Audio writes and the queue checkpoint
+
+The shared audio writer keeps partial ALSA writes and retries the remaining frames after an underrun, instead of discarding unwritten samples. Native tests exercise partial writes, zero progress, recovery and lost outputs. This is independent of the ALSA startup lock workaround.
+
+Queue and traversal changes commit the full queue snapshot. Elapsed-only changes atomically replace the 16-byte `ringnav-queue-elapsed` checkpoint, which applies only when it matches the snapshot's checksum and position.

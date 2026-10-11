@@ -1,71 +1,63 @@
-# Build and validation
+# Building
 
 | Path      | Holds                                                                        |
 | --------- | ---------------------------------------------------------------------------- |
 | `patch/`  | The firmware payload (C, MIPS assembly, linker script) and the iPod UI audit |
 | `tools/`  | Build, port and release scripts                                              |
-| `test/`   | Host and MIPS emulator tests, each runnable as `python3 test/test_*.py`      |
+| `test/`   | Host and MIPS emulator tests, each runnable as `python3 test/<name>.py`      |
 | `assets/` | Boot splash, added icons (`icons/`) and the README banner                    |
 | `docs/`   | Documentation                                                                |
 
-Rebuilt firmware uses `assets/boot-logo.jpg` as the boot splash by default. Pass another 320x375 JPEG with `--logo` to use your own; see [boot.md](boot.md).
+## Requirements
 
-Requires clang/lld/llvm-objcopy, squashfs-tools 4.6 or later (tested 4.6.1 and 4.7.5), ImageMagick 6 or 7 for the iPod UI's settings icons (`convert` or `magick`; tested 6.9.12), the test harness dependencies in `requirements.txt`, and the original ZIP:
+- clang, lld and llvm-objcopy
+- squashfs-tools 4.6 or later (tested with 4.6.1 and 4.7.5)
+- ImageMagick 6 or 7 for the iPod UI's settings icons (`convert` or `magick`; tested with 6.9.12)
+- The test dependencies: `pip install -r requirements.txt`
+- The original stock ZIP. Its SHA-256 is:
 
 ```text
 154c17822d09be001be35c03d2d3488424dee195221790bd70864480d55b0f00
 ```
 
-SHA-256 of the stock Shanling Q2 V1.32 firmware ZIP.
+## Build
 
 ```sh
-python3 tools/build.py 'Q2 Firmware V1.32.zip' --out /tmp/q2-build
-python3 tools/build.py 'Q2 Firmware V1.32.zip' --out /tmp/q2-ipod --ipod
-python3 tools/build.py 'Q2 Firmware V1.32.zip' --out /tmp/q2-dev --ipod --dev  # iPod test build
-python3 test/peq.py  # PEQ parser/storage, DSP, editor and player checks, the visualizer's FFT bands, and the scrobble upload (host cc; player needs -m32 libs, upload libcrypto)
-python3 test/coverflow.py  # Coverflow art cache and depth renderer (host cc -m32, pthreads)
-python3 test/coverflow.py --captures /tmp/cf  # the same, plus the renderer's frames as PNGs
-python3 test/mp3.py  # native Xing seek bounds, CRC and truncated headers
-python3 test/build.py  # JPEG header checks; no emulator required
-python3 test/build.py 'Q2 Firmware V1.32.zip'  # optional packaging checks (custom logo, quoted paths)
-python3 test/playback.py /tmp/q2-build  # grouped traversal, snapshots and the wheel's ticks
-python3 test/patch.py /tmp/q2-build  # after: pip install -r requirements.txt
+python3 tools/build.py 'Q2 Firmware V1.32.zip' --out /tmp/q2-build                 # Stock UI
+python3 tools/build.py 'Q2 Firmware V1.32.zip' --out /tmp/q2-ipod --ipod           # iPod UI
+python3 tools/build.py 'Q2 Firmware V1.32.zip' --out /tmp/q2-dev --ipod --dev      # iPod test build
 ```
+
+Rebuilt firmware uses `assets/boot-logo.jpg` as the boot splash. Pass another 320x375 JPEG with `--logo` to use your own; see [boot.md](boot.md#custom-boot-logo).
 
 Both variants replace the stock equalizer page with a 30-band PEQ editor (bands, shelves, preamp, on/off, presets, stock's built-in genre presets, `/EQ` import) and patch `hciplayer`'s equalizer filter with the matching DSP. Both also clear the 44.1 kHz AAC capability bit in `bluealsa` (see [internals.md](internals.md#bluetooth-aac)).
 
-The updater compares `firmware_v20.info`'s version with demo's one version literal and refuses only an identical one (`update_firmware`, `0x4f8440`; the online check `check_otginfo`, `0x4f8968`). So both carry a 5-character build tag, `VERSION` (`x.y.z`, single digits) packed as `V<xyz>S` (Stock) or `V<xyz>I` (iPod), so 1.0.0 is `V100I`: the mod installs over stock and over any other build, and stock V1.32 installs back over it. About's **FW. Version** row reads the same literal, so `ringnav_about` shows the stock firmware's version there (`STOCK_VERSION`, from the stock `firmware_v20.info`) and adds a **CFW. Version** row below it, `<version> iPod` or `<version> Stock` (`1.0.0 iPod`). Release tags and ZIPs use the plain version too (`Q2.Firmware.1.0.0.zip`); releases up to 1.0 were `V`-prefixed.
+### Versioning
 
-`--dev` numbers each test build from the untracked `.build-number` and tags it `V` with that number in three base-36 digits and the edition in lowercase (`V001i`, `V002i` ... `VZZZi`, `s` for Stock; `dev 2` after the CFW. Version row's edition), so no two test builds share a tag and none equals a release's: the updater installs every test build over the last one, and the release over any of them. It applies to that build only: the release procedure never passes `--dev`, and the manifest records `dev: true`.
+The updater refuses only a firmware whose version literal is identical to the installed one (`update_firmware`, `0x4f8440`; the online check `check_otginfo`, `0x4f8968`). So each build carries a 5-character tag, `VERSION` (`x.y.z`, single digits) packed as `V<xyz>S` (Stock) or `V<xyz>I` (iPod). For example, 1.0.0 is `V100I`. The mod installs over stock and over any other build, and stock V1.32 installs back over it.
 
-The suite executes the actual patched MIPS payload and stock key/touch filters. Coverflow's depth renderer also runs as MIPS and must draw byte for byte what the host build of the same source draws; the suite prints its instruction count per frame, which is a relative measure only, not a frame time. UI services are mocked; carousel checks execute native animator parameter writes and stock completion, with a deterministic animation scheduler, and audit the stock creation path. Separate scenarios execute the stock canvas clip/color/rectangle code and the stock rounded fill/stroke entry points down to mocked LCD and vgcanvas sinks. The iPod wheel scenarios deliver each tick as the pair stock posts, key-down-before through the hook and the stock callback and then key-up-before, leave the stock latches as stock does, and count Key Tone clicks as the `system()` commands the real `buzzeer_switch` issues, the one mocked boundary; the stock binary runs the same presses for comparison. Case coverage lives in `test/patch.py`.
+About's **FW. Version** row reads the same literal, so it shows the stock firmware's version (`STOCK_VERSION`, from the stock `firmware_v20.info`). A **CFW. Version** row below it shows `<version> iPod` or `<version> Stock`. Release tags and ZIPs use the plain version (`Q2.Firmware.1.0.0.zip`); releases up to 1.0 were `V`-prefixed.
 
-The CPU-LCD fill path runs end to end down to mocked LCD sinks, including radius clamping, the `radius <= 2` decline and allocation balance. The stock rounded vgcanvas branch could not be executed end to end under Unicorn 2.1.4: the stock binary is built `-mfp64` and Unicorn's MIPS32 FPU only implements `FR=0`, so its 64-bit conversions trap. The test harness runs the branch up to the first such instruction and asserts the vgcanvas color and line-width calls that precede it.
+`--dev` numbers each test build from the untracked `.build-number` and tags it `V` plus that number in three base-36 digits, then the edition in lowercase (`V001i`, `V002i` … `VZZZi`; `s` for Stock). No two test builds share a tag, and none equals a release's, so the updater installs each test build over the last and the release over any of them. `--dev` applies to that build only: the release procedure never passes it, and the manifest records `dev: true`.
 
-The builder also rejects any `patch/contexts.inc` name that is not a window name in the stock rootfs UI assets, so an allowlist typo cannot silently disable a screen. Widget field offsets and shared ABI constants live in `patch/offsets.inc`; the payload and the test mocks read the same file.
+## Tests
 
-The test runner refuses a `manifest.json` whose `source_sha256` does not match the current patch sources, and verifies the stock executable, patched executable and payload hashes against that manifest, so stale or mixed artifacts cannot pass as the current build.
+```sh
+python3 test/peq.py                        # PEQ parser, storage, DSP, editor, player, visualizer FFT and scrobble upload (host cc; player needs -m32 libs, upload libcrypto)
+python3 test/coverflow.py                  # Coverflow art cache and depth renderer (host cc -m32, pthreads)
+python3 test/coverflow.py --captures /tmp/cf  # the same, plus the renderer's frames as PNGs
+python3 test/mp3.py                        # native Xing seek bounds, CRC and truncated headers
+python3 test/build.py                      # JPEG header checks; no emulator required
+python3 test/build.py 'Q2 Firmware V1.32.zip'   # packaging checks (custom logo, quoted paths)
+python3 test/playback.py /tmp/q2-build     # grouped traversal, snapshots and the wheel's ticks
+python3 test/patch.py /tmp/q2-build        # the patched MIPS payload, wheel and UI scenarios
+python3 test/alsa.py BUILD QEMU_MIPSEL     # ALSA startup lock regression (see internals.md)
+```
 
-A MIPS instruction-count regression check verifies that filling the position table does not increase steady paint or wheel work in the current scope. These are mocked-service instruction counts, not hardware latency measurements.
-
-Two fresh builds must produce identical `update.tar` files. Packaging verifies MD5 entries, unchanged kernel and rootfs metadata (the Stock build's Coverflow card icons are the only added inodes, with `menu_music`'s metadata; the stock EQ preset page and the images only the stock EQ pages show are removed, and in iPod also the 14 Home carousel images; iPod's 40-pixel settings icons replace the stock files in place, see [ipod.md](ipod.md#settings-icons)), and a rootfs no larger than stock. The icons are 32-colour palette PNGs and the payload is built with `-Oz` because of that limit, and demo's `.pdr` section (MIPS procedure descriptors, 423 KB past every LOAD segment, never read at run time; `PDR` in `tools/build.py`) ships zeroed, which packs to almost nothing. mksquashfs packs files' tail ends into fragments (`-tailends`; stock's image leaves them as partial blocks), which saves about 26 KB: Stock has about 25 KB of rootfs space left, iPod about 250 KB (its 40-pixel settings icons are Lanczos-filtered RGBA, about 14 KB more than the stock 52-pixel ones).
-
-UI refinement checks cover native-font clock/percentage widths, battery charge levels and charging, codec fallback, conditional Rockbox rows, Home fallback, boot persistence and failed saves in both variants. The boot script checks missing/corrupt preferences, held Play/Pause, missing Rockbox, exit/crash fallback and explicit Home handover. Hardware verification precedes release.
-
-Queue/traversal changes commit the full queue snapshot; elapsed-only changes atomically
-replace the 16-byte `ringnav-queue-elapsed` checkpoint, which applies only when it matches
-the snapshot's checksum and position.
-
-The stock ALSA 1.1.6 library can deadlock with an ioplug behind `plug`: preparation
-locks the wrapper while the ioplug callback unlocks/relocks its slave, leaving a slave mutex
-owned by the setup thread. The writer then blocks at its first write. `q2video` sets
-`LIBASOUND_THREAD_SAFE=0` in its own process before opening ALSA. Its PCM calls are sequential:
-setup precedes the writer, and drop/prepare/close follow joining it. BlueALSA's own locks,
-the local player, codecs and services are unchanged. To reproduce the old hang and verify
-the fix with the actual stock MIPS library, run `python test/alsa.py BUILD QEMU_MIPSEL`.
-The regression covers one/two plug layers and rate conversion.
-
-The shared audio writer retains partial ALSA writes and retries the remaining frames after
-an underrun, instead of discarding unwritten samples. Native tests exercise partial writes,
-zero progress, recovery and lost outputs. This corrects sample loss independently of the
-ALSA startup lock workaround.
+- **MIPS suite:** `test/patch.py` executes the actual patched payload and the stock key and touch filters under Unicorn. UI services are mocked; the one other mocked boundary is the `system()` call that Key Tone uses to click the speaker. Case coverage lives in `test/patch.py`.
+- **Known gap:** the stock rounded vgcanvas branch can't run end to end under Unicorn 2.1.4. Stock is built `-mfp64`, and Unicorn's MIPS32 FPU only implements `FR=0`, so its 64-bit conversions trap. The test runs the branch up to that instruction and asserts the calls before it.
+- **Reproducibility:** two fresh builds must produce identical `update.tar` files. Packaging verifies MD5 entries, unchanged kernel and rootfs metadata, and a rootfs no larger than stock.
+- **Space:** the payload is built with `-Oz`, and demo's `.pdr` section (MIPS procedure descriptors, 423 KB past every LOAD segment, never read at run time) ships zeroed. mksquashfs packs file tails into fragments (`-tailends`), which saves about 26 KB. Stock has about 25 KB of rootfs space left; iPod has about 250 KB.
+- **Manifest checks:** the runner refuses a `manifest.json` whose `source_sha256` doesn't match the current patch sources, and verifies the stock, patched and payload hashes against it.
+- **Guards:** the builder rejects any `patch/contexts.inc` name that isn't a window name in the stock rootfs UI assets, so an allowlist typo can't silently disable a screen. Widget offsets and shared ABI constants live in `patch/offsets.inc`, which both the payload and the test mocks read.
+- **Limits:** instruction counts are mocked-service measurements, not hardware latency. Hardware verification happens before release.

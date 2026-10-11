@@ -554,7 +554,7 @@ status bar asset's own background (`#000000`, not `#161616`), which the payload'
 
 ## Review and device acceptance
 
-The [review sheets](ui/sudo/README.md) are native-size **composed previews**, not firmware captures.
+Review sheets are native-size **composed previews**, not firmware captures.
 Host and MIPS checks cover geometry, clipping, selection contrast, recycled rows,
 preferences, input and packaging. They do not establish panel readability or rendering speed.
 Before release, check the real Q2 with bright/dark/missing covers, long multilingual labels,
