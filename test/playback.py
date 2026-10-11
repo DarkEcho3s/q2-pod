@@ -17,6 +17,7 @@ class PlaybackMachine(QueueMachine):
         self.files = dict(files or {}); self.handles = {}; self.fd = 100
         self.fail = ''; self.elapsed = 37; self.random_calls = 0; self.rng = 71
         self.allocations = 0; self.write_opens = 0
+        self.path_comparisons = 0; self.library_modes = []
         self.missing = set(); self.starts = []; self.stops = 0; self.seek = None; self.stock_resume = None
         self.handlers.pop(syms['mclLoadPlayList'], None)
         self.handlers[ps['stock_memory_trampoline']] = 'p:fallback'
@@ -52,10 +53,12 @@ class PlaybackMachine(QueueMachine):
         name=name[2:]; a,b,c,d=[u.reg_read(r) for r in REGS]; ret=0
         if name=='calloc':
             self.allocations+=1
-            ret=0 if self.fail=='alloc' else self.alloc((a*b+7)&~3)
+            ret=0 if self.fail=='alloc' or (self.fail=='lookup' and a==len(self.library_rows) and b==8) else self.alloc((a*b+7)&~3)
         elif name=='memcmp':
             x,y=bytes(u.mem_read(a,c)),bytes(u.mem_read(b,c)); ret=(x>y)-(x<y)
-        elif name=='strcmp': x,y=self.text(a),self.text(b); ret=(x>y)-(x<y)
+        elif name=='strcmp':
+            x,y=self.text(a),self.text(b); ret=(x>y)-(x<y)
+            self.path_comparisons += x.startswith('/') and y.startswith('/')
         elif name=='qsort':
             regs=[UC_MIPS_REG_PC,*range(UC_MIPS_REG_0,UC_MIPS_REG_31+1)]
             saved=[u.reg_read(r) for r in regs]; pair=self.alloc(2*c); sp=u.reg_read(UC_MIPS_REG_SP)
@@ -94,6 +97,7 @@ class PlaybackMachine(QueueMachine):
         elif name=='toolsRandnum':
             self.random_calls+=1; self.rng=(self.rng*1103515245+12345)&0x7fffffff; ret=self.rng%a
         elif name=='getAllMusic':
+            self.library_modes.append(a)
             self.deqs[self.get(syms['tools_pdeq_directory'])][1]=[self.copy('stSongInfo',e) for e in self.library_rows]; ret=len(self.library_rows)
         elif name=='folder_skip': self.folder_skips+=1
         elif name=='fallback':  # stock resume: stock_resume's (class, rows, index) into out, else none
@@ -223,6 +227,7 @@ for fail in ('open','write','close','rename','alloc'):
 m.fail=''
 r=PlaybackMachine(files); r.byte(syms['g_memory_play'],2); out=r.deque([])
 assert r.fn('ringnav_memory',out)==want and r.seek==37
+assert r.names()==['a2','b1','a1','cue1','cue2','solo','a1']
 assert r.fn('playback_successor',1)==expected
 r.fn('ringnav_load',out,want,1) # home_page/player_start's second load keeps restored traversal
 assert r.fn('playback_successor',1)==expected and len(r.names())==7
@@ -242,6 +247,20 @@ for corrupt in (b'',files['/mnt/data/ringnav-queue'][:-1],b'bad'+files['/mnt/dat
 r=PlaybackMachine(files); r.byte(syms['g_memory_play'],1)
 assert r.fn('ringnav_memory',r.deque([]))>=0 and r.seek==0
 r=PlaybackMachine(files); assert r.fn('ringnav_memory',r.deque([]))==-1
+# A failed index allocation must leave the snapshot and existing queue intact.
+r=PlaybackMachine(files); r.byte(syms['g_memory_play'],2); r.fail='lookup'
+before=r.names(); assert r.fn('ringnav_memory',r.deque([]))==-1 and r.names()==before and r.files==files
+# An empty library still restores files found by the stock directory fallback.
+r=PlaybackMachine(files); r.byte(syms['g_memory_play'],2)
+r.found=list(r.library_rows); r.library_rows=[]
+assert r.fn('ringnav_memory',r.deque([]))==want and len(r.names())==7
+# Larger restored queues must not compare every saved path with the whole library.
+tracks=[(str(i),f'/perf/{i:04}.flac','Album',1,i,0,0) for i in range(256)]
+m=PlaybackMachine(); m.budget=10000000; m.install(tracks,191); m.options(1,5,0); m.fn('playback_save')
+r=PlaybackMachine(m.files); r.budget=10000000; r.install(tracks,191); r.library_rows.reverse(); r.byte(syms['g_memory_play'],2)
+assert r.fn('ringnav_memory',r.deque([]))==191 and r.names()==[str(i) for i in range(256)]
+assert r.library_modes==[3] and r.path_comparisons < 256*32, r.path_comparisons
+print('256-track restore path comparisons:',r.path_comparisons)
 # Without a snapshot, stock rebuilds an album queue (0xff10) from every album of its name: only
 # the resumed track's album stays, at its index there. Other classes stay as stock built them.
 for cls,want in ((0xff10,(1,['a2','a1'])),(0xf001,(2,['a2','b1','a1']))):

@@ -632,7 +632,24 @@ void playback_save(void) {
 }
 static int library(void *unused) {
     (void)unused;
-    return getAllMusic(0);
+    /* Snapshot order wins; avoid stock's expensive pinyin title sort. */
+    return getAllMusic(3);
+}
+typedef struct {
+    void *record;
+    unsigned ordinal;
+} resume_row;
+static int resume_cmp(void *r, const char *path, unsigned start, unsigned end) {
+    int cmp = strcmp(P(r, REC_PATH), path);
+    if (cmp) return cmp;
+    unsigned a = (unsigned)I(r, REC_CUE_START), b = (unsigned)I(r, REC_CUE_END);
+    return a != start ? (a > start ? 1 : -1) : b != end ? (b > end ? 1 : -1) : 0;
+}
+static int resume_before(const void *a, const void *b) {
+    const resume_row *x = a, *y = b;
+    void *r = y->record;
+    int cmp = resume_cmp(x->record, P(r, REC_PATH), I(r, REC_CUE_START), I(r, REC_CUE_END));
+    return cmp ? cmp : (x->ordinal > y->ordinal) - (x->ordinal < y->ordinal);
 }
 static int directory(void *path) { return toolsLoadDirectory(path); }
 /* Stock resume rebuilds an album queue (0xff10) from every album of its name (getMusicByAlbum):
@@ -714,9 +731,17 @@ int ringnav_memory(void *out) {
         deque_init(q);
         int count;
         all = staged(library, 0, &count);
+        unsigned n = 0;
+        resume_row *lookup = calloc(deque_size(all), sizeof *lookup);
+        if (!lookup && deque_size(all)) ok = 0;
+        for (unsigned i = 0; ok && i < deque_size(all); ++i) {
+            void *r = deque_at(all, i);
+            if (I(r, REC_TYPE) == 8 && P(r, REC_PATH)) lookup[n++] = (resume_row){ r, i };
+        }
+        if (n) qsort(lookup, n, sizeof *lookup, resume_before);
         char folder[1024] = "";
         p = buf + header_size + (h.n * 3 + h.hn) * 4;
-        for (unsigned i = 0; i < h.n; ++i) {
+        for (unsigned i = 0; ok && i < h.n; ++i) {
             unsigned id[3];
             memcpy(id, p, 12);
             p += 12;
@@ -724,15 +749,17 @@ int ringnav_memory(void *out) {
             p += id[0];
             map[i] = ~0u;
             if (access(path, 0)) continue;
-            for (unsigned j = 0; j < deque_size(all); ++j) {
-                void *r = deque_at(all, j);
-                if (I(r, REC_TYPE) == 8 && !strcmp(P(r, REC_PATH), path) &&
-                    (unsigned)I(r, REC_CUE_START) == id[1] &&
-                    (unsigned)I(r, REC_CUE_END) == id[2]) {
-                    map[i] = deque_size(q);
-                    _deque_push_back(q, r);
-                    break;
-                }
+            unsigned lo = 0, hi = n;
+            while (lo < hi) {
+                unsigned mid = lo + (hi - lo) / 2;
+                if (resume_cmp(lookup[mid].record, path, id[1], id[2]) < 0)
+                    lo = mid + 1;
+                else
+                    hi = mid;
+            }
+            if (lo < n && !resume_cmp(lookup[lo].record, path, id[1], id[2])) {
+                map[i] = deque_size(q);
+                _deque_push_back(q, lookup[lo].record);
             }
             if (map[i] != ~0u) continue;
             char parent[1024];
@@ -758,6 +785,7 @@ int ringnav_memory(void *out) {
             }
         }
         if (rows) deque_destroy(rows);
+        free(lookup);
         deque_destroy(all);
         ok = deque_size(q) != 0;
     }
