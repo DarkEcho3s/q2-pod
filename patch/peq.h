@@ -121,6 +121,8 @@ void peq_paint(void *w, void *canvas);
 unsigned long long now_ms(void); /* CLOCK_MONOTONIC */
 void field(const char *raw, const char *key, char *out, unsigned n);
 unsigned long long number(const char *raw, const char *key);
+unsigned state_read(const char *path, char *raw, unsigned size);
+void dgram_send(int *sock, const char *path, const char *c, unsigned n);
 void *label(void *parent, int x, int y, int w, int h, const char *style, int px, unsigned color);
 void spot_yield(void), radio_stop(void);
 int video_start(const char *file, int radio); /* books.c */

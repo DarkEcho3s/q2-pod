@@ -141,10 +141,10 @@ if __name__ == '__main__':
     p.add_argument('--publish', action='store_true')
     a = ap.parse_args()
     try:
-        # Validation runs the MIPS suite, so fail before four builds, not after them.
-        check(importlib.util.find_spec('unicorn') is not None,
-              'Release validation needs the requirements.txt environment: pip install -r requirements.txt')
         if a.command == 'package':
+            # Validation runs the MIPS suite, so fail before four builds, not after them.
+            check(importlib.util.find_spec('unicorn') is not None,
+                  'Release validation needs the requirements.txt environment: pip install -r requirements.txt')
             package(a.zip, a.out.resolve())
         else:
             upload(a.out.resolve(), publish=a.publish)

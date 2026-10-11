@@ -175,7 +175,7 @@ static const char *url_of(const list_t *l, int i) { return l->buf + l->url[i]; }
 
 /* path's bytes appended to buf at *n, below cap, then a newline. */
 static void slurp(const char *path, char *buf, unsigned *n, unsigned cap) {
-    void *f = fopen(path, "rb");
+    void *f = *n + 2 <= cap ? fopen(path, "rb") : 0; /* full: cap - *n - 2 would wrap */
     if (!f) return;
     *n += fread(buf + *n, 1, cap - *n - 2, f);
     buf[(*n)++] = '\n';
@@ -224,23 +224,9 @@ static int m3u_write(const char *path, const list_t *l, int skip, const list_t *
     return ok && !rename(tmp, path);
 }
 
-/* RADIO_DIR made, and Favourites left the user's: 1.0.1 seeded favourites.m3u with STARTERS (now
- * Featured), byte for byte as m3u_write writes them, so a copy never changed goes. */
-static void favs_seed(void) {
-    char buf[sizeof STARTERS + 2];
-    unsigned n = 0; /* slurp's newline after the text */
-    if (access(RADIO_DIR, 0)) mkdir(RADIO_DIR, 0777);
-    slurp(RADIO_FAVS, buf, &n, sizeof buf);
-    if (n == sizeof STARTERS && !memcmp(buf, STARTERS, n - 1)) unlink(RADIO_FAVS);
-}
 
 static void send_key(const char *c, unsigned n) {
-    if (rd.sock <= 0) rd.sock = socket(1, 1, 0); /* AF_UNIX, SOCK_DGRAM (MIPS numbering) */
-    struct {
-        unsigned short family;
-        char path[108];
-    } to = { 1, RADIO_SOCK };
-    sendto(rd.sock, c, n, 0x40, &to, sizeof to); /* MSG_DONTWAIT */
+    dgram_send(&rd.sock, RADIO_SOCK, c, n);
 }
 
 /* q2video quit, and killed if it does not go within RADIO_QUIT_MS. The media keys stay radio's. */
@@ -291,12 +277,7 @@ void radio_poll(void) {
     rd.polled = now;
     int status, ended = waitpid(rd.pid, &status, 1) != 0;
     char raw[512]; /* behind a '\n', as field() reads */
-    void *f = fopen(RADIO_STATE, "rb");
-    unsigned n = f ? fread(raw + 1, 1, sizeof raw - 2, f) : 0;
-    if (f) fclose(f);
-    raw[0] = '\n';
-    raw[n + 1] = 0;
-    if (n) {
+    if (state_read(RADIO_STATE, raw, sizeof raw)) {
         field(raw, "state", rd.state, sizeof rd.state);
         field(raw, "title", rd.title, sizeof rd.title);
         field(raw, "codec", rd.codec, sizeof rd.codec);
@@ -735,7 +716,7 @@ int radio_open(void *ctx, void *event) {
     (void)ctx;
     (void)event;
     if (ui.page || !(ui.page = page_open("radio_page", closed, keyup))) return 0;
-    favs_seed();
+    if (access(RADIO_DIR, 0)) mkdir(RADIO_DIR, 0777);
     ui.timer = timer_add(tick, 0, 250);
     show(MENU);
     return 0;

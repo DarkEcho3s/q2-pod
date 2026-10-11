@@ -662,18 +662,9 @@ int ringnav_memory(void *out) {
     if (!g_memory_play && !g_carmode) return stock_memory(out);
     void *f = fopen(QUEUE_FILE, "rb");
     if (!f) return stock_memory(out);
-    /* V1 omitted queue provenance. Treat those queues as local lists rather than allowing
-     * Folder Skip to escape the saved queue after the user selects a stock play mode. */
     snapshot h = { 0 };
-    unsigned header_size = sizeof h - sizeof h.type;
-    int ok = fread(&h, header_size, 1, f) == 1 && h.magic == 0x5132524e &&
-             (h.version == 1 || h.version == 2);
-    h.type = 0xf001;
-    if (ok && h.version == 2) {
-        ok = fread(&h.type, sizeof h.type, 1, f) == 1;
-        header_size = sizeof h;
-    }
-    ok = ok && (h.type == 1 || (h.type & 0xf000) == 0xf000) && h.type <= 0xffff && h.n &&
+    unsigned header_size = sizeof h;
+    int ok = fread(&h, header_size, 1, f) == 1 && h.magic == 0x5132524e && h.version == 2 && (h.type == 1 || (h.type & 0xf000) == 0xf000) && h.type <= 0xffff && h.n &&
          h.n <= QUEUE_LIMIT && h.pos < h.n && h.cursor < h.n && h.hn <= HISTORY_LIMIT &&
          h.shuffle < 5 && h.repeat < 6 && h.folder < 2 && h.elapsed <= 0x7fffffff &&
          h.forced <= h.n && h.force_end <= h.n && (!h.forced || h.forced <= h.force_end) &&

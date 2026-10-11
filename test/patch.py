@@ -20,7 +20,7 @@ v = VERSIONS.get(variant, '')
 assert v and manifest['version'] == (dev_tag(manifest['dev'], v[-1]) if manifest.get('dev') else v), 'Wrong variant/version'
 assert (manifest.get('compact_code') != []) == (variant == 'ipod')
 from ipod import INC, O  # patch/offsets.inc and its integer #defines
-DC=int(re.search(r'^#define DOUBLE_CLICK_MS (\d+)',(ROOT/'patch/offsets.inc').read_text(),re.M)[1])  # centre double-press window
+DC=O['DOUBLE_CLICK_MS']  # centre double-press window
 # iPod accent presets: {gradient top, bottom, light tone, red tone, highlight} per Accent setting value.
 ACCENTS=[tuple(int(v,16) for v in g) for g in re.findall(r'\{ 0x(\w+), 0x(\w+), 0x(\w+), 0x(\w+), 0x(\w+) \}',INC)]
 def color_t(rgb): return 0xff000000|(rgb&255)<<16|(rgb>>8&255)<<8|rgb>>16

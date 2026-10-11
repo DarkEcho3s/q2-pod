@@ -46,7 +46,7 @@ static struct {
     char art_track[64];
 } ui __attribute__((section(".scratch")));
 
-unsigned long long now_ms(void) { /* shared with radio.c */
+unsigned long long now_ms(void) { /* shared with radio.c; not now_ns() / 1e6: no __udivdi3 here */
     int ts[2];            /* o32 timespec */
     clock_gettime(1, ts); /* CLOCK_MONOTONIC, librespot's at= clock */
     return (unsigned long long)(unsigned)ts[0] * 1000 + (unsigned)ts[1] / 1000000;
@@ -65,14 +65,19 @@ static void spot_log(const char *what, int a, int b) {
     fclose(f);
 }
 
-static void spot_send(const char *path, const char *c, unsigned n) {
-    if (sp.sock <= 0) sp.sock = socket(1, 1, 0); /* AF_UNIX, SOCK_DGRAM (MIPS numbering) */
+/* c to the datagram socket at path, *sock opened on first use. Shared with radio.c. */
+void dgram_send(int *sock, const char *path, const char *c, unsigned n) {
+    if (*sock <= 0) *sock = socket(1, 1, 0); /* AF_UNIX, SOCK_DGRAM (MIPS numbering) */
     struct {
         unsigned short family;
         char path[108];
     } to = { 1, { 0 } };
     memcpy(to.path, path, strlen(path) + 1);
-    sendto(sp.sock, c, n, 0x40, &to, sizeof to); /* MSG_DONTWAIT */
+    sendto(*sock, c, n, 0x40, &to, sizeof to); /* MSG_DONTWAIT */
+}
+
+static void spot_send(const char *path, const char *c, unsigned n) {
+    dgram_send(&sp.sock, path, c, n);
     spot_log("send", c[0], (int)n);
 }
 
@@ -96,13 +101,20 @@ unsigned long long number(const char *raw, const char *key) {
     return x;
 }
 
-/* The state file into raw; 1 when it changed. Gone (librespot not up yet) reads as no session. */
-static int spot_read(char *raw, unsigned size) {
-    void *f = fopen(SPOT_STATE, "rb");
+/* path's bytes into raw behind a '\n', as field() reads; their count, 0 for no file. Shared
+ * with radio.c. */
+unsigned state_read(const char *path, char *raw, unsigned size) {
+    void *f = fopen(path, "rb");
     unsigned n = f ? fread(raw + 1, 1, size - 2, f) : 0;
     if (f) fclose(f);
     raw[0] = '\n';
     raw[n + 1] = 0;
+    return n;
+}
+
+/* The state file into raw; 1 when it changed. Gone (librespot not up yet) reads as no session. */
+static int spot_read(char *raw, unsigned size) {
+    state_read(SPOT_STATE, raw, size);
     return strcmp(raw, sp.raw) != 0;
 }
 

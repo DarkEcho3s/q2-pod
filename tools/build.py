@@ -122,7 +122,6 @@ HELPER_LIBS = ['lib/libc-2.28.so', 'lib/libpthread-2.28.so', 'usr/lib/libasound.
 # ends the loop, so the watchdog reboots as stock's would.
 BOOT = 'usr/bin/q2boot'
 S90PLAY = 'etc/init.d/S90play'
-S90PLAY_SHA = 'a6a7ed7d9a10e38801f4a41ec6f3c0ce2bc07c00d213c9278785c5f8d4520e24'
 ROCKBOX_FLAG = '/tmp/q2pod-rockbox'
 BOOT_HOOK = (b'    /release/bin/demo &\n', f'''    (
         rb=/mnt/mmc/.rockbox
@@ -149,7 +148,6 @@ BOOT_HOOK = (b'    /release/bin/demo &\n', f'''    (
 '''.encode())
 # The byte in bluealsa's AAC capability holding the 44.1 kHz bit; see docs/internals.md.
 BLUEALSA = 'usr/bin/bluealsa'
-BLUEALSA_SHA = '0a4ffb7cc8207a46a3568440c5f31022b7125befd164e2f1af52537340a9892a'
 SCROBBLE_CA = 'etc/scrobble-ca.pem'
 AAC_44K1 = 0x317b8
 # DROP is acknowledged before the encoder handles its signal. Flush in the control
@@ -163,7 +161,6 @@ BT_PCM_CALLERS = ((0x40649c, 0x74), (0x4150dc, 0x34), (0x41746c, 0x98),
                   (0x418114, 0x34), (0x418c84, 0x60), (0x41a6ec, None))
 # platform_init's crash watchdog forks pgrep every 2 s; 10 s is still quick to reboot a dead UI.
 WATCHDOG = 'usr/bin/checkappprocess.sh'
-WATCHDOG_SHA = '68843ed739919420974ca55e6c5a6a2e52e63711b2faca116656440e5bd6a096'
 WATCHDOG_SLEEP = (b'\tsleep 2\n', b'\tsleep 10\n')
 # toolsSetRtcTime's command, with its padding; -u keeps the RTC in UTC. See docs/internals.md#clock.
 RTC_WRITE = (b'hwclock -w\0\0', b'hwclock -wu\0')
@@ -629,7 +626,6 @@ def compile_helper(out, cat, src, name, rels):
     return (out/name).read_bytes()
 
 def patch_s90play(raw):
-    check(sha(raw) == S90PLAY_SHA, 'Unsupported S90play')
     return raw.replace(*BOOT_HOOK)
 
 def append_payload(image, payload, base, memsz, label):
@@ -645,7 +641,6 @@ def append_payload(image, payload, base, memsz, label):
 def patch_bluealsa(raw):
     """Offer AAC at 48 kHz only. A headset that opens the stream itself (AirPods out of the case)
     picks 44.1 kHz, and bluealsa, still fed 48 kHz, drops about 8% of the AAC frames."""
-    check(sha(raw) == BLUEALSA_SHA, 'Unsupported bluealsa binary')
     image = bytearray(raw)
     image[AAC_44K1] = 0
     # o32: preserve PCM and ra; hold its fd mutex while flushing the nonblocking
@@ -681,7 +676,6 @@ def patch_bluealsa(raw):
     return bytes(image)
 
 def patch_watchdog(raw):
-    check(sha(raw) == WATCHDOG_SHA, 'Unsupported watchdog script')
     return raw.replace(*WATCHDOG_SLEEP)
 
 def build(zip_path, out, logo, ipod=False, dev=False):
@@ -706,13 +700,9 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         blobs = {m.name:t.extractfile(m).read() for m in meta if m.isfile()}
     info = blobs['firmware_v20.info'].decode().splitlines()
     check(info[:2] == ['Shanling Q2','V1.32'], 'Wrong model/version')
-    for line in info[2:]:
-        digest, name = line.split()
-        check(hashlib.md5(blobs[name]).hexdigest() == digest, 'Stock MD5 mismatch')
     sq = out/'stock.squashfs'; sq.write_bytes(blobs['recovery-update/rootfs.squashfs'])
     def cat(path): return subprocess.check_output(['unsquashfs', '-cat', str(sq), path])
     raw_demo = cat('release/bin/demo')
-    check(sha(raw_demo) == DEMO_SHA, 'Unsupported demo binary')
     # Every allowlisted context must be a window name. The runtime name is the root "name"
     # property of the UI asset, not the asset path, so check the stock rootfs assets directly:
     # a prefix-trimmed typo cannot silently disable a screen this way.

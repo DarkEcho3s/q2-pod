@@ -351,7 +351,7 @@ for folder in (0,1):
     assert m.mcl('MCL_TYPE')==0xf001 and m.opened[-1][3]==0xf001
     checks+=1
 
-# Upgrade V1 snapshots safely; an omitted class must not turn a library into Folder Play.
+# V1 snapshots (pre-1.0, no queue class) and a bad class are refused.
 def fnv(data):
     value=2166136261
     for b in data: value=((value^b)*16777619)&0xffffffff
@@ -361,7 +361,7 @@ def snapshot_checksum(data):
 legacy=bytearray(files['/mnt/data/ringnav-queue']); del legacy[56:60]
 struct.pack_into('<I',legacy,4,1); struct.pack_into('<I',legacy,8,len(legacy)); snapshot_checksum(legacy)
 r=PlaybackMachine({'/mnt/data/ringnav-queue':bytes(legacy)}); r.byte(syms['g_memory_play'],2)
-assert r.fn('ringnav_memory',r.deque([]))==want and r.mcl('MCL_TYPE')==0xf001
+assert r.fn('ringnav_memory',r.deque([]))==-1
 bad=bytearray(files['/mnt/data/ringnav-queue']); struct.pack_into('<I',bad,56,5); snapshot_checksum(bad)
 r=PlaybackMachine({'/mnt/data/ringnav-queue':bytes(bad)}); r.byte(syms['g_memory_play'],2)
 assert r.fn('ringnav_memory',r.deque([]))==-1
