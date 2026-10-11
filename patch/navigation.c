@@ -192,7 +192,8 @@ typedef struct {
     unsigned vol_timer;
     unsigned np_hash; /* of the album text, position and queue length shown, 0 to refresh */
     int np_left;
-    /* Minimal's album marquee: np_off px scrolled of the np_over px the album overflows its label. */
+    /* Minimal's album marquee: np_off px scrolled of the np_over px the album overflows its label.
+     */
     int np_off, np_over;
     unsigned np_marquee;
     /* Scrub: a centre press at np_press_at waits DOUBLE_CLICK_MS in np_press for a second one;
@@ -1478,7 +1479,7 @@ static void paint_cover(void *w, void *canvas) {
  * upper-cased (ASCII and Latin-1), SUDO_TRACK px apart, cut off at x + max; returns the whole
  * text's width, a trailing SUDO_TRACK included. The text color is restored, the font is not. */
 static int draw_spaced(void *canvas, const unsigned *s, int x, int y, unsigned px, unsigned color,
-                        int max) {
+                       int max) {
     unsigned text = (unsigned)I(P(canvas, CANVAS_LCD), LCD_TEXT_COLOR);
     canvas_set_font(canvas, (void *)0, px);
     canvas_set_text_color(canvas, color);
@@ -1945,8 +1946,9 @@ static void bar_sync(void *bar) {
     if (st.home_rockbox != rockbox_available()) coverflow_home_layout();
     int mode = st.battery;
     if (mode) {
-        int reach = mode == 1 ? BATT_PCT_W : mode == 3 ? BATT_INSIDE_W + BATT_NUB_W
-                         : BATT_BODY_W + BATT_NUB_W + BATT_GAP + BATT_PCT_W;
+        int reach = mode == 1   ? BATT_PCT_W
+                    : mode == 3 ? BATT_INSIDE_W + BATT_NUB_W
+                                : BATT_BODY_W + BATT_NUB_W + BATT_GAP + BATT_PCT_W;
         if (widget_get_visible(st.bar_wifi)) reach += I(st.bar_wifi, W_W) + 5;
         if (shown)
             reach += 5 + (st.codec && st.codec_step < CODEC_STEPS ? codec_reach[st.codec - 1]
@@ -1994,8 +1996,7 @@ static void paint_battery(void *w, void *canvas) {
     s[n++] = '%';
     unsigned color = RGBA(key & 2 ? BATT_CHARGE_RGB : key & 1 ? BATT_LOW_RGB : 0xffffff);
     int inside = st.batt_mode == 3;
-    const int bw = inside ? BATT_INSIDE_W : BATT_BODY_W,
-              bh = inside ? BATT_INSIDE_H : BATT_BODY_H,
+    const int bw = inside ? BATT_INSIDE_W : BATT_BODY_W, bh = inside ? BATT_INSIDE_H : BATT_BODY_H,
               nh = inside ? BATT_INSIDE_NUB_H : BATT_NUB_H, y = (I(w, W_H) + 1 - bh) / 2;
     canvas_set_fill_color(canvas, color);
     canvas_fill_rect(canvas, 1, y, bw - 2, 1);
@@ -2102,7 +2103,8 @@ static int settle_poll(const void *info) {
     int sec = -1, total, status = mclGetPlayStatus();
     player_playtime_and_length(&sec, &total);
     if (status == 2) st.settle_played += SETTLE_MS;
-    if (st.np_win && np_track() == st.scrub_track && (sec < st.scrub_to - 1 || sec > st.scrub_to + 1) &&
+    if (st.np_win && np_track() == st.scrub_track &&
+        (sec < st.scrub_to - 1 || sec > st.scrub_to + 1) &&
         (status == 3 || (status == 2 && st.settle_played < SETTLE_PLAY_MS)))
         return 8; /* RET_REPEAT: paused, or not there yet */
     st.settle_timer = 0;
@@ -2656,7 +2658,8 @@ int ringnav_image_add(void *manager, const char *name, void *bitmap) {
 static void setting_text(int i) {
     static const char *const home[] = { "Home: Split", "Home: Full" },
                              *const battery[] = { "Battery: Icon", "Battery: Percent",
-                                                  "Battery: Icon + Percent", "Battery: Percent Inside" },
+                                                  "Battery: Icon + Percent",
+                                                  "Battery: Percent Inside" },
                              *const theme[] = { "Theme: Minimal", "Theme: Classic" };
     accent(); /* reads the settings */
     const char *const names[] = { accent_names[st.accent], home[st.home_full], battery[st.battery],
