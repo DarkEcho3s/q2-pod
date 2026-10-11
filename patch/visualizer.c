@@ -212,6 +212,13 @@ static unsigned capture(void) {
     return rate;
 }
 
+/* The timer repaints: audio in the last 1.5 s or a style name still fading. ringnav_sleep keeps
+ * stock's pace while it does. */
+int visualizer_live(void) {
+    unsigned now = time_now_ms();
+    return vz.timer && (now - vz.heard <= 1500 || now - vz.named <= 1500);
+}
+
 /* Each 1000 / VIS_FPS ms while showing: the levels rise fast and fall at VIS_DECAY a second, a cap
  * holds VIS_HOLD_MS over each spectrum bar's peak, then falls under VIS_GRAVITY; the scope starts on a
  * rising zero crossing so the wave stands still; the VU needles integrate over 300 ms. With nothing
@@ -237,7 +244,7 @@ static int tick(const void *unused) {
     if (rate) vz.heard = now;
     int still = settled() && !window_manager_get_pointer_pressed(window_manager()); /* a drag starting */
     halo_art(still);
-    if ((now - vz.heard > 1500 && now - vz.named > 1500) || !still) return 8; /* RET_REPEAT */
+    if (!visualizer_live() || !still) return 8; /* RET_REPEAT */
     vz.spin += dt * 0.2f; /* radians a second */
     /* The slide_view: the page's own rect does not map to the screen inside it. */
     widget_invalidate_force(vz.slide, 0);

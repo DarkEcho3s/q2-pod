@@ -39,6 +39,7 @@ extern int xfade_open(void *ctx, void *event), xfade_key(void *top, unsigned key
 extern int radio_media(unsigned key), radio_open(void *ctx, void *event);
 extern const char *radio_hold(void *top);
 extern void visualizer_paint(void *w, void *canvas), visualizer_attach(void *win);
+extern int visualizer_live(void);
 extern void *queue_now(unsigned *pos, unsigned *n);
 extern const char *now_tag(void *r, int field);
 extern int scrobble_ready(void), scrobble_start(void), scrobble_poll(int *sent),
@@ -5268,11 +5269,20 @@ int rockbox_open(void *ctx, void *event) {
 }
 #endif
 
-/* Now Playing on top: its visualizer, progress and lyrics run on timers, which an idle pass would
- * make late, so Low power leaves the loop at stock's pace there. */
+/* Now Playing on top. */
 static int now_playing(void) {
     void *top = window_manager_get_top_window(window_manager());
     return top && !tk_strcmp(widget_get_prop_str(top, "name", ""), "playing_page");
+}
+
+/* Now Playing's visualizer repainting or its album marquee moving: their 40 and 50 ms timers would
+ * run late on an idle pass. Its progress and lyrics tick every 250 ms and keep up. */
+static int np_animating(void) {
+#if IPOD
+    return now_playing() && (visualizer_live() || (st.np_marquee && st.np_off > 0 && st.np_off < st.np_over));
+#else
+    return 0;
+#endif
 }
 
 /* AVRCP absolute volume, as in PR #3. libbtctl returns 0 on a successful write.
@@ -5321,7 +5331,7 @@ static void bt_volume_poll(void) {
  * gone, sleeps 0 and keeps its own bookkeeping. The first pass with it back on repaints every
  * window once, so nothing drawn while dark, or only partly, stays on screen until the next input.
  * With Low power and the screen on, a pass idles LOW_IDLE_SLEEP_MS once input and window
- * animations have been still for LOW_IDLE_MS, except on Now Playing. */
+ * animations have been still for LOW_IDLE_MS, except while Now Playing animates. */
 int ringnav_sleep(void *loop) {
     bt_volume_poll();
     video_poll();
@@ -5337,7 +5347,7 @@ int ringnav_sleep(void *loop) {
         st.dark = 0;
         widget_invalidate_force(window_manager(), (void *)0);
     } else if (st.low_power && time_now_ms() - st.last_input >= LOW_IDLE_MS &&
-               !window_manager_is_animating(window_manager()) && !now_playing())
+               !window_manager_is_animating(window_manager()) && !np_animating())
         sleep_ms(LOW_IDLE_SLEEP_MS);
     return stock_sleep_trampoline(loop);
 }
