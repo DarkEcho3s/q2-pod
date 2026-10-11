@@ -37,6 +37,7 @@ enum { PREPARING, COVERS, TRACKS };
 typedef struct {
     char *track; /* the album's first track, copied so the thread never reads stock deques */
     unsigned key;
+    int shared;  /* another album has a track in this folder, so its cover.jpg may be theirs */
 } job_t;
 static struct {
     void *page, *body, *covers, *slide, *name, *artist, *title;
@@ -119,29 +120,40 @@ int thumb(const char *src, const char *dst, int w, int h) {
     return ok;
 }
 
-/* One album: cover.jpg, folder.jpg, then embedded art, written to .tmp and renamed. An empty
- * file marks "no art", so the placeholder shows and the album is not retried until Refresh. */
+/* Whether another album has a track in this one's folder. ponytail: a scan of every album per
+ * job, albums squared; a per-folder count if large libraries lag. */
+static int folder_shared(unsigned key, const char *track) {
+    const char *slash = strrchr(track, '/');
+    for (unsigned i = 0; slash && i < deque_size(cf.albums); ++i) {
+        void *r = deque_at(cf.albums, i);
+        const char *p = P(r, REC_PATH), *s = p ? strrchr(p, '/') : 0;
+        if (s && s - p == slash - track && !memcmp(p, track, s - p) && album_key(r) != key) return 1;
+    }
+    return 0;
+}
+
+/* One album: embedded art, then cover.jpg and folder.jpg (not from a folder shared with other
+ * albums, whose cover.jpg would be theirs too), written to .tmp and renamed. An empty file marks
+ * "no art", so the placeholder shows and the album is not retried until Refresh. */
 static void build_art(const job_t *j) {
     char dst[512], tmp[512], src[1024];
     if (access(j->track, 0)) return; /* storage gone: no marker, the next open retries */
     art_path(dst, j->key, "");
     art_path(tmp, j->key, ".tmp");
+    /* toolsGetAlbumCover goes through the shared /tmp/.tmp_picture, which stock guards with
+     * either lock (parse_albumcovertask_thd, player_parsecover_thd); hold both. Stock never
+     * nests them, so this order cannot deadlock. */
+    pthread_mutex_lock((void *)parse_cover_mutex);
+    pthread_mutex_lock((void *)g_playcover_mutex);
+    int ok = toolsGetAlbumCover(j->track, tmp, ART_SIZE, ART_SIZE) == 1;
+    pthread_mutex_unlock((void *)g_playcover_mutex);
+    pthread_mutex_unlock((void *)parse_cover_mutex);
     const char *slash = strrchr(j->track, '/');
-    int folder = slash ? (int)(slash - j->track) : 0, ok = 0;
+    int folder = slash ? (int)(slash - j->track) : 0;
     static const char *const names[] = { "cover.jpg", "folder.jpg" };
-    for (int i = 0; i < 2 && !ok; ++i) {
+    for (int i = 0; i < 2 && !ok && !j->shared; ++i) {
         snprintf(src, sizeof(src), "%.*s/%s", folder, j->track, names[i]);
         ok = !access(src, 4) && thumb(src, tmp, ART_SIZE, ART_SIZE);
-    }
-    if (!ok) {
-        /* toolsGetAlbumCover goes through the shared /tmp/.tmp_picture, which stock guards with
-         * either lock (parse_albumcovertask_thd, player_parsecover_thd); hold both. Stock never
-         * nests them, so this order cannot deadlock. */
-        pthread_mutex_lock((void *)parse_cover_mutex);
-        pthread_mutex_lock((void *)g_playcover_mutex);
-        ok = toolsGetAlbumCover(j->track, tmp, ART_SIZE, ART_SIZE) == 1;
-        pthread_mutex_unlock((void *)g_playcover_mutex);
-        pthread_mutex_unlock((void *)parse_cover_mutex);
     }
     if (ok && !rename(tmp, dst)) return;
     unlink(tmp);
@@ -1337,9 +1349,12 @@ static void load(void) {
         void *r = deque_at(cf.albums, i);
         unsigned key = album_key(r);
         if (key == cf.saved_album && !on_sort) cf.album = (int)i;
-        if (cf.jobs && P(r, REC_PATH) && access(art_path(path, key, ""), 0) &&
-            (cf.jobs[cf.total].track = strdup(P(r, REC_PATH))))
-            cf.jobs[cf.total++].key = key;
+        job_t *j = cf.jobs ? &cf.jobs[cf.total] : 0;
+        if (j && P(r, REC_PATH) && access(art_path(path, key, ""), 0) && (j->track = strdup(P(r, REC_PATH)))) {
+            j->key = key;
+            j->shared = folder_shared(key, j->track);
+            ++cf.total;
+        }
     }
     if (on_sort) cf.album = (int)count; /* the Sort card, pressed again and again */
     mkdir(ART_DIR, 0755);

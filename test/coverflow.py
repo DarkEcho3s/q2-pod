@@ -798,6 +798,26 @@ static void same_name(void) {
     albums -= 2;
     rescan();
 }
+static void embedded_first(void) {
+    /* Embedded art comes before a folder's cover.jpg, and a folder shared with another album gives
+       its albums no cover.jpg: with embedded art failing, they keep the placeholder. */
+    embedded_fails = 0;
+    album("Both", "cover.jpg");
+    album("Embedded2", 0);
+    rescan();
+    open_page();
+    assert(size("Both") == 8 && size("Embedded2") == 8 && !tmp_files());
+    close_page();
+    album("Shared", "cover.jpg");
+    album("Mate", 0);
+    snprintf(paths[albums - 1], 600, PEQ_ROOT "/music/Shared/02.flac");
+    fclose(fopen(paths[albums - 1], "w"));
+    embedded_fails = 1;
+    rescan();
+    open_page();
+    assert(size("Shared") == 0 && size("Mate") == 0 && !tmp_files());
+    close_page();
+}
 
 /* Without album artists: an album's disc folders (CD1, Disc 2) are one card with both tracks,
    and a same-named album in another folder is its own. */
@@ -864,28 +884,32 @@ int main(void) {
     close_page();
     *(volatile int *)SCAN_DONE = 1;
 
-    /* cover.jpg beats folder.jpg, which beats embedded art; with no art an empty marker makes
-       the placeholder show. Folder art takes only the parse lock, embedded art both, in order. */
+    /* With embedded art failing, cover.jpg beats folder.jpg; with no art an empty marker makes the
+       placeholder show. Folder art takes only the parse lock. */
     char both[600];
     snprintf(both, sizeof(both), PEQ_ROOT "/music/Cover/folder.jpg");
     fclose(fopen(both, "w"));
     album("Folder", "folder.jpg");
     album("Embedded", 0);
+    embedded_fails = 1;
     rescan();
     open_page();
-    assert(calls == 3 && !strcmp(made[0], "cover.jpg") && !strcmp(made[1], "folder.jpg") && !strcmp(made[2], "embedded"));
-    assert(norder == 4 && order[0] == 1 && order[1] == 1 && order[2] == 1 && order[3] == 2);
-    assert(size("Cover") == 9 && size("Folder") == 10 && size("Embedded") == 8 && !tmp_files());
+    assert(calls == 2 && !strcmp(made[0], "cover.jpg") && !strcmp(made[1], "folder.jpg"));
+    assert(size("Cover") == 9 && size("Folder") == 10 && size("Embedded") == 0 && !tmp_files());
     widget *s = slide();
     assert(s && s->nkids == 5 && !strncmp(w[s->kids[0]].image, "file://", 7));
     close_page();
-    embedded_fails = 1;
     album("None", 0);
     rescan();
     open_page();
-    assert(calls == 3 && size("None") == 0 && !tmp_files());
-    s = slide();
-    assert(!strcmp(w[s->kids[3]].image, "default_album_big") && !strncmp(w[s->kids[2]].image, "file://", 7));
+    assert(calls == 2 && size("None") == 0 && !tmp_files());
+    s = slide(); /* Cover and Folder have art; Embedded and None the placeholder; Sort, Refresh too */
+    int with_art = 0, bare = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (!strncmp(w[s->kids[i]].image, "file://", 7)) ++with_art;
+        else if (!strcmp(w[s->kids[i]].image, "default_album_big")) ++bare;
+    }
+    assert(with_art == 2 && bare == 2);
     assert(!strcmp(w[s->kids[4]].image, "default_album_big") && !strcmp(w[s->kids[5]].image, "default_album_big")); /* Sort, Refresh */
     close_page();
 
@@ -893,7 +917,7 @@ int main(void) {
     album("New", "cover.jpg");
     rescan();
     open_page();
-    assert(calls == 4 && !strcmp(made[3], "cover.jpg") && size("New") == 9);
+    assert(calls == 3 && !strcmp(made[2], "cover.jpg") && size("New") == 9);
     close_page();
 
     /* Cancel mid-build (Return on the progress screen) keeps the finished thumbnails, leaves no
@@ -1083,6 +1107,7 @@ int main(void) {
     assert(*(int *)(label->raw + W_X) == dot_x && !memcmp(geo, split, sizeof split) && loads == unloads);
 
 #endif
+    embedded_first();
     return 0;
 }
 """
