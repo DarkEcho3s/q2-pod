@@ -4085,12 +4085,22 @@ int ringnav_localmusic(void *win, void *ctx) {
 
 /* stream_page_init: stock's rows, then Spotify (spotify.c), which opens its Now Playing page, and
  * Internet Radio (radio.c). Their buttons have no name, so stock's row click never sees them. */
+/* Streaming's AirPlay row: stock's own receiver (Shairport 1.1.1, AirPlay 1), whose switch is on
+ * System settings' Network service page; that page, one press from Streaming. */
+static int airplay_open(void *ctx, void *event) {
+    (void)ctx;
+    (void)event;
+    navigator_to("systemset/netservice_page");
+    return 0;
+}
+
 int ringnav_stream(void *win, void *ctx) {
     int result = stock_stream_trampoline(win, ctx);
     void *view = win ? widget_lookup(win, "scroll_view_streamsset", 1) : (void *)0;
     if (view) {
         library_into(view, "stream_spotify", spot_open, 0, "Spotify");
         library_into(view, "stream_radio", radio_open, 0, "Internet Radio");
+        library_into(view, "netservice_airplay", airplay_open, 0, "AirPlay");
     }
     return result;
 }

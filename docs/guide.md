@@ -172,6 +172,10 @@ http://stream.radioparadise.com/mp3-128
 
 There's no FM radio: the Q2 has no FM tuner.
 
+### AirPlay
+
+**Streaming → AirPlay** opens **Network service**, where the Q2's own AirPlay receiver is switched on. Then pick the Q2 from your iPhone's AirPlay menu. It is AirPlay 1 (audio from one device; Apple Music works), not AirPlay 2 multiroom.
+
 ## Parametric EQ
 
 **Audio settings → Equalizer**:

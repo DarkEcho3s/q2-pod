@@ -9,6 +9,6 @@
 [x] Double-Centre screen-off on every page (video keeps Centre for seek)
 [x] Hold Return: Now Playing ⇄ origin (Stock + iPod)
 [x] Setting: artist albums as Grid / Coverflow
-[ ] Streaming → AirPlay (stock AirPlay 1), verified on device
+[x] Streaming → AirPlay row → stock Network service page (AirPlay 1 switch). [ ] still: stream from an iPhone on device
 [ ] Later, own repo: shairport-sync 4.x AirPlay 2 add-on
 [ ] Not in 1.1.2: line-out warning toggle, sort albums by year

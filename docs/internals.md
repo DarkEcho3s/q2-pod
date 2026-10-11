@@ -469,6 +469,10 @@ Checks in `test/peq.py` (host build of `video.c`): ffmpeg's argv with and withou
 
 Checks in `test/patch.py`: the row and its icon, the page without librespot (nothing starts), the start once per boot from the row and never without it, saved login or not, the session prompt, `spot_take`'s calls and their order and Bluetooth's exception, `SPOT_OUT` and the sink's volume on Bluetooth and its removal on the DAC, the held timers, the art, the labels moving on from `at`, every label inside the glass, the bar's rectangles and colour, the keys on another page and their return to local music, `mclStartPlayer`'s wait and its limit, the scrub and Return.
 
+## AirPlay
+
+Stock's receiver is `/usr/bin/shairport`, Shanling's Shairport 1.1.1 (`1.1.1-22-shanling`): AirPlay 1 (RAOP) only, with its own mDNS responder, started and stopped by demo (`airplayStartService`, `airplayStopService`) from Network service's switch (`on_airplayset_onclick`, `0x51e8f0`), with its now-playing page `airplay_page`. Streaming's **AirPlay** row (`ringnav_stream`, stock's `netservice_airplay` icon) only opens `systemset/netservice_page`. ponytail: the row doesn't toggle the service itself; it would need `airplay_switch` (`0x50ef44`) verified on a device. AirPlay 2 would be a shairport-sync 4.x add-on with nqptp, built static like librespot.
+
 ## Internet Radio
 
 **Internet Radio** is Streaming's last row (`ringnav_stream`, `assets/icons/stream_radio.png`, a broadcast glyph on coral, 52 px palette PNG with `list_tidal`'s inode metadata). It opens `radio_page`, a runtime window (`patch/radio.c`, `CTX_DYNAMIC` in `contexts.inc`, so the wheel moves its rows), one `page_list` rebuilt per level: the menu (Now Playing, when a station has played this boot or `/mnt/mmc/Radio/.last` exists; Favourites; Featured; Top Stations; By Country; By Genre), a country or genre list, and a station list. Rows rebuild the page from a timer (`later`), never inside their own click. Return goes up a level, from a "Loading…" or failure caption back to the list it covered, and from the menu back to Streaming. Each level keeps its selected row.

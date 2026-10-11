@@ -6410,10 +6410,15 @@ class SpotMachine(BooksMachine):
     def key(self,k):
         self.sent=[]; self.calls=[]; return self.call(k,gap=0,clear=False)
 def stream_page(m):
-    """Stock Streaming's one Tidal row, then the hook's Spotify and Internet Radio rows; returns Spotify's button."""
+    """Stock Streaming's one Tidal row, then the hook's Spotify, Internet Radio and AirPlay rows; returns Spotify's button."""
     view=m.node('scroll_view','scroll_view_streamsset',[m.node('list_item')]); m.top=m.node('window','stream_page',[view])
     assert m.call(address=HOOKS['stream_page_init'][0],args=(m.top,5,0,0),gap=0,count=5_000_000)==0 and m.calls[0][0]=='stock_stream'
-    assert len(m.nodes[view]['children'])==3
+    assert len(m.nodes[view]['children'])==4
+    # AirPlay, last: stock's own receiver, its switch on System settings' Network service page, one press away.
+    airplay=m.nodes[m.nodes[view]['children'][3]]['children'][0]; icon,label=m.nodes[airplay]['children'][:2]
+    assert m.nodes[icon]['image']=='netservice_airplay' and m.nodes[label]['text']=='AirPlay'
+    top=m.top; f,ctx=m.handler(airplay,O['EVT_CLICK']); m.calls=[]; assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0
+    assert [m.text(c[1]) for c in m.calls if c[0]=='navigator_to']==['systemset/netservice_page']; m.top=top
     return m.nodes[m.nodes[view]['children'][1]]['children'][0]
 def spot_open(m,button):
     f,ctx=m.handler(button,O['EVT_CLICK']); assert m.call(address=f,args=(ctx,m.event,0,0),gap=0,count=5_000_000)==0
@@ -6598,7 +6603,7 @@ def radio_open(m):
     button=m.stream(); icon,label=m.nodes[button]['children'][:2]
     assert m.nodes[icon]['image']=='stream_radio' and m.nodes[label]['text']=='Internet Radio' and not m.nodes[button].get('name')
     m.click(button); m.page=m.top; assert m.nodes[m.page]['name']=='radio_page'; return m.page
-# The row is Streaming's last. The first open makes the card's Radio folder but leaves Favourites
+# The row follows Spotify's. The first open makes the card's Radio folder but leaves Favourites
 # empty, the user's to fill; the starter stations are Featured. The menu has no Now Playing until
 # something has played.
 m=RadioMachine(); page=radio_open(m)
