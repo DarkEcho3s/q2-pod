@@ -10,6 +10,5 @@ void playback_poll(void);
 void xfade_poll(int next); /* crossfade.c */
 int playback_resumed(void *r);
 void playback_save(void);
-void wheel_load(void);
 void playback_clear(void);
 #endif

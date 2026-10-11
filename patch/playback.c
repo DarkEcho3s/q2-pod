@@ -32,34 +32,6 @@ typedef struct {
     unsigned *groups, *seen, *history;
 } playback;
 static playback s __attribute__((section(".scratch")));
-static volatile int sensitivity __attribute__((section(".scratch")));
-static int wheel_read __attribute__((section(".scratch")));
-#define WHEEL_DEFAULT 50 /* % until set: 28 units a tick */
-
-void wheel_load(void) {
-    if (wheel_read) return;
-    char buf[256] = "";
-    toolsReadConfig("/mnt/data/config.ini", "Q2POD", "WHEELSENSITIVITY", buf, "");
-    int v = atoi(buf);
-    char canonical[8];
-    tk_snprintf(canonical, sizeof canonical, "%d", v);
-    sensitivity = v >= 50 && v <= 200 && !(v % 10) && !strcmp(buf, canonical) ? v : WHEEL_DEFAULT;
-    wheel_read = 1;
-}
-int wheel_value(void) {
-    wheel_load();
-    return sensitivity;
-}
-void wheel_set(int v) {
-    if (v < 50 || v > 200 || v % 10) return;
-    sensitivity = v;
-    write_int_config(v, "Q2POD", "WHEELSENSITIVITY");
-}
-/* Knob units scaled by Wheel sensitivity; safe on the encoder thread. */
-static int wheel_scale(int units) {
-    int v = sensitivity ? sensitivity : WHEEL_DEFAULT;
-    return (units * 100 + v / 2) / v;
-}
 /* The wheel's ticks. Stock's encoder thread looks at the wheel once per 80 ms (200 ms after
  * touching) and ticks at most once a look, dropping any travel past its threshold: on the device
  * a tick took 27 units of travel against a threshold of 12, a fast half turn gave a single tick,
@@ -92,14 +64,14 @@ void wheel_sample(int *s, int ret, char *info) {
         wh_acc = 0;
         return;
     }
-    int d = s[0] - wh_last, travel = wheel_scale(WHEEL_TICK_UNITS);
+    int d = s[0] - wh_last;
     d = d < -100 ? d + 200 : d > 100 ? d - 200 : d;
     wh_last = s[0];
     if ((d ^ wh_acc) < 0) wh_acc = 0; /* reversed */
     wh_acc += d;
-    while (wh_acc >= travel || wh_acc <= -travel) {
+    while (wh_acc >= WHEEL_TICK_UNITS || wh_acc <= -WHEEL_TICK_UNITS) {
         int dir = wh_acc > 0 ? 1 : -1;
-        wh_acc -= dir * travel;
+        wh_acc -= dir * WHEEL_TICK_UNITS;
         wheel_post(info, dir > 0 ? KEY_PREV : KEY_NEXT); /* x rising is back, as stock */
     }
     s[0] = wh_anchor;
@@ -670,7 +642,6 @@ static int stock_memory(void *out) {
     return at >= 0 && I(g_memory_info, 0) == 0xff10 ? album_only(out, deque_at(out, (unsigned)at), at) : at;
 }
 int ringnav_memory(void *out) {
-    wheel_load();
     if (!g_memory_play && !g_carmode) return stock_memory(out);
     void *f = fopen(QUEUE_FILE, "rb");
     if (!f) return stock_memory(out);
@@ -863,7 +834,6 @@ static int playback_next(void) {
     return (mode == 0 || mode == 3) && queue() && at + 1 < deque_size(queue()) ? (int)at + 1 : -1;
 }
 void playback_poll(void) {
-    wheel_load();
     xfade_poll(playback_next());
     unsigned now = time_now_ms();
     /* playback_save writes only what changed. */

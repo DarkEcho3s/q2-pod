@@ -69,7 +69,7 @@ class Machine:
         self.top=0; self.wm=0x1000000; self.event=0x1000100
         self.strokes=[]; self.rounded=[]; self.bands=[]; self.icons=[]; self.letters=[]; self.font=None; self.vg_calls=[]; self.fake_vg=0; self.global_alpha=0
         self.rounded_fail=False
-        self.allocs={}; self.config=dict(CONFIG); self.config_reads=[]; self.wheel_config_reads=[]
+        self.allocs={}; self.config=dict(CONFIG); self.config_reads=[]
         self.rebind=None; self.on_click=None; self.glide=True
         self.timers={}; self.next_timer=1; self.timer_fail=False; self.clicks=[]; self.started=[]
         self.screens=[]
@@ -276,9 +276,9 @@ class Machine:
             for i,child in enumerate(children): self.word(values+4*i,child)
             self.word(b,len(children)); self.word(b+8,values); ret=0
         elif name=='toolsReadConfig':
-            key=self.text(c); reads=self.wheel_config_reads if key=='WHEELSENSITIVITY' else self.config_reads
-            reads.append((self.text(a),self.text(b),key,self.text(self.get(u.reg_read(UC_MIPS_REG_SP)+16))))
-            value=self.config.get(key,reads[-1][3])  # stock copies the default when the key is missing
+            key=self.text(c)
+            self.config_reads.append((self.text(a),self.text(b),key,self.text(self.get(u.reg_read(UC_MIPS_REG_SP)+16))))
+            value=self.config.get(key,self.config_reads[-1][3])  # stock copies the default when the key is missing
             self.u.mem_write(d,value.encode()+b'\0'); ret=1 if key in self.config else -1
         elif name=='tk_str_end_with': ret=self.text(a).endswith(self.text(b))
         elif name=='tk_str_start_with': ret=self.text(a).startswith(self.text(b))
@@ -4981,8 +4981,8 @@ if variant=='ipod':
         return [next(r for r in kids if lab(r).startswith(k)) for k in ('Accent','Home','Battery','Theme')]
     m,view,rows=display({})
     kids=m.nodes[view]['children'][3:]
-    assert kids==[rows[3],rows[0],rows[1],rows[2],kids[4]] and m.nodes[rows[0]]['visible']==0  # Theme, hidden Accent, Home, Battery, Wheel
-    assert m.icons_set==['system_display','system_display','playset_covermode','system_powermanager','system_display'] and all(m.nodes[r]['type']=='list_item' and m.nodes[r]['style']=='s_listitem_black' for r in rows)
+    assert kids==[rows[3],rows[0],rows[1],rows[2]] and m.nodes[rows[0]]['visible']==0  # Theme, hidden Accent, Home, Battery
+    assert m.icons_set==['system_display','system_display','playset_covermode','system_powermanager'] and all(m.nodes[r]['type']=='list_item' and m.nodes[r]['style']=='s_listitem_black' for r in rows)
     buttons=[m.nodes[r]['children'][0] for r in rows]; labels=[m.nodes[b]['children'][1] for b in buttons]
     for b,l in zip(buttons,labels):
         icon=m.nodes[b]['children'][0]  # stock's 0x4c19bc icon geometry, which the row layouter maps
@@ -5172,24 +5172,17 @@ if variant=='ipod':
         for item in items: check_row(m,item,0); check_row(m,item,SET['ROWS']-1)
         after=tree(m,view); assert after!=before
         assert lay(m,view)==0 and tree(m,view)==after, builder  # a later layout changes nothing
-        if builder=='display':
-            wheel=m.nodes[view]['children'][-1]
-            button=m.nodes[wheel]['children'][0]
-            icon,label=m.nodes[button]['children']
-            assert geometry(m,icon)==(SET['ICON_X'],(SET['ROW']-SET['ICON'])//2,SET['ICON'],SET['ICON'])
-            assert geometry(m,label)[0]==SET['ICON_X']+SET['ICON']+SET['GAP']
-            assert len(m.nodes[wheel]['children'])==1 and geometry(m,wheel)[3]==SET['ROW']
         passed()
     # Display opened in Minimal: the hidden Accent row stays unsized and unmapped until Theme: Classic
     # shows it; then the next layout places it right after Theme as a whole settings row (mapped at
     # 0x0 it was an empty gap on the device), and hiding it again leaves no gap. However often Theme
     # flips, the wheel and Centre reach the row after Theme, and a tap selects it.
-    CONFIG.clear(); m,view=settings('display'); items=m.nodes[view]['children']; theme,accent=items[-5:-3]  # then Home, Battery, Wheel
+    CONFIG.clear(); m,view=settings('display'); items=m.nodes[view]['children']; theme,accent=items[-4:-2]  # then Home, Battery
     button=lambda i: m.nodes[i]['children'][0]
     for classic in (0,1,0,1,0,1):
         if m.nodes[accent]['visible']!=classic:
             f,ctx=m.nodes[button(theme)]['click']; assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0
-        assert lay(m,view)==0 and m.nodes[view]['children'][-5:-3]==[theme,accent] and m.nodes[accent]['visible']==classic
+        assert lay(m,view)==0 and m.nodes[view]['children'][-4:-2]==[theme,accent] and m.nodes[accent]['visible']==classic
         shown=[i for i in items if m.nodes[i]['visible']]; after=shown[shown.index(theme)+1]
         assert (after==accent)==bool(classic)
         assert [geometry(m,i)[1] for i in shown]==[SET['ROW']*k for k in range(len(shown))]
@@ -5605,6 +5598,7 @@ def home_settings():
         m.mock('widget_animator_prop_create','widget_animator_prop_set_params','widget_animator_start')
         lst,sets,art=(named(m,m.top,n) for n in ('list_view_home','list_view_homeset','img_homeart'))
         sview=named(m,m.top,'scroll_view_homeset'); assert not m.nodes[sets]['visible']
+        assert m.nodes[sets].get('sensitive')==0  # hidden rows take no taps on the top level
         for img in (named(m,m.top,'img_playset'),named(m,m.top,'img_sysset')): click_target(m,img)
         m.paint(view)
         for _ in range(6): m.call()
@@ -5612,6 +5606,7 @@ def home_settings():
         m.calls=[]; f,ctx=m.handler(named(m,m.top,'img_settings'),O['EVT_CLICK'])
         assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0
         assert m.nodes[sets]['visible'] and not m.nodes[lst]['visible'] and m.nodes[art]['visible'] and m.nodes[sets]['animated']=='x'
+        assert m.nodes[sets]['sensitive']==1 and m.nodes[lst]['sensitive']==0
         assert [c[1:3] for c in m.calls if c[0]=='widget_move_resize'][:1]==[(sets,O['HOME_SPLIT_W'])]; passed()
         assert next(c[2] for c in m.calls if c[0]=='widget_animator_prop_create')==O['PAGE_SLIDE_MS']==120
         m.advance(119); assert signed(m.get(sets+O['W_X']))>0
@@ -5619,6 +5614,7 @@ def home_settings():
         m.paint(sview); assert m.selected(sview)==0 and m.call()==11 and m.selected(sview)==1; passed()
         m.calls=[]; assert m.call(O['KEY_RETURN'])==11
         assert m.nodes[lst]['visible'] and not m.nodes[sets]['visible'] and m.nodes[lst]['animated']=='x'
+        assert m.nodes[lst]['sensitive']==1 and m.nodes[sets]['sensitive']==0
         assert [c[1:3] for c in m.calls if c[0]=='widget_move_resize'][:1]==[(lst,-O['HOME_SPLIT_W']&0xffffffff)]
         assert next(c[2] for c in m.calls if c[0]=='widget_animator_prop_create')==120
         m.advance(120); assert m.get(lst+O['W_X'])==0 and not m.props

@@ -10,7 +10,6 @@ Things people often don't know are already there:
 - **Double-press the centre button** to turn the screen off; on Now Playing a single press does it.
 - **Hold Return** (iPod) jumps to Now Playing from anywhere.
 - **Brightness, volume limits, balance, date and time and the sleep timer** take the wheel: turn to change, Centre to go back or move to the next field and then OK. In the pull-down, the wheel sets the brightness.
-- **Wheel too fast or slow?** **System settings → Display → Wheel sensitivity**.
 - **Longer battery:** **System settings → Power → Low power** and **Charge limit**.
 - **Guest artists splitting albums?** **Audio settings → Artists → Album Artist**.
 - **Coverflow order:** the **Sort** card, just before Refresh library, switches to Artist, Recently Added or Most Played.
@@ -30,7 +29,6 @@ Things people often don't know are already there:
 | **Accent**            | Classic only: Graphite (default), Crimson (stock red), Tidal, Champagne |
 | **Home**              | Split (menu beside the playing album's cover) or Full (menu only)       |
 | **Battery**           | Icon (default), Percent, Icon + Percent                                 |
-| **Wheel sensitivity** | 50–200% in 10% steps; default 50%, in both builds                       |
 
 ## Battery and library settings
 
@@ -96,8 +94,6 @@ On **Now Playing**, hold **Play/Pause** for **Shuffle**, **Repeat** and **Group 
 - Choosing a stock play mode clears the advanced options, except Shuffle during Shuffle Albums or Folders, which keeps the groups. In those modes, **Next album / Previous album** (or folder) lead the hold menu.
 
 Advanced queues, options, traversal and history restore after reboot from `/mnt/data/ringnav-queue`; missing files are skipped. Restored queues keep their Library or Folder playback origin, so Folder Skip applies only to Folder playback; Coverflow albums, Most Played and Shuffle Songs are never folder plays. **Memory playback → Location** restores elapsed time, **Track** starts at the beginning, and **In-Vehicle mode** plays automatically. Invalid snapshots fall back to stock resume. Queues up to 65,536 occurrences can use advanced playback. Long Songs is deferred.
-
-**Wheel sensitivity** changes scrolling and wheel volume, including screen-off volume and video controls. Drag its slider or press centre on its row, turn the wheel, then press centre or Return to finish. A higher percentage needs less wheel travel; volume still changes one step per event. The setting persists as `Q2POD/WHEELSENSITIVITY`.
 
 ### Photos, Books and Videos
 

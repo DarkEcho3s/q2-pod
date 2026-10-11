@@ -29,7 +29,7 @@
 Q2 Pod gives the Shanling Q2 an iPod classic feel, plus a few extras:
 
 - **iPod UI:** Home, lists, Now Playing, Coverflow and four visualizers. Choose your accent, Home layout and battery display.
-- **Wheel navigation:** ticks that follow your finger with no first-tick delay, adjustable sensitivity and menus that remember your place. The wheel also sets brightness, volume limits, balance, the date and time, and the sleep timer.
+- **Wheel navigation:** ticks that follow your finger with no first-tick delay and menus that remember your place. The wheel also sets brightness, volume limits, balance, the date and time, and the sleep timer.
 - **More ways to listen:** favourites, playlists, Most Played, shuffle by song, album or folder, and Crossfade between albums.
 - **Parametric EQ:** up to 30 bands, per-channel adjustments, balance, a live curve, and AutoEQ / Equalizer APO preset imports.
 - **Beyond music:** videos, photos, books, podcasts and audiobooks. Podcasts, audiobooks and long mixes resume where you left off.
@@ -90,7 +90,7 @@ Spotify plays on the headphone jack, Bluetooth or a USB DAC. Play/Pause and Next
 
 Run **Library → Update Local Music** after adding music; it adds up to 65,000 songs. Coverflow prepares artwork on its first open; cancelling keeps its progress.
 
-- **Personalise:** **System settings → Display** for theme (Minimal or Classic), accent, Home layout, battery display and wheel sensitivity.
+- **Personalise:** **System settings → Display** for theme (Minimal or Classic), accent, Home layout and battery display.
 - **Save battery:** **System settings → Power** for Charge limit and Low power. Both are off by default; the charge limit applies while the Q2 is on.
 - **Sleep timer:** **System settings → Power → Sleep Timer**. Tap the switch at the top to turn it on, then set the hours and minutes.
 - **Pocket-proof:** **System settings → Power → Wake: Double press** ignores a single centre press while the screen is off, including after Standby. Play/Pause and volume still work without waking it.

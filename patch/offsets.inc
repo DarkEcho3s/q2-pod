@@ -299,9 +299,9 @@
 #define HOLD_MS 1200
 #define HOLD_MAX 8
 #define HOLD_POLL_MS 16
-/* The wheel (playback.c wheel_sample): knob units per tick at 100% sensitivity, 200 a turn, and
+/* The wheel (playback.c wheel_sample): knob units per tick (a seventh of a turn), 200 a turn, and
  * stock's poster encoderknob_thread_run+0x150, which dispatches the thread info's key event. */
-#define WHEEL_TICK_UNITS 14
+#define WHEEL_TICK_UNITS 28
 #define WHEEL_POST 0x6257f0
 #define WHEEL_INFO_EVENT 0x20 /* event type: 0x110 key down, 0x114 key up */
 #define WHEEL_INFO_KEY 0x38   /* the event's key (EVENT_KEY) */

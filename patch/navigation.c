@@ -2606,99 +2606,6 @@ static int setting_click(void *ctx, void *event) {
 #define np_cancel() ((void)0)
 #endif
 
-extern int wheel_value(void);
-extern void wheel_set(int);
-static void *wheel_label __attribute__((section(".scratch")));
-static void *wheel_dialog __attribute__((section(".scratch")));
-static unsigned wheel_timer __attribute__((section(".scratch")));
-static void wheel_text(void) {
-    char buf[40];
-    tk_snprintf(buf, sizeof buf, "Wheel sensitivity: %d%%", wheel_value());
-    widget_set_text_utf8(wheel_label, buf);
-}
-static int wheel_back(void *dialog, void *event) {
-    if (I(event, EVENT_TYPE) == EVT_KEY_UP && I(event, EVENT_KEY) != KEY_RETURN) return 0;
-    if (wheel_dialog == dialog) wheel_dialog = 0;
-    window_close(dialog);
-    return STOP;
-}
-static int wheel_dialog_gone(void *dialog, void *event) {
-    (void)event;
-    if (wheel_dialog == dialog) wheel_dialog = 0;
-    return 0;
-}
-static int wheel_pick(void *ctx, void *event) {
-    (void)event;
-    wheel_set((int)(long)ctx);
-    wheel_text();
-    void *dialog = wheel_dialog;
-    wheel_dialog = 0;
-    if (dialog) window_close(dialog);
-    return 0;
-}
-/* Use the existing choice dialog: no slider or extra height in the Display list,
- * and its ordinary row selection supplies touch, wheel, confirmation and Back. */
-static int wheel_open(const void *unused) {
-    (void)unused;
-    wheel_timer = 0;
-    void *wm = window_manager(), *page = window_manager_get_top_window(wm);
-    if (!wheel_label || wheel_dialog || !usable() || window_manager_is_animating(wm) ||
-        tk_strcmp(widget_get_prop_str(page, "name", ""), "display_page"))
-        return 0;
-    navigator_to("dialog/sortselect_dialog");
-    void *dialog = window_manager_get_top_window(wm);
-    if (dialog == page) return 0;
-    if (tk_strcmp(widget_get_prop_str(dialog, "name", ""), "sortselect_dialog")) {
-        window_close(dialog);
-        return 0;
-    }
-    void *back = widget_lookup(dialog, "img_return", 1),
-         *view = widget_lookup(dialog, "scroll_view", 1);
-    widget_off_by_func(dialog, EVT_KEY_UP, (void *)SORTSELECT_KEYUP, dialog);
-    widget_off_by_func(back, EVT_CLICK, (void *)SORTSELECT_CLOSE, dialog);
-    widget_on(dialog, EVT_KEY_UP, wheel_back, dialog);
-    widget_on(back, EVT_CLICK, wheel_back, dialog);
-    widget_on(dialog, EVT_DESTROY, wheel_dialog_gone, dialog);
-    widget_set_text_utf8(widget_lookup(dialog, "scrlabel_title", 1), "Wheel sensitivity");
-    widget_destroy_children(view);
-    for (int i = 0; i < 16; ++i) {
-        int value = 50 + 10 * i;
-        char text[16];
-        tk_snprintf(text, sizeof text, "%d%%", value);
-        void *item = list_item_create(view, 0, i * 78, 375, 78);
-        widget_use_style(item, "s_listitem_black");
-        void *label = hscroll_label_create(item, 30, 0, 310, 70);
-        widget_use_style(label, "s_scrlabel_white24l");
-        widget_set_text_utf8(label, text);
-        if (value == wheel_value())
-            image_base_set_image(image_create(item, 340, 0, 24, 70), "select");
-        widget_on(item, EVT_CLICK, wheel_pick, (void *)(long)value);
-    }
-    widget_set_prop_int(view, "virtual_h", 16 * 78);
-    wheel_dialog = dialog;
-    ringnav_select(view, (wheel_value() - 50) / 10, 16);
-    return 0;
-}
-static int wheel_click(void *ctx, void *event) {
-    (void)ctx;
-    (void)event;
-    if (!wheel_dialog && !wheel_timer) wheel_timer = timer_add(wheel_open, 0, 0);
-    return 0;
-}
-static int wheel_gone(void *ctx, void *event) {
-    (void)ctx;
-    (void)event;
-    stop_timer(&wheel_timer);
-    wheel_label = 0;
-    if (wheel_dialog) window_close(wheel_dialog);
-    return 0;
-}
-static void wheel_row(void *view) {
-    wheel_label = list_row(view, "system_display", wheel_click, 0);
-    widget_on(P(P(wheel_label, W_PARENT), W_PARENT), EVT_DESTROY, wheel_gone, 0);
-    wheel_text();
-}
-
 /* systemset_display_page_init: stock builds its three rows (0x4c19bc: a s_listitem_black list_item
  * holding a 335x70 s_btn_listitem button with a 52px icon, a 24px label at x 72 and list_into); the
  * Theme, Accent, Home and Battery rows follow with the same widgets and styles, borrowing the
@@ -2716,7 +2623,6 @@ int ringnav_display(void *win, void *ctx) {
         setting_text(i);
     }
 #endif
-    if (view) wheel_row(view);
 #if IPOD
     if (view) accent_row();
 #endif

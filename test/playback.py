@@ -485,10 +485,10 @@ m.deqs[q][1]=[m.song('t')]*65537
 assert m.fn('playback_set',0,1)==0 and m.fn('playback_successor',1)==-1; checks+=1
 
 # The wheel's ticks (wheel_sample): one per WHEEL_TICK_UNITS of travel, the rest carried; a reversal
-# starts again; the 200 -> 1 seam wraps; Wheel sensitivity scales it; stock is handed the touch-down
-# x, so its own logic sees a still finger. Ticks go to stock's poster as key down, then up.
-def wheel(value, samples):
-    m=PlaybackMachine(); m.fn('wheel_set',value); m.handlers[O['WHEEL_POST']]='wheel_post'
+# starts again; the 200 -> 1 seam wraps; stock is handed the touch-down x, so its own logic sees a
+# still finger. Ticks go to stock's poster as key down, then up.
+def wheel(samples):
+    m=PlaybackMachine(); m.handlers[O['WHEEL_POST']]='wheel_post'
     info,s=m.alloc(0x60),m.alloc(20); posted=[]; seen=[]
     m.u.hook_add(UC_HOOK_CODE,lambda u,a,n,_: posted.append((m.get(info+O['WHEEL_INFO_EVENT']),
                  m.get(info+O['WHEEL_INFO_KEY']))),begin=O['WHEEL_POST'],end=O['WHEEL_POST'])
@@ -497,17 +497,13 @@ def wheel(value, samples):
     assert posted[0::2]==[(0x110,k) for _,k in posted[0::2]] and posted[1::2]==[(0x114,k) for _,k in posted[0::2]]
     return [k for _,k in posted[0::2]],seen
 P,N,U=O['KEY_PREV'],O['KEY_NEXT'],O['WHEEL_TICK_UNITS']
-assert wheel(100,[(50,1),(50+U//2,1),(52+U,1),(50+2*U,1),(50+2*U,0)])==([P,P],[50]*5)  # the 2 past a tick carries
-assert wheel(100,[(50,1),(48+U,1),(44+U,1),(48,1),(48,0)])[0]==[N]       # U-2 on, then U back from the turn
-assert wheel(100,[(195,1),((195+U)%200,1)])[0]==[P] and wheel(100,[((195+U)%200,1),(195,1)])[0]==[N]  # the seam
-assert wheel(100,[(10,1),(10+2*U,1)])[0]==[P,P]                          # one sample, two ticks
-assert wheel(50,[(10,1),(9+2*U,1)])[0]==[] and wheel(50,[(10,1),(10+2*U,1)])[0]==[P]
-assert wheel(200,[(10,1),(10+U,1)])[0]==[P,P]
-assert wheel(100,[(50,1),(52+U,1),(52+U,0),(52+U,1),(51+2*U,1)])[0]==[P]  # a lift drops the carry
+assert wheel([(50,1),(50+U//2,1),(52+U,1),(50+2*U,1),(50+2*U,0)])==([P,P],[50]*5)  # the 2 past a tick carries
+assert wheel([(50,1),(48+U,1),(44+U,1),(48,1),(48,0)])[0]==[N]       # U-2 on, then U back from the turn
+assert wheel([(195,1),((195+U)%200,1)])[0]==[P] and wheel([((195+U)%200,1),(195,1)])[0]==[N]  # the seam
+assert wheel([(10,1),(10+2*U,1)])[0]==[P,P]                          # one sample, two ticks
+assert wheel([(10,1),(9+U,1)])[0]==[] and wheel([(10,1),(10+U,1)])[0]==[P]  # one tick is U of travel
+assert wheel([(50,1),(52+U,1),(52+U,0),(52+U,1),(51+2*U,1)])[0]==[P]  # a lift drops the carry
 checks+=1
-for invalid in ('49','201','105','100x','-100','', '0100'):
-    m=PlaybackMachine(); m.config['WHEELSENSITIVITY']=invalid
-    assert m.fn('wheel_value')==50
 # UI wiring in both variants: stock-style choice menu, selected marker, touch and wheel slider.
 m=PlaybackMachine(); m.top=m.node('window','playing_page'); m.stack=[m.top]; m.word(m.top+O['W_PARENT'],m.wm)
 m.press(100); assert m.hold()==11
@@ -528,31 +524,7 @@ view=m.node('scroll_view','scroll_view_display'); lst=m.node('list_view','list_v
 m.top=m.node('window','display_page',[lst]); m.stack=[m.top]
 for child,parent in ((view,lst),(lst,m.top),(m.top,m.wm)): m.word(child+O['W_PARENT'],parent)
 assert m.fn('ringnav_display',m.top,0)==0
-item=m.nodes[view]['children'][-1]; button,=m.nodes[item]['children']
-label=m.nodes[button]['children'][1]
-assert m.nodes[label]['text']=='Wheel sensitivity: 50%'
-assert not any(n.get('type')=='slider' for n in m.nodes.values())
-f,ctx=m.handler(button,O['EVT_CLICK'])
-def open_wheel():
-    m.call(address=f,args=(ctx,m.event,0,0),gap=0)
-    m.advance(0,clear=False)
-    assert m.labels()==[f'{v}%' for v in range(50,201,10)]
-    assert any(n.get('image')=='select' for n in m.nodes.values())
-open_wheel()
-m.pick(10)
-assert m.top==m.stack[0] and m.fn('wheel_value')==150
-assert m.nodes[label]['text']=='Wheel sensitivity: 150%'
-open_wheel()
-dialog=m.top
-back,owner=m.handler(dialog,O['EVT_KEY_UP'])
-m.word(m.event+O['EVENT_TYPE'],O['EVT_KEY_UP']); m.word(m.event+O['EVENT_KEY'],O['KEY_RETURN'])
-m.call(address=back,args=(owner,m.event,0,0),event_type=O['EVT_KEY_UP'],key=O['KEY_RETURN'],gap=0)
-assert m.top==m.stack[0] and m.fn('wheel_value')==150
-open_wheel()
-arrow=m.back
-back,owner=m.handler(arrow,O['EVT_CLICK'])
-m.call(address=back,args=(owner,m.event,0,0),event_type=O['EVT_CLICK'],gap=0)
-assert m.top==m.stack[0] and m.fn('wheel_value')==150
+assert not any('Wheel' in str(n.get('text')) for n in m.nodes.values())  # no sensitivity row
 checks+=1
 
 # Manual Next/Prev at the queue ends runs stock player_change_music through ringnav_change. Stock

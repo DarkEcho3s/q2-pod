@@ -107,6 +107,9 @@ static char *art_path(char *out, unsigned key, const char *suffix) {
     tk_snprintf(out, 512, ART_DIR "/%08x.jpg%s", key, suffix);
     return out;
 }
+/* Asks the image cache for a cover only once its file exists: a load made before the worker wrote
+ * it stays a failure, and the placeholder would stay until a reboot. url is "file://" + the path. */
+static int art_exists(const char *url) { return !access(url + 7, 0); }
 
 /* stock's thumbnailer, under the lock every stock caller holds; shared with photos.c */
 int thumb(const char *src, const char *dst, int w, int h) {
@@ -1139,7 +1142,7 @@ static const unsigned *fx_load(int a, unsigned *buf) {
     char url[600] = "file://";
     if ((unsigned)a < deque_size(cf.albums)) {
         art_path(url + 7, album_key(deque_at(cf.albums, (unsigned)a)), "");
-        if (decode(url, buf, 1)) return buf;
+        if (art_exists(url) && decode(url, buf, 1)) return buf;
     }
     return fx.tex + CF_RING * CF_TEXELS;
 }
@@ -1209,7 +1212,7 @@ static void cover(void *img, unsigned i, int near) {
     near = near && i < deque_size(cf.albums);
     if (near) art_path(url + 7, album_key(deque_at(cf.albums, i)), "");
     if (tk_strcmp(widget_get_prop_str(img, "image", ""), near ? url : PLACEHOLDER) &&
-        (!near || !image_show(img, url, 0)))
+        (!near || !art_exists(url) || !image_show(img, url, 0)))
         image_base_set_image(img, PLACEHOLDER);
 }
 
@@ -1680,8 +1683,10 @@ void coverflow_home_layout(void) {
  * Return (coverflow_home_back) slides the list back in from the left. Each list keeps its row. */
 static void home_swap(void *from, void *to, int dx) {
     widget_set_visible(from, 0, 0);
+    widget_set_sensitive(from, 0); /* hidden rows keep their taps: only the shown list takes them */
     widget_move_resize(to, dx, I(to, W_Y), I(to, W_W), I(to, W_H));
     widget_set_visible(to, 1, 0);
+    widget_set_sensitive(to, 1);
     void *a = widget_animator_prop_create(to, PAGE_SLIDE_MS, 0, SLIDE_EASING, "x");
     if (!a) {
         widget_move_resize(to, 0, I(to, W_Y), I(to, W_W), I(to, W_H));
@@ -1709,7 +1714,6 @@ int coverflow_home_back(void *top) {
 /* home_page_init: stock binds the name-matched img_* cards, then the Coverflow card binds here,
  * on its image as stock does, whatever stock returned. */
 int coverflow_home(void *win, void *ctx) {
-    wheel_load();
     int result = stock_home_trampoline(win, ctx);
     widget_on(widget_lookup(win, "img_coverflow", 1), EVT_CLICK, coverflow_open, 0);
 #if IPOD
@@ -1724,6 +1728,7 @@ int coverflow_home(void *win, void *ctx) {
     void *list = widget_lookup(win, "list_view_home", 1);
     home.list = list; /* a new Home window's own, so still the asset's width */
     home.sets = widget_lookup(win, "list_view_homeset", 1);
+    if (home.sets) widget_set_sensitive(home.sets, 0);
     coverflow_home_layout();
 #endif
     return result;
