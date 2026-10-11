@@ -307,8 +307,11 @@ int getMusicByAlbum(const char *a) {
 /* The albums told apart (a record each), and Sort's ranking queries over that grouping in another
    order, here the test's own order by name; a row may differ in case from the stock one, as the
    grouping allows. */
-static const char *ranked[16];
+static const char *ranked[16], *rank_sql;
 static char rank_rows[16][0x60];
+/* navigation.c's Year order: newest first (0) or oldest. */
+static int year_old;
+int ringnav_year_old(void) { return year_old; }
 int album_row(void *a, int n, char **v, char **c) { (void)a; (void)n; (void)v; (void)c; return 0; }
 int toolsQueryDbTable(const char *db, const char *sql, void *row, int sort) {
     (void)row;
@@ -320,6 +323,7 @@ int toolsQueryDbTable(const char *db, const char *sql, void *row, int sort) {
         return albums;
     }
     assert(strstr(sql, "time_create") || strstr(sql, "year"));
+    rank_sql = sql;
     for (int i = 0; ranked[i]; ++i) {
         memset(rank_rows[i], 0, 0x60);
         for (int j = 0; j < albums; ++j)
@@ -727,6 +731,28 @@ static void sorting(void) {
     assert(saved_sort() == 6);
     order_is((const char *const[]){ "New", "A", "Cover", "Folder", "Embedded", "None", "B", "C", "Tight", 0 });
     assert(coverflow_jump(slide(), 0, 1, &letter) == 1 && !letter);
+    assert(strstr(rank_sql, "max(year) desc"));
+    /* Year order: Oldest first: the next open ranks again, ascending (the query's order still). */
+    close_page();
+    year_old = 1, q = queries;
+    open_page();
+    assert(queries == q + 1 && strstr(rank_sql, "max(year),album") && !strstr(rank_sql, "desc"));
+    order_is((const char *const[]){ "New", "A", "Cover", 0 });
+    q = queries;
+    close_page();
+    open_page();
+    assert(queries == q); /* unchanged: kept */
+    year_old = 0;
+    /* An artist page's albums (coverflow_by_year), in place: the query's order, the rest after. */
+    extern void coverflow_by_year(void *);
+    void *mine = _create_deque("stSongInfo");
+    deque_init(mine);
+    for (int i = 5; i < 8; ++i) _deque_push_back(mine, records[i]); /* A B C */
+    ranked[0] = "C", ranked[1] = "New", ranked[2] = "a", ranked[3] = 0;
+    coverflow_by_year(mine);
+    assert(deque_size(mine) == 3 && deque_at(mine, 0) == records[7] && deque_at(mine, 1) == records[5] &&
+           deque_at(mine, 2) == records[6]);
+    deque_destroy(mine);
     /* Recently Added: the query's order (a name in another case still matches), the rest after. */
     ranked[0] = "C", ranked[1] = "a", ranked[2] = "New", ranked[3] = "COVER", ranked[4] = "Gone", ranked[5] = 0;
     press_sort();

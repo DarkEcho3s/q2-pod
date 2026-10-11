@@ -46,6 +46,7 @@ static struct {
     void *albums, *tracks; /* our copies of the stock query results; albums in the Sort's order */
     void *stock;           /* the albums in stock order, which albums is, or is sorted from */
     int sort, sort_read;   /* the Sort card's order (SORT_*), from SORT_FILE once */
+    int year_old;          /* the Year order setting albums was sorted in */
     int on_sort;           /* the next load centres the Sort card */
     job_t *jobs;
     unsigned long thread;
@@ -313,20 +314,26 @@ static void drop_unknown(void) {
 
 /* Sort, the card before Refresh (docs/internals.md#coverflow-sort): Album is the stock order;
  * Artist sorts by artist without a leading article, as every library list does (ringnav_sort_key),
- * then year, then album; Year newest first, undated last; Recently Added by the newest song's time_create; Most Played by the
+ * then year, then album; Year in Playback settings' Year order (year_sql), undated last; Recently Added by the newest song's time_create; Most Played by the
  * album's listens (navigation.c album_plays); Random by playback.c's rand_below, reshuffled whenever
  * the list is rebuilt. Ties keep the stock order, and the Unknown row stays last. Ranks come from ALBUM_SQL with another ORDER BY (toolsQueryDbTable without its name sort),
  * matched back to the rows by album_cmp. */
 enum { SORT_ALBUM, SORT_ARTIST, SORT_ADDED, SORT_PLAYED, SORT_RANDOM, SORT_RATING, SORT_YEAR };
 #define SORT_FILE PEQ_ROOT "/mnt/data/ringnav-coversort"
-/* The rated albums' Sort: most hearts first, Album, Artist, then Year (newest first, undated last). */
+/* The rated albums' Sort: most hearts first, Album, Artist, then Year. */
 #define RATED_SORT_FILE PEQ_ROOT "/mnt/data/ringnav-ratedsort"
 static const unsigned char rated_sorts[] = { SORT_RATING, SORT_ALBUM, SORT_ARTIST, SORT_YEAR };
-/* The library's Sort: Year (newest first, undated last) after Artist; saved values are the enum's. */
+/* The library's Sort: Year after Artist; saved values are the enum's. */
 static const unsigned char all_sorts[] = { SORT_ALBUM, SORT_ARTIST, SORT_YEAR, SORT_ADDED, SORT_PLAYED, SORT_RANDOM };
 #define ALBUM_SQL "select id,album,songer,fileurl,albumsonger from songtable group by album COLLATE NOCASE," \
     "ifnull(albumsonger,'') COLLATE NOCASE,case ifnull(albumsonger,'') when '' then rtrim(fileurl,replace(fileurl,'/','')) end"
 #define SORT_SQL ALBUM_SQL " order by "
+extern int ringnav_year_old(void);
+/* Albums by year, Playback settings' Year order (navigation.c): newest or oldest first, undated last. */
+static const char *year_sql(void) {
+    return ringnav_year_old() ? SORT_SQL "ifnull(max(year),0)=0,max(year),album COLLATE NOCASE"
+                              : SORT_SQL "ifnull(max(year),0)=0,max(year) desc,album COLLATE NOCASE";
+}
 static const char *const sort_names[] = { "Sort: Album", "Sort: Artist", "Sort: Recently Added",
                                           "Sort: Most Played", "Sort: Random", "Sort: Rating", "Sort: Year" };
 /* The order step after cf.sort (dir 1), or cf.sort itself (0), in the page's own orders; an
@@ -702,16 +709,17 @@ static const char *album_name(void *r) {
     const char *s = P(r, REC_ALBUM);
     return s ? s : "";
 }
-/* The row of r's album (album_cmp), or -1: the Unknown row never matches. A linear
+/* The row of r's album (album_cmp) in list, or -1: the Unknown row never matches. A linear
  * scan: the rank queries and play counts together look up at most the album count + 512 songs. */
-static int album_index(void *r) {
-    unsigned n = cf.stock ? deque_size(cf.stock) : 0;
+static int album_in(void *list, void *r) {
+    unsigned n = list ? deque_size(list) : 0;
     for (unsigned i = 0; i < n; ++i) {
-        void *s = deque_at(cf.stock, i);
+        void *s = deque_at(list, i);
         if (I(s, REC_ID) != -1 && !album_cmp(s, r)) return (int)i;
     }
     return -1;
 }
+static int album_index(void *r) { return album_in(cf.stock, r); }
 /* album_row on the first four columns, then the fifth, the album artist, on the row it added; the
  * stSongInfo copy (0x5b3b1c) duplicates +0x24 as it does the other strings. */
 static int split_row(void *a, int n, char **v, char **c) {
@@ -799,6 +807,7 @@ static void *sorted(void) {
     unsigned n = deque_size(cf.stock);
     int artist = cf.sort == SORT_ARTIST, played = cf.sort == SORT_PLAYED;
     order_t *v = cf.sort == SORT_ALBUM ? 0 : calloc(n + 1, sizeof *v);
+    if (!cf.scoped) cf.year_old = ringnav_year_old(); /* the rated page's sort is its own */
     unsigned *sum = v && played ? calloc(n + 1, sizeof *sum) : 0;
     char *keys = v && artist ? calloc(n + 1, ARTIST_KEY) : 0;
     if (!v || (played && !sum) || (artist && !keys)) {
@@ -825,16 +834,36 @@ static void *sorted(void) {
     } else if (cf.sort == SORT_RANDOM)
         for (unsigned i = 0; i < n; ++i) v[i].rank = rand_below(~0u);
     else
-        rank_by(v, cf.sort == SORT_ADDED ? SORT_SQL "max(time_create) desc"
-                   : cf.sort == SORT_YEAR
-                       ? SORT_SQL "ifnull(max(year),0)=0,max(year) desc,album COLLATE NOCASE"
-                       : SORT_SQL "ifnull(max(year),0)=0,max(year),album COLLATE NOCASE");
+        rank_by(v, cf.sort == SORT_ADDED ? SORT_SQL "max(time_create) desc" : year_sql());
     qsort(v, n, sizeof *v, artist ? by_artist : by_rank);
     void *out = _create_deque("stSongInfo");
     deque_init(out);
     for (unsigned i = 0; i < n; ++i) _deque_push_back(out, v[i].r);
     free(v), free(sum), free(keys);
     return out;
+}
+/* albums (split's rows) in place by year, as year_sql: the query's order, then the albums it
+ * missed, then the Unknown album. navigation.c's artist pages. Out of memory they keep their order. */
+void coverflow_by_year(void *albums) {
+    unsigned n = deque_size(albums);
+    char *taken = calloc(n + 1, 1);
+    int found;
+    if (!taken) return;
+    void *rows = staged(rank_query, (void *)year_sql(), &found), *out = _create_deque("stSongInfo");
+    deque_init(out);
+    for (unsigned j = 0; j < deque_size(rows); ++j) {
+        int i = album_in(albums, deque_at(rows, j));
+        if (i >= 0 && !taken[i]) taken[i] = 1, _deque_push_back(out, deque_at(albums, (unsigned)i));
+    }
+    deque_destroy(rows);
+    for (int unknown = 0; unknown < 2; ++unknown)
+        for (unsigned i = 0; i < n; ++i)
+            if (!taken[i] && (I(deque_at(albums, i), REC_ID) == -1) == unknown)
+                _deque_push_back(out, deque_at(albums, i));
+    free(taken);
+    deque_clear(albums);
+    deque_assign(albums, out);
+    deque_destroy(out);
 }
 
 void *text(void *parent, int x, int y, int w, int h) { /* shared with photos.c */
@@ -1386,6 +1415,11 @@ static void load(void) {
         if (n > 0) cf.stock = split(cf.stock);
         cf.albums_gen = gen;
         drop_unknown();
+    }
+    if (cf.albums && !cf.scoped && (cf.sort == SORT_YEAR || cf.sort == SORT_ARTIST) &&
+        cf.year_old != ringnav_year_old()) { /* Year order changed */
+        if (cf.albums != cf.stock) deque_destroy(cf.albums);
+        cf.albums = 0;
     }
     if (n > 0 && !cf.albums) {
         if (!cf.sort_read) BLOB_IO(SORT_FILE, cf.sort, 0), cf.sort_read = 1;

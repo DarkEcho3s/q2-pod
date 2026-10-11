@@ -91,7 +91,7 @@ def validate_assets(directory):
     from ipod import (AUDIT, BOTTOM, CHEVRON_W, CONFIRM, VOLUME, QUICK_SETTINGS, QS_TOP, QS_LABEL_GAP, QS_LABEL_H,
                       QS_LABEL_W, QS_ROW_GAP, QS_PITCH, QS_BAR, QS_TOUCH, QS_EDGE, QS_SUN, HOME_LABEL_END, HOME_LIST_W, HOME_TEXT_X, HOME_TOP, PITCH, ARTIST_PAGE, HOME_PAGE, HOME_ROW, HOME_ROWS, NAVBAR_ONLY, PLAYING_PAGE, SET_ROW, SET_ROWS, SET_TOP, UI_ASSETS,
                       NP_BAR, NP_MARGIN, NP_POS_X, NP_TOP, STATUS_BAR, STATUS_HIDDEN, STATUS_LEFT, STATUS_MARGIN, STATUS_RIGHT, CLOCK_MIN, CLOCK_TEXT, corner_inset, corner_x,
-                      QUIET_ICONS, quiet_icon, SET_ICON, SET_STOCK_ICON, SETTINGS_ICONS, SETTINGS_SLIDERS, decode, slider_discs, imagemagick, inc, png_header, settings_icon, walk,
+                      QUIET_ICONS, quiet_icon, SET_ICON, SET_STOCK_ICON, SETTINGS_ICONS, SETTINGS_SLIDERS, decode, slider_plain, imagemagick, inc, png_header, settings_icon, walk,
                       patch_asset, patch_code, patch_style, style_props, SLIDE)
     manifest = json.loads((directory/'manifest.json').read_text())
     ipod = manifest['variant'] == 'ipod'
@@ -338,21 +338,9 @@ def validate_assets(directory):
         root = decode(new)
         if ipod and short in SETTINGS_SLIDERS:
             before = {n[2].get('name'): n for n in walk(decode(original))}
-            endpoints = [n for n in walk(root) if n[0] == 'image' and n[2].get('image')]
-            assert len(endpoints) == 2
-            for n, x in zip(endpoints, (46,293)):
-                old = before[n[2]['name']]
-                assert n[1] == [x,77,36,36] and n[3] == old[3]
-                expected = dict(old[2], draw_type='center')
-                for state in ('normal','pressed','over','disable','focused'):
-                    expected.update({f'style:{state}:bg_color':'#2B2B2B', f'style:{state}:round_radius':'18'})
-                assert n[2] == expected
-                iw, ih = image_size(n[2]['image'])
-                assert iw+10 <= n[1][2] and ih+10 <= n[1][3]  # full glyph plus 5px padding
-                assert x >= corner_x(30+77,36) and x+36 <= 375-corner_x(30+77,36)
-            slider = next(n for n in walk(root) if n[0] == 'slider')
-            assert endpoints[0][1][0]-slider[1][0] == slider[1][0]+slider[1][2]-(endpoints[1][1][0]+36) == 15
-            assert all(n[1][1]+n[1][3]/2 == slider[1][1]+slider[1][3]/2 for n in endpoints)
+            assert not [n for n in walk(root) if n[0] == 'image' and n[2].get('image')]  # no endpoint glyphs
+            gone = [n for n in walk(root) if n[2].get('name') in before and before[n[2]['name']][2].get('image')]
+            assert len(gone) == 2 and all(n[1][2:] == [0, 0] and n[1][:2] == before[n[2]['name']][1][:2] for n in gone)
             for n in walk(root):
                 if n[0] == 'slider' or n[2].get('name') in ('img_add', 'img_dec'):
                     assert n == before[n[2]['name']]  # ranges, touch and wheel controls stay stock
@@ -498,11 +486,11 @@ def validate_assets(directory):
         if short == ARTIST_PAGE:
             assert [n[2]['value'] for n in walk(root) if n[0] == 'pages'] == ['1'], 'Artist page must show Albums'
         if short in AUDIT['slide_only'] or short in ('systemset/sleepshutdown_page.bin', 'playset/bootvol_page.bin'):
-            # nothing but the hint changes (and Startup volume's slider discs); the sleep timer and
+            # nothing but the hint changes (and Startup volume's slider glyphs go); the sleep timer and
             # Startup volume keep their toolbars, where their on/off switches are
             root[2].pop('anim_hint')
             kept = decode(original)
-            slider_discs(short, kept)
+            slider_plain(short, kept)
             assert root == kept, short
             continue
         nav = next(n for n in root[3] if n[2].get('name') == 'view_navbar')

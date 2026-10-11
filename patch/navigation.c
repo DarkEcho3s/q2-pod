@@ -153,10 +153,10 @@ typedef struct {
      * labels of those rows and Artists, and the poll: charging is held off at the limit; CPU1 is
      * offline (cpu_off), this boot's first offline is done (cpu_marked), and cpu_bad is 0 before
      * the check, 1 usable, 2 refused by an earlier boot's stall, 3 refused by the kernel;
-     * last_input times the screen-on idle. */
+     * last_input times the screen-on idle. year_old: Year order, oldest first. */
     int pod_read, charge_limit, low_power, wake_double, wake_pass, charge_held, cpu_off, cpu_bad,
-        cpu_marked, artist_cf;
-    void *pod_label[5];
+        cpu_marked, artist_cf, year_old;
+    void *pod_label[6];
     void *art_cf_win, *art_cf_list; /* the artist page given its Coverflow, the albums pending */
     void *art_cf_veil;              /* the artist page unseen until they show, and its anim_hint */
     char art_cf_hint[64];
@@ -1778,20 +1778,25 @@ static void *list_row(void *view, const char *icon, int (*click)(void *, void *)
 
 /* Power's Charge limit, Low power and Wake (docs/internals.md#charge-limit, #low-power,
  * #wake), Q2POD CHARGELIMIT, LOWPOWER and WAKEDOUBLE in config.ini, Display's Artist albums
- * (ARTISTCF), and Audio settings' Artists, which is stock's own PLAYSET ARTISTTYPE (artist_type,
+ * (ARTISTCF), and Audio settings' Year order (YEAROLD, coverflow.c's year ranks) and Artists, which is stock's own PLAYSET ARTISTTYPE (artist_type,
  * the artist page's switch; docs/internals.md#album-artists). */
 #define STR_(x) #x
 #define STR(x) STR_(x)
-enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_ARTIST_CF, POD_ARTISTS };
+enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_ARTIST_CF, POD_YEAR_OLD, POD_ARTISTS };
 static int *const pod_values[] = { &st.charge_limit, &st.low_power, &st.wake_double,
-                                   &st.artist_cf };
+                                   &st.artist_cf, &st.year_old };
 static void pod_settings(void) {
     if (st.pod_read) return;
     st.charge_limit = config_value("Q2POD", "CHARGELIMIT", 2);
     st.low_power = config_value("Q2POD", "LOWPOWER", 2);
     st.wake_double = config_value("Q2POD", "WAKEDOUBLE", 2);
     st.artist_cf = config_value("Q2POD", "ARTISTCF", 2);
+    st.year_old = config_value("Q2POD", "YEAROLD", 2);
     st.pod_read = 1;
+}
+int ringnav_year_old(void) {
+    pod_settings();
+    return st.year_old;
 }
 static void pod_text(int i) {
     static const char *const names[][2] = {
@@ -1799,6 +1804,7 @@ static void pod_text(int i) {
         { "Low power: Off", "Low power: On" },
         { "Wake: Single press", "Wake: Double press" },
         { "Artist albums: Grid", "Artist albums: Coverflow" },
+        { "Year order: Newest first", "Year order: Oldest first" },
         { "Artists: Artist", "Artists: Album Artist" },
     };
     int v = i < POD_ARTISTS ? *pod_values[i] : I(artist_type, 0) == 1;
@@ -1815,7 +1821,7 @@ static int pod_click(void *ctx, void *event) {
         I(artist_type, 0) = v;
         write_int_config(v, "PLAYSET", "ARTISTTYPE");
     } else {
-        static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE", "ARTISTCF" };
+        static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE", "ARTISTCF", "YEAROLD" };
         int *value = pod_values[i];
         *value = !*value;
         write_int_config(*value, "Q2POD", keys[i]);
@@ -1855,10 +1861,10 @@ static void reorder(void *view, const unsigned char *order, unsigned n) {
 /* Playback Setting: what is changed while listening first, then library behaviour, then output. */
 static const unsigned char playset_order[] = {
     3 /* Play Mode */,   2 /* EQ */,           0 /* Gain */,          10 /* ReplayGain */,
-    16 /* Crossfade */,  9 /* Gapless */,      4 /* Max Volume */,    5 /* Default Vol */,
-    11 /* Balance */,    1 /* Filters */,      8 /* Memory play */,   15 /* Artists */,
-    13 /* Folder art */, 14 /* Folder skip */, 12 /* Enlarged art */, 6 /* DSD Output */,
-    7 /* USB Audio */,
+    17 /* Crossfade */,  9 /* Gapless */,      4 /* Max Volume */,    5 /* Default Vol */,
+    11 /* Balance */,    1 /* Filters */,      8 /* Memory play */,   16 /* Artists */,
+    15 /* Year order */, 13 /* Folder art */,  14 /* Folder skip */,  12 /* Enlarged art */,
+    6 /* DSD Output */,  7 /* USB Audio */,
 };
 /* System Setting: connections and display first, boot/update/reset/about last. */
 static const unsigned char sysset_order[] = {
@@ -1869,9 +1875,9 @@ static const unsigned char sysset_order[] = {
 };
 
 int ringnav_audioset(void *win, void *ctx) {
-    static const char *const icons[] = { "playset_folderjump" };
+    static const char *const icons[] = { "playset_covermode", "playset_folderjump" };
     int result = stock_audioset_trampoline(win, ctx);
-    pod_rows(win, "scroll_view_playset", POD_ARTISTS, 1, icons);
+    pod_rows(win, "scroll_view_playset", POD_YEAR_OLD, 2, icons);
     void *view = win ? widget_lookup(win, "scroll_view_playset", 1) : (void *)0;
     if (view) xfade_row(list_row(view, "playset_gapless", xfade_open, (void *)0)); /* crossfade.c */
     reorder(view, playset_order, sizeof playset_order);
@@ -3347,19 +3353,21 @@ static int same_dir(void *a, void *b) {
     unsigned n = x ? album_dir(x, 1) : 0;
     return n && y && album_dir(y, 1) == n && !memcmp(x, y, n);
 }
-/* r's album among all's rows of its name: by folder, or (by_dir 0) album artist as r's artist. */
-static int artist_album(void *all, void *r, int by_dir) {
+/* r's album among all's rows of its name: by folder, else album artist as r's artist; or -1. */
+static int artist_album(void *all, void *r) {
     const char *name = P(r, REC_ALBUM), *artist = P(r, REC_ARTIST);
-    for (unsigned j = 0; name && j < deque_size(all); ++j) {
-        void *a = deque_at(all, j);
-        const char *x = P(a, REC_ALBUM), *aa = P(a, REC_ALBUM_ARTIST);
-        if (x && !strcasecmp(x, name) &&
-            (by_dir ? same_dir(a, r) : aa && artist && !strcasecmp(aa, artist)))
-            return (int)j;
-    }
+    for (int by_dir = 1; by_dir >= 0; --by_dir)
+        for (unsigned j = 0; name && j < deque_size(all); ++j) {
+            void *a = deque_at(all, j);
+            const char *x = P(a, REC_ALBUM), *aa = P(a, REC_ALBUM_ARTIST);
+            if (x && !strcasecmp(x, name) &&
+                (by_dir ? same_dir(a, r) : aa && artist && !strcasecmp(aa, artist)))
+                return (int)j;
+        }
     return -1;
 }
 extern int coverflow_artist(void *albums);
+extern void coverflow_by_year(void *albums);
 static int artist_songs(void *unused) {
     (void)unused;
     return (I(artist_type, 0) == 1 ? getMusicByAlbumArtist : getMusicBySonger)(
@@ -3384,6 +3392,23 @@ static void *artist_albums(void *all) {
     }
     deque_destroy(songs);
     return out;
+}
+/* The artist page's grid rows in mine's order (artist_albums, by year), as artist_album finds
+ * them; rows it misses keep their order after. */
+static void artist_order(void *list, void *mine) {
+    unsigned n = deque_size(list), m = deque_size(mine);
+    int *at = calloc(n + 1, sizeof *at);
+    if (!at) return;
+    for (unsigned i = 0; i < n; ++i) at[i] = artist_album(mine, deque_at(list, i));
+    void *out = _create_deque("stSongInfo");
+    deque_init(out);
+    for (unsigned k = 0; k <= m; ++k) /* k == m: the unmatched */
+        for (unsigned i = 0; i < n; ++i)
+            if (k < m ? at[i] == (int)k : at[i] < 0) _deque_push_back(out, deque_at(list, i));
+    free(at);
+    deque_clear(list);
+    deque_assign(list, out);
+    deque_destroy(out);
 }
 static int artist_cf_gone(void *win, void *event) {
     (void)event;
@@ -3426,12 +3451,15 @@ int ringnav_artist_list(int tab) {
     all = _create_deque("stSongInfo");
     deque_init_copy(all, list);
     coverflow_split(all);
+    /* The artist's albums by year (Playback settings' Year order), the grid's rows in theirs. */
+    void *mine = artist_albums(all);
+    coverflow_by_year(mine);
+    artist_order(list, mine);
     for (unsigned i = 0; i < st.art_n && i < deque_size(list); ++i) {
         void *r = deque_at(list, i);
-        int j = artist_album(all, r, 1);
+        int j = artist_album(all, r);
         const char *k;
         char buf[256];
-        if (j < 0) j = artist_album(all, r, 0);
         if (j >= 0 && (k = split_key(buf, all, (unsigned)j))) st.art_keys[i] = strdup(k);
         if (j >= 0 && st.art_ids) st.art_ids[i] = album_id(deque_at(all, (unsigned)j));
     }
@@ -3441,12 +3469,13 @@ int ringnav_artist_list(int tab) {
     void *top = window_manager_get_top_window(window_manager());
     if (st.artist_cf && !st.art_cf_list && top && top != st.art_cf_win &&
         !tk_strcmp(widget_get_prop_str(top, "name", ""), "artistinfo_page")) {
-        st.art_cf_list = artist_albums(all);
+        st.art_cf_list = mine, mine = 0;
         st.art_cf_veil = top;
         artist_cf_veil(top, 1);
         widget_on(top, EVT_DESTROY, artist_cf_gone, top);
         rearm(&st.art_cf_timer, artist_cf_open, 0);
     }
+    if (mine) deque_destroy(mine);
     deque_destroy(all);
     return n;
 }

@@ -577,19 +577,17 @@ SETTINGS_SLIDERS = ('systemset/backlight_page.bin', 'playset/balance_page.bin',
                     'playset/maxvol_page.bin', 'playset/bootvol_page.bin')
 
 
-def slider_discs(path, root):
-    """A settings slider's endpoint glyphs sit on inset circular discs, legible over either track or fill."""
+def slider_plain(path, root):
+    """A settings slider loses its endpoint glyphs: the bar, value and -/+ say enough. The images stay,
+    named, imageless and empty, as stock looks them up."""
     if path not in SETTINGS_SLIDERS:
         return
     endpoints = [n for n in walk(root) if n[0] == 'image' and n[2].get('image') in (
         'drop_lighleft', 'drop_lightright', 'balance_left', 'balance_right', 'vol_left', 'vol_right')]
     check(len(endpoints) == 2, f'{path}: unexpected slider endpoints')
-    for n, x in zip(endpoints, (46, 293)):
-        n[1] = [x, 77, 36, 36]
-        n[2]['draw_type'] = 'center'
-        for state in ('normal', 'pressed', 'over', 'disable', 'focused'):
-            n[2][f'style:{state}:bg_color'] = '#2B2B2B'
-            n[2][f'style:{state}:round_radius'] = '18'
+    for n in endpoints:
+        del n[2]['image']
+        n[1][2:] = [0, 0]
 
 
 def quiet_icon(name, data):
@@ -632,7 +630,7 @@ def patch_asset(path, data, ipod):
     # The sleep timer's and Startup volume's on/off switches are in their toolbars, and their
     # fields hide while they are off.
     if path in ('systemset/sleepshutdown_page.bin', 'playset/bootvol_page.bin'):
-        slider_discs(path, root)
+        slider_plain(path, root)
         return encode(root)
     if not playlist:
         nav[0][2]['visible'] = 'false'
@@ -668,7 +666,7 @@ def patch_asset(path, data, ipod):
             if kind in ('label', 'hscroll_label') and corner_inset(30 + g[1]):
                 g[2] = min(g[2], 375 - g[0] - corner_x(30 + g[1], 0))
     if path in NAVBAR_ONLY:
-        slider_discs(path, root)
+        slider_plain(path, root)
         return encode(root)
 
     def rows(n, in_row=False):

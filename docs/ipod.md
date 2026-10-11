@@ -226,11 +226,9 @@ build-added icon ([internals.md](internals.md#spotify)), keep their bytes and st
 Spotify row's Now Playing page uses Now Playing's layout (`NP_*`), rounded art included. The Stock build keeps every icon stock. The recolouring of accent-red artwork
 (`ringnav_image_add`) works on the decoded bitmap, so it applies at either size.
 
-The Brightness, Balance, Maximum Volume and Default Volume editors keep their thick stock sliders,
-fill, ranges and wheel/touch controls. Their endpoint icons sit inside the bar, inset 15 pixels from each end, in 36 × 36 dark circular
-discs. Each full-size glyph has at least 5 pixels of padding and centres vertically on the track,
-so rays stay unclipped and the glyph stays readable over both track and fill. Both themes use the
-same geometry. The quick
+The Brightness, Balance, Maximum Volume, Default Volume and Crossfade editors keep their thick stock sliders,
+fill, ranges and wheel/touch controls, but lose their endpoint icons (`slider_plain`, tools/ipod.py):
+the images stay, named, with no image and no size, since stock looks them up. The quick
 settings slider and custom volume overlay retain their layouts.
 
 ## Quick settings

@@ -38,6 +38,7 @@ Things people often don't know are already there:
 | **System settings → Power** | **Charge limit** | **80%** stops charging at 80% and starts again at 75%, so a Q2 left plugged in isn't held full. Off by default.                                                                                                                                                                         |
 | **System settings → Power** | **Low power**    | Longer battery: the second CPU core sleeps while the screen is off, and the screen-on UI idles when you don't touch it. Off by default.                                                                                                                                                 |
 | **System settings → Power** | **Wake**         | **Double press**: with the screen off, or after Standby, a single centre press is ignored, so a pocket bump stays dark; press twice to wake. Play/Pause and the volume work without waking it. To power off from a dark screen, double-press, then hold. Off (Single press) by default. |
+| **Audio settings**          | **Year order**   | **Newest first** (default) or **Oldest first**: the order of every year view, an artist's albums (grid and Coverflow) and Coverflow's **Year** sort included. Undated albums go last.                                                                                              |
 | **Audio settings**          | **Artists**      | **Artist** (default) or **Album Artist**: browse Artists by the Album Artist tag, so guest artists don't split albums.                                                                                                                                                                  |
 | **Audio settings**          | **Crossfade**    | Fades one song into the next, 1-10 s (5 by default): turn the wheel or drag the slider, all the way down for Off; Centre switches it on or off. Only between different albums, so albums stay gapless; needs stock's **Gapless** on. Off by default.                                    |
 
@@ -90,7 +91,7 @@ Every song can have 0 to 5 hearts.
 Albums have 0 to 5 hearts of their own, separate from their songs'.
 
 - **Rate an album:** in Coverflow (also an artist's), **Library → Album** or an artist's albums, hold **Play/Pause** on the album: **Add to Favourites** gives it five hearts, **Remove from Favourites** takes them away, and **Rate album** opens the same picker. The row shows the album's hearts.
-- **Library → Ratings → Albums** (after Loved) shows the rated albums in Coverflow, most hearts first. Its **Sort** card cycles **Rating**, **Album**, **Artist** and **Year** (newest first) and is remembered. Return goes back to Ratings.
+- **Library → Ratings → Albums** (after Loved) shows the rated albums in Coverflow, most hearts first. Its **Sort** card cycles **Rating**, **Album**, **Artist** and **Year** (as **Year order**) and is remembered. Return goes back to Ratings.
 - An album is its name with its album artist, or its folder when it has none (disc folders count as one), so a rating survives Update Local Music, but retagging or moving the album starts it unrated.
 
 ### Shuffle, repeat and grouping
@@ -284,6 +285,6 @@ Playlist import, a stock feature, reads M3U files only from the **`_explaylist_d
 
 - Run **Update Local Music** first.
 - **First open** prepares artwork once; **Cancel** keeps progress. Later opens add only new albums; **Refresh library**, the last card, rebuilds everything.
-- **Sort**, the card before it: press to switch between **Album**, **Artist** (then year), **Year** (newest first), **Recently Added**, **Most Played** and **Random**. The choice is kept; Random reshuffles each time you pick it.
+- **Sort**, the card before it: press to switch between **Album**, **Artist** (then year), **Year** (newest or oldest first, as Playback settings → **Year order**), **Recently Added**, **Most Played** and **Random**. The choice is kept; Random reshuffles each time you pick it.
 - **An artist's albums as Coverflow:** **System settings → Display → Artist albums: Coverflow** toggles between the default Grid and Coverflow for **Library → Artists → selected artist → Albums**. Coverflow contains only that artist's albums, including when Artists is set to Album Artist. Return goes straight back to the Artists list.
 - **Artwork:** embedded art first, then `cover.jpg` and `folder.jpg`; otherwise a placeholder. A folder shared by several albums skips its `cover.jpg` and `folder.jpg`, since they'd be another album's art.
