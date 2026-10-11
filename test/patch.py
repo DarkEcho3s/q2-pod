@@ -4307,10 +4307,11 @@ if variant=='ipod':
     # SCRUB_MS without input commits once and gives the wheel back to the volume, not a tick sooner.
     m=scrub_page(); centre(m); step(m)
     step(m,O['SCRUB_MS']-1,wait=True); assert m.seeks==[] and not m.starts
-    step(m,1,wait=True); ended(m,[105]); assert m.nodes[m.slider]['value']==105; passed()
+    step(m,1,wait=True); assert m.seeks==[105] and not m.starts  # settle_poll restarts it
+    step(m,O['SCRUB_MS'],wait=True); ended(m,[105]); assert m.nodes[m.slider]['value']==105; passed()
     # Reversal: the target is where the wheel left it, committed once.
     m=scrub_page(); centre(m); step(m); step(m); step(m,O['KEY_PREV'])
-    assert m.nodes[m.slider]['value']==105; centre(m,50); ended(m,[105]); passed()
+    assert m.nodes[m.slider]['value']==105; centre(m,50); step(m,O['SCRUB_MS'],wait=True); ended(m,[105]); passed()
     # No movement, including turning against an end, seeks nothing on any exit.
     for end in ('centre','timeout','bound'):
         m=scrub_page(value=225 if end=='bound' else 100); centre(m)
@@ -4380,7 +4381,7 @@ if variant=='ipod':
     # A scrub begun on the lyrics page ends at the next tick, committing once, and the tick scrolls.
     m=lyric_page(); centre(m); m.nodes[m.slide]['value']=0; step(m); m.nodes[m.slide]['value']=1
     assert step(m)==11 and m.seeks==[105] and m.get(m.lrc+O['SCROLL_Y'])==O['LYRIC_STEP']
-    step(m,O['SCRUB_MS'],wait=True); assert m.starts==[m.win,m.win] and not m.timers; passed()
+    step(m,O['SCRUB_MS'],wait=True); assert m.starts==[m.win] and not m.timers; passed()  # lyrics drop the settle wait
     # Touch ends it at once; the page's destruction keeps stock's timer off.
     m=lyric_page(); step(m); step(m,address=HOOKS['on_wm_tsdown_before_fun'][0],event_type=O['EVT_POINTER_DOWN'],gap=50)
     assert m.starts==[m.win] and not m.timers; passed()
@@ -5424,7 +5425,7 @@ if variant=='ipod':
         assert m.bands[-1][4]==color_t(ACCENTS[value][4]); passed()
     writes=click(3); assert [(w[0],m.text(w[2])) for w in writes]==[(0,'THEME')] and texts()[3]=='Theme: Minimal'
     kids=m.nodes[view]['children'][3:]
-    assert kids[:4]==[rows[3],rows[0],rows[1],rows[2]] and m.nodes[rows[0]]['visible']==0 and texts()[1]=='Home: Split'
+    assert kids==[rows[3],rows[0],rows[1],cf,rows[2]] and m.nodes[rows[0]]['visible']==0 and texts()[1]=='Home: Split'
     home_bounds(False)
     m.paint(view); assert not m.bands and m.rounded[0]['color']==color_t(0xeeeeec); passed()
     bar=m.node('window','system_bar'); m.word(syms['system_bar'],bar)
@@ -5566,12 +5567,12 @@ if variant=='ipod':
     # shows it; then the next layout places it right after Theme as a whole settings row (mapped at
     # 0x0 it was an empty gap on the device), and hiding it again leaves no gap. However often Theme
     # flips, the wheel and Centre reach the row after Theme, and a tap selects it.
-    CONFIG.clear(); m,view=settings('display'); items=m.nodes[view]['children']; theme,accent=items[-4:-2]  # then Home, Battery
+    CONFIG.clear(); m,view=settings('display'); items=m.nodes[view]['children']; theme,accent=items[-5:-3]  # then Home, Artist albums, Battery
     button=lambda i: m.nodes[i]['children'][0]
     for classic in (0,1,0,1,0,1):
         if m.nodes[accent]['visible']!=classic:
             f,ctx=m.nodes[button(theme)]['click']; assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0
-        assert lay(m,view)==0 and m.nodes[view]['children'][-4:-2]==[theme,accent] and m.nodes[accent]['visible']==classic
+        assert lay(m,view)==0 and m.nodes[view]['children'][-5:-3]==[theme,accent] and m.nodes[accent]['visible']==classic
         shown=[i for i in items if m.nodes[i]['visible']]; after=shown[shown.index(theme)+1]
         assert (after==accent)==bool(classic)
         assert [geometry(m,i)[1] for i in shown]==[SET['ROW']*k for k in range(len(shown))]

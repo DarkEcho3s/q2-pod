@@ -2180,10 +2180,11 @@ static int np_lyrics(unsigned key) {
 }
 
 static void np_cancel(void) {
+    unsigned settle = st.settle_timer; /* an earlier scrub's wait; the one scrub_end arms stays */
     stop_timer(&st.np_press);
     scrub_end();
     lyric_end();
-    if (!st.settle_timer) return;
+    if (!settle) return;
     stop_timer(&st.settle_timer);
     if (st.np_win) playing_timer_start(st.np_win);
 }
