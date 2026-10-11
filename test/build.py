@@ -199,12 +199,18 @@ def validate_assets(directory):
     check_bluetooth_drop(directory)
     from build import SCROBBLE_CA
     assert read('rootfs.squashfs', SCROBBLE_CA) == (ROOT/'assets/scrobble-ca.pem').read_bytes()
-    # Curly quotes draw the straight glyphs; other tables keep their stock bytes (head: its checksum).
+    # Curly quotes draw the straight glyphs and ♡ takes ♥'s box and advance; other tables keep their
+    # stock bytes (head: its checksum).
     from build import QUOTES
     from fontTools.ttLib import TTFont
     old, new = (TTFont(io.BytesIO(read(i, FONT))) for i in ('stock.squashfs', 'rootfs.squashfs'))
     assert all(new.getBestCmap()[c] == old.getBestCmap()[q] for c, q in QUOTES.items())
-    assert all(new.reader[t] == old.reader[t] for t in old.reader.keys() if t not in ('cmap', 'head'))
+    full, empty = (new.getBestCmap()[c] for c in (0x2665, 0x2661))
+    g = new['glyf']
+    assert new['hmtx'][empty] == new['hmtx'][full] == (old['hmtx'][full][0] + 32, g[full].xMin)
+    assert abs(g[empty].xMin - g[full].xMin) <= 1 and abs(g[empty].xMax - g[full].xMax) <= 1
+    assert abs(g[empty].yMin - g[full].yMin) <= 1 and abs(g[empty].yMax - g[full].yMax) <= 1
+    assert all(new.reader[t] == old.reader[t] for t in old.reader.keys() if t not in ('cmap', 'head', 'glyf', 'loca', 'hmtx'))
     # The crash watchdog only sleeps longer; check_mem_thd's drop_caches write is branched over.
     old, new = read('stock.squashfs', WATCHDOG), read('rootfs.squashfs', WATCHDOG)
     assert new == old.replace(*WATCHDOG_SLEEP) and new != old

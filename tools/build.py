@@ -219,7 +219,8 @@ WHEEL_TS_READ = (0x625b6c, 0x0320f809)
 LABELS = ((b'player_playlist', b'Playlists', b'Queue'), (b'system_powermanager', b'Idle', b'Power'), (b'powerm_deep_off', b'standby/shutdown', b'Standby'))
 
 # The stock font (Arial merged with a CJK font) gives curly quotes the CJK em advance, a wide gap
-# inside words wherever a tag has one; its cmaps map them to the straight glyphs instead.
+# inside words wherever a tag has one; its cmaps map them to the straight glyphs instead. Its hearts
+# mix too: the ratings' ♡ (CJK: smaller, higher, the em advance) is fitted to Arial's ♥ box, both a wider advance.
 FONT = 'release/assets/default/raw/fonts/default.ttf'
 QUOTES = {0x2018: 0x27, 0x2019: 0x27, 0x201c: 0x22, 0x201d: 0x22}
 
@@ -232,6 +233,15 @@ def font_quotes(data):
         if table.isUnicode():
             check(all(c in table.cmap for c in QUOTES.values()), 'Font without straight quotes')
             table.cmap.update({c: table.cmap[q] for c, q in QUOTES.items()})
+    glyf, hmtx, cmap = font['glyf'], font['hmtx'], font.getBestCmap()
+    full, empty = glyf[cmap[0x2665]], glyf[cmap[0x2661]]
+    check(not empty.isComposite() and empty.xMin == 2 and empty.yMax == 159, 'Unexpected ♡ glyph')
+    sx, sy = (full.xMax - full.xMin) / (empty.xMax - empty.xMin), (full.yMax - full.yMin) / (empty.yMax - empty.yMin)
+    empty.coordinates.transform(((sx, 0), (0, sy)))
+    empty.coordinates.translate((full.xMin - round(empty.xMin * sx), full.yMin - round(empty.yMin * sy)))
+    empty.coordinates.toInt()
+    empty.recalcBounds(glyf)
+    hmtx[cmap[0x2661]] = hmtx[cmap[0x2665]] = (hmtx[cmap[0x2665]][0] + 32, full.xMin)  # a gap between hearts
     out = io.BytesIO()
     font.save(out, reorderTables=False)
     return out.getvalue()
