@@ -62,7 +62,7 @@ Charge limit applies while the Q2 is on; charging while it's powered off is stoc
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Wheel**                 | One row per tick; spin to speed up. Outside menus it sets volume.                                                                                                                                                  |
 | **Centre button**         | Opens the highlighted item. Double-press turns the screen off (single press on Now Playing).                                                                                                                       |
-| **Hold Play/Pause**       | Song or local Now Playing track: rate (Now Playing), queue, favourite, playlist, go to album or artist. Album, artist, genre or folder: queue, shuffle, playlist; a Coverflow album: queue, shuffle, go to artist. |
+| **Hold Play/Pause**       | Song or local Now Playing track: rate (Now Playing), queue, favourite, playlist, go to album or artist. Album, artist, genre or folder: queue, shuffle, playlist; an album (Coverflow, Library Albums or an artist's albums) also favourite and rate; a Coverflow album: queue, shuffle, favourite, rate, go to artist. |
 | **Fast Coverflow turn**   | Album/Artist sorts jump one populated initial per tick; Sort and Refresh remain individual stops.                                                                                                                  |
 | **Hold Return**           | Opens Now Playing; Return or another hold goes back.                                                                                                                                                               |
 | **Scrub** (iPod)          | On Now Playing, double-press centre, then turn: 5 s per tick. Double-press, Return, touch or wait 3 s to jump.                                                                                                     |
@@ -86,6 +86,12 @@ Every song can have 0 to 5 hearts.
 - **Five hearts is My Fav:** tapping the heart still adds a song to My Fav (five hearts) or takes it out (unrated). A song rated 1 to 4 shows its number on the empty heart.
 - **Library → Ratings** (where My Fav was): **Top Rated** (4 and 5 hearts), **Loved** (5), **All Rated** and **Disliked** (1), most hearts first. A row plays the list from that song.
 - Ratings are kept by file path, so they survive Update Local Music but not moving or renaming the file.
+
+Albums have 0 to 5 hearts of their own, separate from their songs'.
+
+- **Rate an album:** in Coverflow (also an artist's), **Library → Album** or an artist's albums, hold **Play/Pause** on the album: **Add to Favourites** gives it five hearts, **Remove from Favourites** takes them away, and **Rate album** opens the same picker. The row shows the album's hearts.
+- **Library → Ratings → Albums** (after Loved) shows the rated albums in Coverflow, most hearts first. Its **Sort** card cycles **Rating**, **Album**, **Artist** and **Year** (newest first) and is remembered. Return goes back to Ratings.
+- An album is its name with its album artist, or its folder when it has none (disc folders count as one), so a rating survives Update Local Music, but retagging or moving the album starts it unrated.
 
 ### Shuffle, repeat and grouping
 
