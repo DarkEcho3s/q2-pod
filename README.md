@@ -26,21 +26,16 @@
 
 ## Features
 
-Q2 Pod gives the Shanling Q2 an iPod classic feel, plus a few extras:
-
-- **iPod UI:** Home, lists, Now Playing, Coverflow and four visualizers. Choose your accent, Home layout and battery display.
-- **Wheel navigation:** ticks that follow your finger with no first-tick delay and menus that remember your place. The wheel also sets brightness, volume limits, balance, the date and time, and the sleep timer.
-- **More ways to listen:** favourites, playlists, Most Played, shuffle by song, album or folder, and Crossfade between albums.
-- **Parametric EQ:** up to 30 bands, per-channel adjustments, balance, a live curve, and AutoEQ / Equalizer APO preset imports.
-- **Beyond music:** videos, photos, books, podcasts and audiobooks. Podcasts, audiobooks and long mixes resume where you left off.
-- **Spotify Connect:** the Q2 becomes a Spotify Connect speaker (Premium; [set up](#spotify) from the microSD card).
-- **Internet Radio:** your own stations and the [radio-browser.info](https://www.radio-browser.info) directory, with search ([guide](docs/guide.md#internet-radio)).
-- **Scrobbling:** log listens and upload them to Last.fm or ListenBrainz over Wi-Fi.
+- **iPod UI:** Home, lists, Now Playing, Coverflow and four visualizers, with your choice of accent, Home layout and battery display.
+- **Wheel navigation:** ticks follow your finger, and menus remember your place.
+- **Parametric EQ:** up to 30 bands, a live curve, and AutoEQ / Equalizer APO preset imports.
+- **Spotify Connect:** the Q2 becomes a Spotify speaker (Premium required).
+- **Internet Radio:** your own stations plus the [radio-browser.info](https://www.radio-browser.info) directory.
+- **Scrobbling:** send listens to Last.fm or ListenBrainz over Wi-Fi.
 - **Battery options:** an optional 80% charge limit, Low power mode and a sleep timer.
+- **Also includes:** favourites, playlists, Most Played, shuffle by song, album or folder, Crossfade, podcasts and audiobooks that resume where you stopped, and fixes for choppy AirPods AAC audio and the clock resetting after power-off.
 
-It also fixes choppy AirPods AAC audio, the clock resetting after power-off, screen-off battery drain, slow library browsing, and startup and seeking on long VBR MP3s.
-
-**Prefer the stock look?** Download `Q2.Firmware.*-stock.zip`. It has the same features and fixes, except the iPod UI.
+Prefer the stock look? Download `Q2.Firmware.*-stock.zip`. It has the same features and fixes, without the iPod UI.
 
 ## Install
 
@@ -51,88 +46,47 @@ It also fixes choppy AirPods AAC audio, the clock resetting after power-off, scr
 2. On the Q2, open **System settings → System Update → TF card update**.
 3. After the restart, **System settings → About** shows FW V1.32 and your **CFW. Version**.
 
-The updater skips a build whose version is already installed ("latest firmware installed"). Updating to a newer release always works.
+The updater skips a build that's already installed, so updating to a newer release always works.
 
-### Restore stock
+**Restore stock:** flash the [official Shanling firmware](https://en.shanling.com/download/150) the same way. If the UI won't start, copy the `recovery-update` folder from [Shanling's recovery package](https://drive.google.com/file/d/1aINQfJu6n0JTQ4hOzzD1uSpSj3TS_NJj/view?usp=drive_link) to the card, then hold previous-song and power on with the centre button.
 
-Flash the [official Shanling firmware](https://en.shanling.com/download/150) the same way. If the UI won't start, copy the `recovery-update` folder from [Shanling's recovery package](https://drive.google.com/file/d/1aINQfJu6n0JTQ4hOzzD1uSpSj3TS_NJj/view?usp=drive_link) to the card, then hold previous-song and power on with the centre button.
+## Optional add-ons
 
-### Rockbox alongside Q2 Pod
-
-Unzip [Rockbox's `rockbox.zip`](https://github.com/DiamondBond/q2-rockbox/releases) to the card's root. Rockbox then starts at power-on.
-
-- **Hold Play/Pause while powering on**, or choose Rockbox's **Boot stock OS**, to use Q2 Pod for that session.
-- To start Q2 Pod every time, set **System settings → Boot to: Q2-Pod**.
-- For Bluetooth, connect your headphones in Q2 Pod first, then select **Rockbox** on Home (iPod UI) to launch it.
-
-See the [setup guide](docs/setup.md) for the full walkthrough and [ported themes](https://github.com/DiamondBond/q2-rockbox-themes/releases).
-
-### Spotify
-
-Spotify runs from the card, not the firmware, and needs Premium.
-
-1. Unzip `q2-librespot-*.zip` from [q2-librespot's latest release](https://github.com/DiamondBond/q2-librespot/releases/latest) to the card's root. It creates a hidden `.spotify` folder (Cmd+Shift+. shows it in macOS Finder).
-2. On the Q2, open **Streaming → Spotify**, then pick **Q2** in the Spotify app on a phone on the same Wi-Fi. The login is saved on the card.
-3. After each power-on, and after 30 seconds paused, open the row again so the Q2 shows up in Spotify.
-
-Spotify plays on the headphone jack, Bluetooth or a USB DAC. Play/Pause and Next/Prev control Spotify until you play local music. Delete `.spotify` to remove it. More in the [guide](docs/guide.md#spotify).
+- **Rockbox:** unzip [Rockbox's `rockbox.zip`](https://github.com/DiamondBond/q2-rockbox/releases) to the card's root. Hold Play/Pause while powering on to use Q2 Pod for that session. See the [setup guide](docs/setup.md) and [ported themes](https://github.com/DiamondBond/q2-rockbox-themes/releases).
+- **Spotify:** unzip `q2-librespot-*.zip` from [q2-librespot's latest release](https://github.com/DiamondBond/q2-librespot/releases/latest) to the card's root, then open **Streaming → Spotify** on the Q2 and pick it in the Spotify app. See the [guide](docs/guide.md#spotify).
 
 ## Everyday use
 
-| Control                                      | Action                                                                                                                                      |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Wheel**                                    | Scroll; spin faster to speed up. In a slider, date, time or sleep timer setting, change it. Elsewhere, volume.                              |
-| **Centre**                                   | Open the selected item, leave a slider, or move to the next time field. Double-press to turn the screen off (a single press on Now Playing). |
-| **Hold Play/Pause**                          | Open track, queue, playlist and shuffle/repeat options.                                                                                     |
-| **Hold Return** (iPod UI)                    | Jump to Now Playing; Return takes you back.                                                                                                 |
-| **Double-press centre, then turn** (iPod UI) | Scrub on Now Playing, 5 seconds per tick.                                                                                                   |
-| **Pull down from the top edge** (iPod UI)    | Open quick settings.                                                                                                                        |
+| Control                   | Action                                                                   |
+| ------------------------- | ------------------------------------------------------------------------ |
+| **Wheel**                 | Scroll. Spin faster to speed up. Change a setting when a slider is open. |
+| **Centre**                | Open the selected item. Double-press to turn the screen off.             |
+| **Hold Play/Pause**       | Open the track, queue, playlist and shuffle/repeat options.              |
+| **Hold Return** (iPod UI) | Jump to Now Playing.                                                     |
 
-Run **Library → Update Local Music** after adding music; it adds up to 65,000 songs. Coverflow prepares artwork on its first open; cancelling keeps its progress.
-
-- **Personalise:** **System settings → Display** for theme (Minimal or Classic), accent, Home layout and battery display.
-- **Save battery:** **System settings → Power** for Charge limit and Low power. Both are off by default; the charge limit applies while the Q2 is on.
-- **Sleep timer:** **System settings → Power → Sleep Timer**. Tap the switch at the top to turn it on, then set the hours and minutes.
-- **Pocket-proof:** **System settings → Power → Wake: Double press** ignores a single centre press while the screen is off, including after Standby. Play/Pause and volume still work without waking it.
-- **Browse by Album Artist:** **Audio settings → Artists** keeps guest artists from splitting albums.
-- **Use EQ:** **Audio settings → Equalizer**. Stock's genre curves are under **Presets → Stock presets**. Select **Apply changes** after editing or choosing a preset, then turn **PEQ: ON**. Import preset `.txt` files from the card's `EQ/` folder.
-
-The [user guide](docs/guide.md) covers [all controls](docs/guide.md#controls), [shuffle and repeat](docs/guide.md#shuffle-repeat-and-grouping), [resume behaviour](docs/guide.md#ipod-ui), [EQ](docs/guide.md#parametric-eq) and [Coverflow](docs/guide.md#coverflow).
+Run **Library → Update Local Music** after adding music. The [user guide](docs/guide.md) covers all [controls](docs/guide.md#controls), [EQ](docs/guide.md#parametric-eq), [Coverflow](docs/guide.md#coverflow) and [tips](docs/guide.md#tips).
 
 ## Set up your card
 
-Put these folders at the microSD card's root. Each adds a Library entry when present:
+Put any of these folders at the microSD card's root, and each adds a Library entry: `Podcasts/`, `Audiobooks/`, `Photos/`, `Books/`, `Videos/` and `EQ/` (for AutoEQ / Equalizer APO presets). See the [microSD card guide](docs/guide.md#microsd-card) for formats.
 
-| Folder                     | Contents                                                             |
-| -------------------------- | -------------------------------------------------------------------- |
-| `Podcasts/`, `Audiobooks/` | One folder per show or book. Always resume and don't count as plays. |
-| `Photos/`                  | JPG or PNG. Subfolders become albums.                                |
-| `Books/`                   | TXT or EPUB without DRM.                                             |
-| `Videos/`                  | MP4, M4V, MKV, AVI, MOV or MPG.                                      |
-| `EQ/`                      | AutoEQ / Equalizer APO `.txt` presets.                               |
-
-For format limits and cache details, see [microSD card](docs/guide.md#microsd-card). Settings, play counts and resume points live on the Q2, so they stay with the device.
-
-**Want scrobbling?** Add your account details to `.scrobble.ini` at the card's root, then connect to Wi-Fi and choose **Library → Upload Scrobbles**. The [scrobbling setup](docs/guide.md#set-up-scrobbling) has the exact file format and examples. Set the Q2's date and time before listening; listens are saved in `.scrobbler.log`.
+Settings, play counts and resume points live on the Q2, so they stay with the device. For scrobbling, see [set up scrobbling](docs/guide.md#set-up-scrobbling).
 
 ## Known limitations
 
-- **Library size:** Update Local Music adds up to 65,000 songs; shuffle and advanced queues take up to 65,536.
-- **Albums with the same name:** in **Library → Albums**, the playing marker, multi-select actions (such as Add to playlist) and Delete still treat them as one album.
+- **Library size:** Update Local Music adds up to 65,000 songs.
 - **Bluetooth:** skipping tracks can stutter on some headphones (AAC and LDAC), and AirPods' tap controls don't reach the Q2.
-- **Spotify:** switching the output while it plays takes effect at the next pause and play.
-- **Crossfade:** only between songs from different albums (albums stay gapless), with **Gapless** on, and not with **Play Mode** set to shuffle or repeat one.
+- **Crossfade:** only between songs from different albums, with **Gapless** on.
 - **Lock screen:** black until you add your own [images](docs/guide.md#lock-screen).
 
-New to Q2 Pod? The guide's [tips](docs/guide.md#tips) cover features that are easy to miss.
+See the [changelog](docs/changelog.md) for the full list of changes and known issues.
 
 ## Documentation
 
 - [User guide](docs/guide.md): settings, controls, playback, media and scrobbling
 - [Setup](docs/setup.md): Q2 Pod, Rockbox and themes on a fresh Q2
 - [Changelog](docs/changelog.md): what's changed in each release
-- [Building](docs/building.md): both firmware variants and the test suite
-- [Spotify port](docs/librespot.md) · [iPod UI](docs/ipod.md) · [Internals](docs/internals.md) · [Boot](docs/boot.md) · [Releasing](docs/releasing.md)
+- [Building](docs/building.md) · [Releasing](docs/releasing.md) · [Internals](docs/internals.md)
 
 ## Contributing
 

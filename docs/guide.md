@@ -23,12 +23,12 @@ Things people often don't know are already there:
 
 **System settings → Display**:
 
-| Setting               | Options                                                                 |
-| --------------------- | ----------------------------------------------------------------------- |
-| **Theme**             | Minimal (default) or Classic, the iPod look before 1.0.1                |
-| **Accent**            | Classic only: Graphite (default), Crimson (stock red), Tidal, Champagne |
-| **Home**              | Split (menu beside the playing album's cover) or Full (menu only)       |
-| **Battery**           | Icon (default), Percent, Icon + Percent                                 |
+| Setting     | Options                                                                 |
+| ----------- | ----------------------------------------------------------------------- |
+| **Theme**   | Minimal (default) or Classic, the iPod look before 1.0.1                |
+| **Accent**  | Classic only: Graphite (default), Crimson (stock red), Tidal, Champagne |
+| **Home**    | Split (menu beside the playing album's cover) or Full (menu only)       |
+| **Battery** | Icon (default), Percent, Icon + Percent                                 |
 
 ## Battery and library settings
 

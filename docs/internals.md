@@ -29,7 +29,7 @@ Checked MIPS prologues redirect into a payload at `0xb00000`, using the final un
 | `folder_page_init`                    | `0x523330` | Opens at Podcasts or Audiobooks ([Podcasts and Audiobooks](#podcasts-and-audiobooks)) |
 | `folder_back`                         | `0x507ac8` | Back at that folder leaves the page                                                   |
 | `window_manager_dispatch_input_event` | `0x66d49c` | No input while a video plays ([Videos](#videos)); [Wake](#wake)'s screen-off gate     |
-| `buzzeer_switch`                      | `0x4f3cc8` | No buzzer while headphones, BT or USB listen ([Key Tone](#key-tone))               |
+| `buzzeer_switch`                      | `0x4f3cc8` | No buzzer while headphones, BT or USB listen ([Key Tone](#key-tone))                  |
 | `systemset_powermanager_page_init`    | `0x4c72d0` | Adds Charge limit, Low power and Wake ([Low power](#low-power), [Wake](#wake))        |
 | `playset_playset_page_init`           | `0x4b98d8` | Adds Artists to Audio settings ([Album artists](#album-artists))                      |
 | `stream_page_init`                    | `0x52efdc` | Adds the Spotify and Internet Radio rows to Streaming                                 |
