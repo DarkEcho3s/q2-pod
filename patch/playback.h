@@ -11,5 +11,4 @@ void xfade_poll(int next); /* crossfade.c */
 int playback_resumed(void *r);
 void playback_save(void);
 void playback_clear(void);
-int playback_skips(void *r); /* navigation.c: Skip disliked is on and r has 1 heart */
 #endif
