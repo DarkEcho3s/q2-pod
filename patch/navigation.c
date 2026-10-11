@@ -4717,6 +4717,12 @@ int ringnav_keylong(void *ctx, void *event) {
     return stock_keylong_trampoline(ctx, event);
 }
 
+/* Skip disliked is on and r has one heart (playback.c's advanced shuffles ask). */
+int playback_skips(void *r) {
+    pod_settings();
+    return st.skip_disliked && r && rate_kept(listen_key(r)) == 1;
+}
+
 /* Replaces mclNextSong's shuffle pick call: stock picks and bookkeeps, then a pending Play next
  * becomes the next track if it is still at its index. */
 int ringnav_shuffle(int forward) {
@@ -4724,9 +4730,8 @@ int ringnav_shuffle(int forward) {
     /* Skip disliked: a 1-heart pick is passed over, as if played, a few times at most, so a queue
      * of only those still plays. */
     pod_settings();
-    for (int tries = 0; st.skip_disliked && tries < 8; tries++) {
-        void *r = rate_track();
-        if (result < 0 || !r || rate_kept(listen_key(r)) != 1) break;
+    for (int tries = 0; tries < 8; tries++) {
+        if (result < 0 || !playback_skips(rate_track())) break;
         result = mcl_shuffle_pick(forward);
     }
     void *queue = P(mcl_pdeqplaylist, 0);

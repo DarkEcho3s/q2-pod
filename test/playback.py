@@ -650,3 +650,18 @@ assert m.files['/mnt/data/ringnav-queue-elapsed']!=old_checkpoint
 r=PlaybackMachine({'/mnt/data/ringnav-queue':full,'/mnt/data/ringnav-queue-elapsed.tmp':checkpoint})
 r.byte(syms['g_memory_play'],2)
 assert r.fn('ringnav_memory',r.deque([]))>=0 and r.seek==37
+
+# Skip disliked (navigation.c playback_skips): an advanced shuffle passes over a 1-heart song while any other is left,
+# so it plays last; off, the order is the shuffle's own.
+def fnv(s,h=2166136261):
+    for c in s.encode(): h=((h^c)*16777619)&0xffffffff
+    return (h*16777619)&0xffffffff
+rated={'/mnt/data/ringnav-ratings':struct.pack('<I',(fnv('/D/single.flac')&~7)|1).ljust(4*O['RATE_SLOTS'],b'\0')}
+def shuffled(skip):
+    m=PlaybackMachine(rated)
+    m.budget=5_000_000  # each candidate scans the ratings table
+    if skip: m.config['SKIPDISLIKED']='1'
+    m.options(1,2,0); return m.sequence()
+plain,skipping=shuffled(0),shuffled(1)
+assert sorted(plain)==sorted(skipping) and plain[-1]!=5 and skipping[-1]==5, (plain,skipping)
+print('Skip disliked in advanced shuffle passed')

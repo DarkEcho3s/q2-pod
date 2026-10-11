@@ -295,7 +295,9 @@ int playback_groups(void *all, int folder) {
     playback_save();
     return 1;
 }
-/* Peek has no side effects, RNG or history writes. Manual next bypasses single-song rules. */
+/* Peek has no side effects, RNG or history writes. Manual next bypasses single-song rules. A
+ * shuffle passes over disliked songs (navigation.c's Skip disliked) while any other is left, then
+ * plays the ones passed over, wherever the cursor left them. */
 static int successor(int automatic) {
     unsigned at = (unsigned)M(MCL_POS);
     if (!s.active || at >= s.n) return -1;
@@ -304,9 +306,14 @@ static int successor(int automatic) {
     int category = s.repeat == 1 || s.repeat == 4;
     if (s.forced && s.forced <= s.n && (!category || s.groups[s.forced - 1] == s.groups[at]))
         return (int)s.forced - 1;
-    for (unsigned i = s.cursor + 1; i < s.n; ++i)
-        if (!s.seen[s.order[i].index] && (!category || s.groups[s.order[i].index] == s.groups[at]))
-            return (int)s.order[i].index;
+    /* pass 2: unseen, not disliked; 1: unseen (all without the setting); 0: the disliked passed */
+    for (int pass = s.shuffle ? 2 : 1; pass >= !s.shuffle; --pass)
+        for (unsigned i = pass ? s.cursor + 1 : 0; i < s.n; ++i) {
+            unsigned j = s.order[i].index;
+            if (!s.seen[j] && (!category || s.groups[j] == s.groups[at]) &&
+                (pass == 1 || !playback_skips(deque_at(queue(), j)) == (pass == 2)))
+                return (int)j;
+        }
     if (s.repeat < 3) return -1;
     for (unsigned i = 0; i < s.n; ++i)
         if (!category || s.groups[s.cycle[i].index] == s.groups[at]) return (int)s.cycle[i].index;
@@ -337,6 +344,8 @@ static void commit(unsigned next) {
     }
     unsigned i = s.cursor + 1;
     while (i < s.n && s.order[i].index != next) ++i;
+    if (i == s.n && !s.seen[next]) /* a disliked song the shuffle passed over: this cycle's */
+        for (i = 0; i < s.n && s.order[i].index != next; ++i) {}
     if ((i == s.n || s.seen[next]) && !(s.repeat == 3 && next == (unsigned)M(MCL_POS))) {
         memcpy(s.order, s.cycle, s.n * sizeof *s.order);
         memset(s.seen, 0, s.n * sizeof *s.seen);
