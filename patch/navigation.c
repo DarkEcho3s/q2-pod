@@ -3144,8 +3144,12 @@ static int rename_covers(void *list, const char *(*key)(char *, void *, unsigned
     const char *k;
     pthread_mutex_lock((void *)aclist_mutex);
     for (unsigned i = 0; i < deque_size(list) && i < deque_size(covers); ++i) {
-        char **name = (char **)((char *)deque_at(covers, i) + 4);
-        if ((k = key(buf, list, i)) && (s = strdup(k))) free(*name), *name = s;
+        void *r = deque_at(covers, i);
+        char **name = (char **)((char *)r + 4);
+        if ((k = key(buf, list, i)) && (s = strdup(k))) {
+            if (strcmp(*name, s)) ((unsigned char *)r)[0] = ((unsigned char *)r)[1] = 0;
+            free(*name), *name = s;
+        }
     }
     pthread_mutex_unlock((void *)aclist_mutex);
     return result;
@@ -3155,6 +3159,19 @@ static const char *split_key(char *buf, void *list, unsigned i) {
 }
 /* The Albums page's albumcoverinfo_init calls. */
 int ringnav_albumcovers(void *list) { return rename_covers(list, split_key); }
+
+/* A job can finish after navigation rebuilt the list: its row number now belongs to another
+ * album. Compare the key copied by the worker before setting either cover-ready flag. */
+void ringnav_cover_done(int row, int big, const char *key) {
+    pthread_mutex_lock((void *)aclist_mutex);
+    void *covers = P(pdeq_albumcoverlist, 0);
+    if ((unsigned)row < deque_size(covers) && (big == 0 || big == 1)) {
+        void *r = deque_at(covers, (unsigned)row);
+        const char *name = P(r, 4);
+        if (name && key && !strcmp(name, key)) ((unsigned char *)r)[big] = 1;
+    }
+    pthread_mutex_unlock((void *)aclist_mutex);
+}
 
 /* An artist's albums (load_localartist_list 1) group by name too, and a name there is usually one
  * row though another artist's album shares it, so each row takes its album's art_key in the split

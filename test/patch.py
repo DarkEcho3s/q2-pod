@@ -3434,6 +3434,7 @@ class ArtistMachine(ClassMachine):
             covers=[]
             for r in self.items(u.reg_read(REGS[0])):
                 c=self.alloc(0x60)
+                self.word(c,getattr(self,'cover_flags',0))
                 self.word(c+4,self.string(self.text(self.get(r+O['REC_ALBUM']))))
                 self.word(c+8,self.get(r+O['REC_PATH'])); covers.append(c)
             self.word(syms['pdeq_albumcoverlist'],self.deque(covers))
@@ -3451,6 +3452,7 @@ for path,artist,want in (('/p/x','Artist','Album\x1fBaroness'),('/z/x','STP','Al
     # Run the stock Album-tab and page-return call sites, not just the key helper: 9.8
     # left these unhooked, so the worker wrote the old cache name the renderer never read.
     m.mock('pthread_mutex_lock@GLIBC_2.0','pthread_mutex_unlock@GLIBC_2.0')
+    m.cover_flags=0x101  # an old job completes between stock init and key renaming
     for site in (0x4ac840,0x4ae860,0x4ae968,0x4aebc0):
         m.u.reg_write(UC_MIPS_REG_SP,0x7000f000)
         m.u.reg_write(UC_MIPS_REG_V0,syms['p_deque_showlist'])
@@ -3459,6 +3461,7 @@ for path,artist,want in (('/p/x','Artist','Album\x1fBaroness'),('/z/x','STP','Al
         assert m.u.reg_read(UC_MIPS_REG_PC)==site+8
         covers=m.items(m.get(syms['pdeq_albumcoverlist']))
         assert [m.text(m.get(c+4)) for c in covers]==[want,'Other'], hex(site)
+        assert [m.get(c)&0xffff for c in covers]==[0 if want!='Album' else 0x101,0x101]
         assert [m.text(m.get(c+8)) for c in covers]==[path,'/p/Row 1']
     for i,k in enumerate((want,'Other')):
         m.u.reg_write(UC_MIPS_REG_GP,0xa26cc0)
@@ -3469,6 +3472,42 @@ for path,artist,want in (('/p/x','Artist','Album\x1fBaroness'),('/z/x','STP','Al
         assert m.text(buf)==k, (path,artist,i,m.text(buf))
     m.call(address=HOOKS['load_localartist_list'][0],args=(0,0,0,0),gap=0)
     m.call(address=art['ringnav_artist_art_name'],args=(buf,0x100,0,m.string('Album')),gap=0); assert m.text(buf)=='Album'
+passed()
+# A local art job that finishes after a list rebuild must not mark the new row ready.
+# Run the worker's real completion call site, including its stack-buffer argument, then stock's
+# readiness check (used by the renderer and by the request queue to skip completed covers).
+m=ArtistMachine(rows=12); m.mock('pthread_mutex_lock@GLIBC_2.0','pthread_mutex_unlock@GLIBC_2.0')
+def cover_ready(row,big):
+    return m.call(address=syms['check_albumcover_flag'],args=(row,big,0,0),gap=0)
+def cover_done(row,big,key):
+    sp=0x7000d000
+    m.u.mem_write(sp+0x1688,key.encode()+b'\0')
+    m.word(sp+0x1828,row); m.word(sp+0x1830,big); m.word(sp+0x18,0xa26cc0)
+    m.u.reg_write(UC_MIPS_REG_SP,sp); m.u.reg_write(UC_MIPS_REG_GP,0xa26cc0)
+    m.u.emu_start(0x4edd98,0x4edda8,count=m.budget)
+    assert m.u.reg_read(UC_MIPS_REG_PC)==0x4edda8
+for visit in range(5):
+    keys=[f'Artist {visit} album {i}' for i in range(12)]
+    covers=[]
+    for key in keys:
+        c=m.alloc(0x60); m.word(c+4,m.string(key)); covers.append(c)
+    m.word(syms['pdeq_albumcoverlist'],m.deque(covers))
+    if visit==0:
+        fixed=bytes(m.u.mem_read(0x4edd9c,8))
+        m.u.mem_write(0x4edd9c,struct.pack('<II',0x8f99b6d4,0x0411ff44))
+        m.u.ctl_remove_cache(0x4edd98,0x4edda8)
+        cover_done(11,1,'previous artist')
+        assert cover_ready(11,1)==1  # stock falsely completes the last album
+        m.byte(m.items(m.get(syms['pdeq_albumcoverlist']))[11]+1,0)
+        m.u.mem_write(0x4edd9c,fixed)
+        m.u.ctl_remove_cache(0x4edd98,0x4edda8)
+    for row in (0,8,9,11):  # first screen, scroll boundary and last album
+        for big in (0,1):
+            cover_done(row,big,f'Artist {visit-1} album {row}')
+            assert cover_ready(row,big)==0, (visit,row,big)
+            cover_done(row,big,keys[row])
+            assert cover_ready(row,big)==1, (visit,row,big)
+    for row in (-1,12): cover_done(row,1,'gone')
 passed()
 # A row opens its name's songs (0xff10, getMusicByAlbum): only its own album's stay.
 m=ClassMachine(page='album_page',cls=0xf003,rows=2); m.word(m.row(1)+O['REC_PATH'],m.string('/q/Row 1'))
