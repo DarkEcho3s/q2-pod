@@ -29,7 +29,7 @@
 Made for the **Shanling Q2**, with an iPod classic feel and a few extras:
 
 - **iPod UI:** Home, lists, Now Playing, Coverflow and four visualizers. Choose your accent, Home layout and battery display.
-- **Wheel navigation:** faster scrolling, adjustable sensitivity and menus that remember your place. The wheel also sets brightness, volume limits, balance, the date and time and the sleep timer.
+- **Wheel navigation:** ticks that follow your finger with no first-tick delay, faster scrolling, adjustable sensitivity and menus that remember your place. The wheel also sets brightness, volume limits, balance, the date and time and the sleep timer.
 - **More ways to listen:** favourites, playlists, Most Played, shuffle by song, album or folder, and Crossfade between albums. Hold Play/Pause for track and playback options.
 - **Parametric EQ:** up to 30 bands, per-channel adjustments, balance, a live curve and AutoEQ / Equalizer APO preset imports.
 - **Beyond music:** videos, photos, books, podcasts and audiobooks. Podcasts, audiobooks and long mixes resume where you left off.
@@ -91,7 +91,7 @@ Run **Library → Update Local Music** after adding music; it adds up to 65,000 
 - **Personalise:** **System settings → Display** for theme (Minimal or Classic), accent, Home layout, battery display and wheel sensitivity.
 - **Save battery:** **System settings → Power** for Charge limit and Low power. Both are off by default; charge limit applies while the Q2 is on.
 - **Sleep timer:** **System settings → Power → Sleep Timer**. Tap the switch at the top to turn it on, then set the hours and minutes.
-- **Pocket-proof:** **System settings → Power → Wake: Double press** ignores a single centre press while the screen is off, including after Standby.
+- **Pocket-proof:** **System settings → Power → Wake: Double press** ignores a single centre press while the screen is off, including after Standby; Play/Pause and volume still work without waking it.
 - **Browse by Album Artist:** **Audio settings → Artists** keeps guest artists from splitting albums.
 - **Use EQ:** **Audio settings → Equalizer**. Stock's genre curves are under **Presets → Stock presets**. Select **Apply changes** after editing or choosing a preset, and turn **PEQ: ON**. Import preset `.txt` files from the card's `EQ/` folder.
 
