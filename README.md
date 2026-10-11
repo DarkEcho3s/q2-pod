@@ -33,7 +33,8 @@
 - **Internet Radio:** your own stations plus the [radio-browser.info](https://www.radio-browser.info) directory.
 - **Scrobbling:** send listens to Last.fm or ListenBrainz over Wi-Fi.
 - **Battery options:** an optional 80% charge limit, Low power mode and a sleep timer.
-- **Also includes:** favourites, playlists, Most Played, shuffle by song, album or folder, Crossfade, podcasts and audiobooks that resume where you stopped, and fixes for choppy AirPods AAC audio and the clock resetting after power-off.
+- **Ratings:** give songs and albums 0-5 hearts, then browse Top Rated, Loved, Disliked and rated albums in Coverflow.
+- **Also includes:** favourites, playlists, Most Played, Long Songs, shuffle by song, album or folder, Crossfade, podcasts and audiobooks that resume where you stopped, and fixes for choppy AirPods AAC audio and the clock resetting after power-off.
 
 Prefer the stock look? Download `Q2.Firmware.*-stock.zip`. It has the same features and fixes, without the iPod UI.
 
@@ -62,7 +63,7 @@ The updater skips a build that's already installed, so updating to a newer relea
 | **Wheel**                 | Scroll. Spin faster to speed up. Change a setting when a slider is open. |
 | **Centre**                | Open the selected item. Double-press to turn the screen off.             |
 | **Hold Play/Pause**       | Open the track, queue, playlist and shuffle/repeat options.              |
-| **Hold Return** (iPod UI) | Jump to Now Playing.                                                     |
+| **Hold Return**           | Jump to Now Playing; hold again to go back.                              |
 
 Run **Library → Update Local Music** after adding music. The [user guide](docs/guide.md) covers all [controls](docs/guide.md#controls), [EQ](docs/guide.md#parametric-eq), [Coverflow](docs/guide.md#coverflow) and [tips](docs/guide.md#tips).
 
@@ -70,7 +71,7 @@ Run **Library → Update Local Music** after adding music. The [user guide](docs
 
 Put any of these folders at the microSD card's root, and each adds a Library entry: `Podcasts/`, `Audiobooks/`, `Photos/`, `Books/`, `Videos/` and `EQ/` (for AutoEQ / Equalizer APO presets). See the [microSD card guide](docs/guide.md#microsd-card) for formats.
 
-Settings, play counts and resume points live on the Q2, so they stay with the device. For scrobbling, see [set up scrobbling](docs/guide.md#set-up-scrobbling).
+Settings, play counts, ratings and resume points live on the Q2, so they stay with the device. For scrobbling, see [set up scrobbling](docs/guide.md#set-up-scrobbling).
 
 ## Known limitations
 
