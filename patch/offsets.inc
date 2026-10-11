@@ -192,7 +192,7 @@
 #define SUDO_TRACK 2
 #define SUDO_MUTED 0x8c8c8c
 #define HOME_CAPS_PX 18 /* Minimal's Home labels */
-#define MARK_PX 12 /* and the status bar's idle Q2 */
+#define MARK_PX 14 /* and the status bar's idle Q2 */
 /* Minimal's selection is a card SEL_INSET px in from each side of the row, corners SEL_RADIUS. */
 #define SEL_INSET 6
 #define SEL_RADIUS 6

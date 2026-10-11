@@ -439,7 +439,7 @@ def validate_assets(directory):
             assert all(v[2]['children_layout'].endswith(f'xm={STATUS_MARGIN},s=5)') for v in (left, right))
             idle = rest.pop()
             assert idle[1] == [STATUS_MARGIN, 0, 28, 30] and idle[2]['text'] == 'Q2' and idle[2]['visible'] == 'false'
-            assert idle[2]['style:normal:font_size'] == '16' and STATUS_MARGIN >= corner_x(7, 16)
+            assert idle[2]['style:normal:font_size'] == '18' and STATUS_MARGIN >= corner_x(6, 18)
             assert STATUS_MARGIN + 28 < x
             assert [n[2]['name'] for n in rest] == STATUS_HIDDEN and all(n[1][0] + n[1][2] < 0 for n in rest)
             # The Battery setting's percentage and payload battery start hidden (navigation.c bar_sync).

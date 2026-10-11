@@ -340,7 +340,7 @@ def status_bar(root):
         root[3].append(widgets[name])
     root[3].append(['label', [STATUS_MARGIN, 0, 28, 30], {
         'name': 'label_idle', 'text': 'Q2', 'visible': 'false',
-        'style:normal:font_size': '16', 'style:normal:text_color': '#FFFFFF',
+        'style:normal:font_size': '18', 'style:normal:text_color': '#FFFFFF',
         'style:normal:text_align_h': 'left'}, []])
     # The payload writes the local time here (ringnav_paint_bg).
     root[3].append(['hscroll_label', [extent, 0, width, 30], {
