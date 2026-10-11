@@ -3489,6 +3489,8 @@ static int page_closed(void *ctx, void *event) {
     (void)event;
     if (ctx == st.rt_page) {
         st.rt_page = 0;
+        if (st.rt_list) deque_destroy(st.rt_list);
+        st.rt_list = 0;
         ls_closed();
     }
     if (ctx == st.rt_menu) st.rt_menu = 0;
@@ -3897,7 +3899,6 @@ static int rated_open(void *ctx, void *event) {
                     of[deque_size(list)] = (unsigned char)v,
                     _deque_push_back(list, deque_at(songs, i));
     }
-    if (st.rt_list) deque_destroy(st.rt_list);
     st.rt_list = list;
     deque_destroy(songs);
     int count = (int)deque_size(list);
@@ -3953,6 +3954,11 @@ static void lengths_read(void) {
     if (n && !fseek(f, 0, 0) && (ls.tab = calloc(n, sizeof(length_t))) &&
         fread(ls.tab, sizeof(length_t), n, f) == n)
         ls.n = n;
+    else if (n) { /* unread, not empty: not saved over, read again next time */
+        free(ls.tab);
+        ls.tab = 0;
+        ls.read = 0;
+    }
     if (f) fclose(f);
 }
 
@@ -3969,6 +3975,7 @@ static int length_of(unsigned key) {
     return lo < ls.n && ls.tab[lo].key == key ? (int)ls.tab[lo].sec : -1;
 }
 
+/* ponytail: a 32-bit path hash; two files that collide share a length (~1% across 10k files). */
 static unsigned file_key(void *r) { return fnv(FNV_SEED, P(r, REC_PATH)); }
 
 /* r's seconds: a CUE track's from its ends (to the file's end for the last), else the file's;
@@ -4001,13 +4008,6 @@ static void *ls_worker(void *unused) {
 
 /* The worker stopped, what it probed merged into the cache and saved, its jobs freed. */
 static void ls_stop(void) {
-    if (!ls.jobs || !ls.paths) {
-        free(ls.jobs);
-        free(ls.paths);
-        ls.jobs = 0;
-        ls.paths = 0;
-        return;
-    }
     worker_stop(ls.thread, &ls.running, &ls.cancel, &ls.timer);
     unsigned n = ls.n + (unsigned)ls.done;
     length_t *tab = calloc(n + 1, sizeof *tab);
@@ -4015,10 +4015,14 @@ static void ls_stop(void) {
         if (ls.n) memcpy(tab, ls.tab, ls.n * sizeof *tab);
         memcpy(tab + ls.n, ls.jobs, (unsigned)ls.done * sizeof *tab);
         qsort(tab, n, sizeof *tab, by_key);
+        unsigned k = 0; /* a file probed twice (two CUE tracks to its end) is kept once */
+        for (unsigned i = 0; i < n; i++)
+            if (!k || tab[i].key != tab[k - 1].key) tab[k++] = tab[i];
+        n = k;
         free(ls.tab);
         ls.tab = tab;
         ls.n = n;
-        blob_io(LENGTHS_FILE, LENGTHS_FILE ".tmp", ls.tab, ls.n * sizeof *ls.tab, 1);
+        if (ls.read) blob_io(LENGTHS_FILE, LENGTHS_FILE ".tmp", ls.tab, ls.n * sizeof *ls.tab, 1);
     } else
         free(tab);
     for (int i = 0; i < ls.total; i++) free(ls.paths[i]);
@@ -4047,7 +4051,6 @@ static void ls_show(void) {
     }
     if (n) qsort(v, n, sizeof *v, by_length);
     for (unsigned i = 0; i < n; i++) _deque_push_back(list, deque_at(songs, v[i].key));
-    if (st.rt_list) deque_destroy(st.rt_list);
     st.rt_list = list;
     void *view = page_list(st.rt_page, st.rt_page, 0, "Long Songs", n ? (int)n : 1, 64);
     char name[512], detail[300], t[16];
@@ -4110,18 +4113,15 @@ static int long_songs(void *ctx, void *event) {
     for (unsigned i = 0; ls.jobs && ls.paths && i < size; i++) {
         void *r = deque_at(ls.songs, i);
         unsigned key = file_key(r);
-        if (song_length(r) >= 0 || !P(r, REC_PATH)) continue;
-        int dup = 0; /* a CUE image's tracks share a file, listed together */
-        for (int j = ls.total - 1; j >= 0 && j >= ls.total - 64 && !dup; j--)
-            dup = ls.jobs[j].key == key;
-        if (!dup && (ls.paths[ls.total] = strdup(P(r, REC_PATH)))) ls.jobs[ls.total++].key = key;
+        if (song_length(r) < 0 && P(r, REC_PATH) && (ls.paths[ls.total] = strdup(P(r, REC_PATH))))
+            ls.jobs[ls.total++].key = key;
     }
     if (ls.total && !pthread_create(&ls.thread, 0, ls_worker, 0)) {
         ls.running = 1;
-        page_row_detail(page_list(st.rt_page, st.rt_page, &ls.title, "", 1, 48), 0, "Cancel", 0,
-                        ls_cancel);
+        page_row_detail(
+            page_list(st.rt_page, st.rt_page, &ls.title, "Measuring songs\xe2\x80\xa6", 1, 48), 0,
+            "Cancel", 0, ls_cancel);
         ls.timer = timer_add(ls_poll, (void *)0, 250);
-        ls_poll(0);
     } else {
         ls_stop();
         ls_show();
