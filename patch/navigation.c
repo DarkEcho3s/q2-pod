@@ -223,6 +223,7 @@ typedef struct {
     unsigned art_n;
 } scratch_t;
 static scratch_t st __attribute__((section(".scratch")));
+static void rate_bind(void *win); /* ratings: both builds' Now Playing heart */
 
 typedef struct {
     int x, y, w, h;
@@ -2168,7 +2169,6 @@ static int np_gone(void *win, void *event) {
 
 /* playing_page_init: stock builds the page and starts its 250 ms timer, then the iPod labels bind.
  */
-static void rate_bind(void *win);
 int ringnav_playing(void *win, void *ctx) {
     int result = stock_playing_trampoline(win, ctx);
     if (!win) return result;
@@ -2628,7 +2628,6 @@ static int setting_click(void *ctx, void *event) {
 #else
 #define np_cancel() ((void)0)
 /* playing_page_init: Stock's page as built, with the heart's rating hold (rate_bind). */
-static void rate_bind(void *win);
 int ringnav_playing(void *win, void *ctx) {
     int result = stock_playing_trampoline(win, ctx);
     if (win) rate_bind(win);
@@ -2962,6 +2961,8 @@ int compact_now_playing(void) {
     fx_cancel();
     if (usable() && top && !window_manager_is_animating(wm)) {
         if (!tk_strcmp(widget_get_prop_str(top, "name", ""), "playing_page")) {
+            /* ponytail: np_origin is only compared, never followed; a reused address goes Back
+             * instead of Home */
             unsigned n = st.np_origin ? widget_count_children(wm) : 0;
             int back = n >= 2 && widget_get_child(wm, n - 1) == top &&
                        widget_get_child(wm, n - 2) == st.np_origin;
@@ -3245,6 +3246,11 @@ static int artist_album(void *all, void *r, int by_dir) {
     return -1;
 }
 extern int coverflow_artist(void *albums);
+static int artist_cf_gone(void *win, void *event) {
+    (void)event;
+    if (win == st.art_cf_win) st.art_cf_win = (void *)0;
+    return 0;
+}
 static int artist_cf_open(const void *unused) {
     (void)unused;
     void *top = window_manager_get_top_window(window_manager()), *all = st.art_cf_list;
@@ -3252,9 +3258,10 @@ static int artist_cf_open(const void *unused) {
     st.art_cf_list = (void *)0;
     if (top && top != st.art_cf_win &&
         !tk_strcmp(widget_get_prop_str(top, "name", ""), "artistinfo_page") &&
-        coverflow_artist(all))
+        coverflow_artist(all)) {
         st.art_cf_win = top;
-    else
+        widget_on(top, EVT_DESTROY, artist_cf_gone, top);
+    } else
         deque_destroy(all);
     return 0;
 }
@@ -3812,6 +3819,9 @@ static int rate_gone(void *win, void *event) {
  * tells a hold from a tap, and the badge sits on the heart's top right. */
 static void rate_bind(void *win) {
     void *fav = widget_lookup(win, "img_fav", 1), *emitter = fav ? P(fav, W_EMITTER) : (void *)0;
+    stop_timer(&st.rate_tick);
+    stop_timer(&st.rate_hold);
+    st.rate_ctx = (void *)0;
     for (void *item = emitter ? P(emitter, 0) : 0; item; item = P(item, EMIT_NEXT))
         if (I(item, EMIT_TYPE) == EVT_CLICK && P(item, 12) == (void *)FAV_CLICK &&
             !B(item, EMIT_PENDING_REMOVE)) {
@@ -4083,8 +4093,6 @@ int ringnav_localmusic(void *win, void *ctx) {
     return result;
 }
 
-/* stream_page_init: stock's rows, then Spotify (spotify.c), which opens its Now Playing page, and
- * Internet Radio (radio.c). Their buttons have no name, so stock's row click never sees them. */
 /* Streaming's AirPlay row: stock's own receiver (Shairport 1.1.1, AirPlay 1), whose switch is on
  * System settings' Network service page; that page, one press from Streaming. */
 static int airplay_open(void *ctx, void *event) {
@@ -4094,6 +4102,9 @@ static int airplay_open(void *ctx, void *event) {
     return 0;
 }
 
+/* stream_page_init: stock's rows, then Spotify (spotify.c), which opens its Now Playing page,
+ * Internet Radio (radio.c) and AirPlay. Their buttons have no name, so stock's row click never
+ * sees them. */
 int ringnav_stream(void *win, void *ctx) {
     int result = stock_stream_trampoline(win, ctx);
     void *view = win ? widget_lookup(win, "scroll_view_streamsset", 1) : (void *)0;
@@ -4506,8 +4517,7 @@ int ringnav_shuffle(int forward) {
      * of only those still plays. */
     pod_settings();
     for (int tries = 0; st.skip_disliked && tries < 8; tries++) {
-        unsigned at, n;
-        void *r = queue_now(&at, &n);
+        void *r = rate_track();
         if (result < 0 || !r || rate_kept(listen_key(r)) != 1) break;
         result = mcl_shuffle_pick(forward);
     }

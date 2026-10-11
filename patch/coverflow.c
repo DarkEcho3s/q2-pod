@@ -1570,7 +1570,6 @@ int coverflow_artist(void *albums) {
     cf.all_albums = cf.albums;
     cf.albums = albums;
     cf.artist_only = 1;
-    cf.album = 0;
     load();
     return 1;
 }

@@ -1117,8 +1117,7 @@ for flag, value in GATES:
     long_return(m)
     # Stock itself blocks power-off, guide and test mode; iPod adds the shared restrictions
     # checked by usable(), so every listed flag blocks in both builds.
-    blocked = True
-    assert bool(destinations(m)) == (not blocked), flag
+    assert not destinations(m), flag
 for light in (0, 1):
     for lock in (0, 1):
         for mode in range(4):
@@ -1129,18 +1128,17 @@ for light in (0, 1):
             blocked = not light
             assert bool(destinations(m)) == (not blocked)
 passed()
-if True:
-    m = long_machine(); m.page_list()
-    assert m.call(O['KEY_CENTER']) == 11 and m.timers
-    long_return(m)
-    assert not m.timers
-    m.advance(201)
-    assert not m.dispatched()
-    # A hold blocked elsewhere still swallows its release, so no delayed page action runs.
-    m = long_machine(); m.page('folder_page'); m.byte(syms['g_usblink_status'], 2)
-    long_return(m)
-    assert not destinations(m)
-    assert m.call(170, gap=0) == 11
+m = long_machine(); m.page_list()
+assert m.call(O['KEY_CENTER']) == 11 and m.timers
+long_return(m)
+assert not m.timers
+m.advance(201)
+assert not m.dispatched()
+# A hold blocked elsewhere still swallows its release, so no delayed page action runs.
+m = long_machine(); m.page('folder_page'); m.byte(syms['g_usblink_status'], 2)
+long_return(m)
+assert not destinations(m)
+assert m.call(170, gap=0) == 11
 passed()
 # Hold Return on Now Playing goes back to the page it opened over while that lies right under it; otherwise,
 # or with no such page, Home.
@@ -3515,6 +3513,9 @@ for on,tab,page,want in ((1,1,'artistinfo_page',[2]),(0,1,'artistinfo_page',[]),
     assert m.handed==want,(on,tab,page,m.handed)
     if want:  # back from Coverflow, the tab loads again on the same page: the grid stays
         m.call(address=HOOKS['load_localartist_list'][0],args=(tab,0,0,0),gap=0); m.advance(0); assert len(m.handed)==1
+        # The page gone, another at the same address gets Coverflow again.
+        f,ctx=m.handler(m.top,O['EVT_DESTROY']); m.call(address=f,args=(ctx,m.event,0,0),gap=0)
+        m.call(address=HOOKS['load_localartist_list'][0],args=(tab,0,0,0),gap=0); m.advance(0); assert len(m.handed)==2
     passed()
 # A local art job that finishes after a list rebuild must not mark the new row ready.
 # Run the worker's real completion call site, including its stack-buffer argument, then stock's
@@ -5852,7 +5853,6 @@ class RateMachine(ShuffleMachine):
         data=self.files.get('/mnt/data/ringnav-ratings',b'')
         return sorted(v for v in struct.unpack(f'<{len(data)//4}I',data) if v)
     def badge(self):
-        b=self.nodes[self.fav]  # the badge is the heart's sibling, last added
         w=self.nodes[self.get(self.fav+O['W_PARENT'])]['children'][-1]; return self.nodes[w].get('text') if self.nodes[w]['visible'] else None
     def panel(self):
         p=[w for w in self.nodes[self.np]['children'] if self.nodes[w]['type']=='hscroll_label']
