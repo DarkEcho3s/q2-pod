@@ -3529,6 +3529,28 @@ for visit in range(5):
             assert row not in cover_requests(row//9*9,big), (visit,row,big)
     for row in (-1,12): cover_done(row,1,'gone')
 passed()
+# Scrolling never leaves the shared cover worker paused (albumcover_taskstate 2): stock resumed it only
+# when scroll end saw a new first row, so a wheel tick or a return to a scrolled grid stopped every
+# grid's art. An artist's albums scroll end takes rows as 160 px, three a row, not 256.
+class ScrollEndMachine(CoverQueueMachine):
+    def hook(self,u,address,size,unused):
+        if address!=syms['toolsGetSysMemFree']: return super().hook(u,address,size,unused)
+        u.reg_write(UC_MIPS_REG_V0,1<<20); u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA))
+m=ScrollEndMachine(); m.mock('widget_lookup','widget_get_prop_int')
+for pause in (0x4aab40,0x4a22b0):  # an artist's albums, Library Albums
+    m.word(syms['albumcover_taskstate'],1)
+    m.call(address=pause,args=(0,0,0,0),gap=0); assert m.get(syms['albumcover_taskstate'])==1, hex(pause)
+covers=[]
+for i in range(30):
+    c=m.alloc(0x60); m.word(c+4,m.string(f'album {i}')); covers.append(c)
+m.word(syms['pdeq_albumcoverlist'],m.deque(covers))
+view=m.node('scroll_view','scroll_view_album',yoffset=800); win=m.node('window','artistinfo_page',[view])
+m.word(0xa27678,1); m.word(0xa2767c,0)  # the Albums tab; its last requested first row
+for tick in range(2):  # the second, at the same offset, requests nothing and leaves the worker running
+    m.pending.clear(); m.call(address=0x4ad7c0,args=(win,0,0,0),gap=0)
+    assert [row for row,kind,size in m.pending]==([] if tick else list(range(15,24))), m.pending
+    assert m.get(0xa2767c)==15 and m.get(syms['albumcover_taskstate'])==1
+passed()
 # A row opens its name's songs (0xff10, getMusicByAlbum): only its own album's stay.
 m=ClassMachine(page='album_page',cls=0xf003,rows=2); m.word(m.row(1)+O['REC_PATH'],m.string('/q/Row 1'))
 assert m.call(address=HOOKS['load_album_detaillist'][0],args=(0xf003,m.song('Album'),0,0),gap=0)==1
