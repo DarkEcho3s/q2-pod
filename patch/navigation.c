@@ -19,7 +19,7 @@ extern int stock_keyup_trampoline(void *, void *), stock_touch_trampoline(void *
     stock_playlist_trampoline(void *), stock_stream_trampoline(void *, void *),
     stock_start_player_trampoline(void);
 extern void *coverflow_tracks(void *page);
-extern int coverflow_jump(void *w, int from, int dir, unsigned *letter);
+extern int coverflow_jump(void *w, int from, int dir, unsigned *letter), coverflow_bounded(void *w);
 extern void *coverflow_album(void *page), *coverflow_album_tracks(void *r);
 extern unsigned coverflow_scope(void *page);
 extern void coverflow_home_art(void *top);
@@ -56,6 +56,7 @@ extern const char *track_name(char *buf, unsigned size, void *t);
 #define HOME_FAST_WINDOW_MS 200
 #define HOME_SLIDE_MS 200
 #define HOME_FAST_SLIDE_MS 120
+#define CF_BOUNCE 5 /* an artist's last album: a step past kicks it 1/CF_BOUNCE of a stride, springing back */
 #define WHEEL_RUN_MS 140
 #define WHEEL_RAMP_MS 100 /* scrub, the pixel fallback and Stock: one step for this long, then */
 #define WHEEL_MAX_STEP 8  /* one more per this much spin, up to this many */
@@ -521,6 +522,12 @@ static void home_step(void *w, int dir, unsigned now, int jump) {
     if (from < 0) from += n;
     int steps = jump ? coverflow_jump(w, from, dir, &letter) : 1;
     goal -= dir * stride * (steps - 1);
+    int to = I(w, SLIDE_INDEX) - goal / stride;
+    if (coverflow_bounded(w) && (to < 0 || to >= n)) {
+        goal += dir * stride * steps;
+        if (a && (goal - live) * dir < 0) return; /* still arriving at the end */
+        I(w, SLIDE_OFFSET) = live = goal - dir * stride / CF_BOUNCE;
+    }
     st.cf_letter = letter;
     st.cf_letter_at = now;
     st.cf_letter_surface = w;

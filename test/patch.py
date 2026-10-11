@@ -4667,6 +4667,13 @@ m=AlbumRateMachine(); dq=m.deque(m.albums[:2]); m.top=m.node('window','artistinf
 assert m.call(address=payload_syms['coverflow_artist'],args=(dq,0,0,0),gap=0)==1; m.page=m.top; m.slide=m.find('slide_menu')
 assert m.menu()==[*COVER_ALBUM,'Go to artist'] and m.rate(5)=='Album rated  ♥♥♥♥♥' and m.kept()==[(m.aid(m.albums[0])&~7)|5]
 assert m.run(4) is None and m.call(O['KEY_RETURN'])==11 and m.panel() is None and m.top==m.page; passed()
+# An artist's covers stop at both ends: a step past kicks the end cover and springs it back, never wrapping.
+w=m.slide; index=lambda: m.get(w+O['SLIDE_INDEX'])
+assert m.call(O['KEY_PREV'],gap=500)==11; _,kick,goal,_=slide(m,w); assert kick>0 and goal==0
+m.advance(300); assert index()==0 and not m.slides
+m.call(O['KEY_NEXT'],gap=500); m.advance(300); assert index()==1
+m.call(O['KEY_NEXT'],gap=500); assert slide(m,w)[1:3]==(-kick,0)
+m.advance(300); assert index()==1 and not m.slides and m.get(w+O['SLIDE_OFFSET'])==0; passed()
 # The covers' Return closes the unseen artist page under them first, so the Artists list is next.
 artist=m.stack[0]; m.stack.insert(0,m.node('window','localclass_page')); m.nodes[m.wm]={'children':m.stack}; m.mock('navigator_back','window_manager_close_window_force')
 f,ctx=m.handler(m.page,O['EVT_KEY_UP'])

@@ -1244,6 +1244,10 @@ int visual(void *s, int n, int *c, int *frac) { /* shared with photos.c */
     return stride;
 }
 
+/* An artist's albums stop at both ends (home_step bounces there): a ring of one or two albums
+ * would otherwise repeat round the shelf. */
+int coverflow_bounded(void *w) { return w && w == cf.slide && cf.scoped == ARTIST_ALBUMS; }
+
 /* ringnav_paint (the border hook, after stock painted the slide_menu's empty children) calls this
  * for every widget: over Coverflow's slide_menu it draws the frame, rendered again only when the
  * position or a texture has changed. */
@@ -1254,6 +1258,9 @@ void coverflow_paint(void *w, void *canvas) {
         return;
     const unsigned *ring[CF_RING];
     fx_window(c, n, ring);
+    if (coverflow_bounded(w)) /* no wrap: only the artist's real neighbours, never repeats */
+        for (int j = 0; j < CF_RING; ++j)
+            if ((unsigned)(c + j - CF_REACH) >= (unsigned)n) ring[j] = 0;
     if (!fx.drawn || c != fx.c || frac != fx.frac) {
         unsigned *d = (unsigned *)bitmap_lock_buffer_for_write(fx.frame);
         if (!d) return;
