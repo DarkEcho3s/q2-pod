@@ -5,8 +5,8 @@
 [x] Ratings: 0-5 hearts, long-press heart / Hold Play "Rate" picker, My Fav = 5♥
 [x] Ratings submenu: Top Rated, Loved, All Rated, Disliked
 [x] Shuffle skips 1♥ (setting)
-[ ] Long Songs (>10 min) next to Hi-Res
-[ ] Double-Centre screen-off on every page
+[ ] Long Songs (>10 min) — BLOCKED: songtable has no duration column (time/time_end are CUE bounds); needs per-file probe, ask
+[x] Double-Centre screen-off on every page (video keeps Centre for seek)
 [ ] Hold Return: Now Playing ⇄ origin (Stock + iPod)
 [ ] Setting: artist albums as Grid / Coverflow
 [ ] Streaming → AirPlay (stock AirPlay 1), verified on device

@@ -8,7 +8,7 @@ Things people often don't know are already there:
 
 - **Hold Play/Pause** on Now Playing for the queue, favourites, playlists, shuffle and repeat. During Shuffle Albums or Folders it also has **Next album / Previous album**.
 - **Rate songs with hearts:** hold the heart on Now Playing (or **Hold Play/Pause → Rate**), turn to 0-5 hearts, Centre to save. Five hearts is My Fav; **Library → Ratings** lists them.
-- **Double-press the centre button** to turn the screen off; on Now Playing a single press does it.
+- **Double-press the centre button** to turn the screen off on any page (videos excepted); on Now Playing a single press does it.
 - **Hold Return** (iPod) jumps to Now Playing from anywhere.
 - **Brightness, volume limits, balance, date and time and the sleep timer** take the wheel: turn to change, Centre to go back or move to the next field and then OK. In the pull-down, the wheel sets the brightness.
 - **Longer battery:** **System settings → Power → Low power** and **Charge limit**.

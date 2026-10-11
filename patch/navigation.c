@@ -155,6 +155,8 @@ typedef struct {
         cpu_marked, skip_disliked;
     void *pod_label[5];
     unsigned wake_at; /* Wake: Double press, the screen-off centre press a second one must follow */
+    void *dc_top;     /* the page of the last centre press no list click took, and its time */
+    unsigned dc_at;
     unsigned charge_at, last_input, cpu_retry;
     void *pull_page, *pull_surface;
     int pull_x, pull_y, pull_claimed;
@@ -5154,6 +5156,21 @@ int ringnav(void *ctx, void *event) {
     if (!allowed_top(top)) {
         drop_input();
         return result;
+    }
+    /* A double Centre turns the screen off on every listed page, also where the page takes Centre
+     * itself (the Books reader's caption), has no row selected or is still sliding in. A list's
+     * selected row times its own double press (center_timer). */
+    if (key == KEY_CENTER && !st.center_timer) {
+        unsigned now = (unsigned)time_now_ms();
+        if (top == st.dc_top && now - st.dc_at < DOUBLE_CLICK_MS) {
+            static const unsigned release[EVENT_KEY / 4 + 1] = { [EVENT_KEY / 4] = KEY_CENTER };
+            st.dc_top = (void *)0;
+            drop_input();
+            if (g_backlight_status) on_wm_keyup_fun((void *)0, (void *)release);
+            return STOP;
+        }
+        st.dc_top = top;
+        st.dc_at = now;
     }
     int dir = key == KEY_NEXT ? 1 : key == KEY_PREV ? -1 : 0;
     if (window_manager_is_animating(wm) || window_manager_get_pointer_pressed(wm)) {

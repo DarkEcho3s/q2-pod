@@ -1593,6 +1593,12 @@ for gap in (0,100,DC-1):
     # A release while off follows the real stock wake path, with no menu activation.
     assert m.release()==0 and m.screens==[0,1]
     assert m.u.mem_read(syms['g_backlight_status'],1)[0]==1 and not m.clicks; passed()
+# A page still sliding in takes Centre, but a double press there still turns the screen off; a slow
+# second press does not, and the first press alone never does.
+m=Machine(); w,es=m.page_list(3); m.animating=1
+assert m.release()==11 and not m.screens and m.release(DC-1)==11 and m.screens==[0]
+m=Machine(); w,es=m.page_list(3); m.animating=1
+assert m.release()==11 and m.release(DC)==11 and not m.screens; passed()
 # At/after expiry, the first single has dispatched; the next release starts a new single.
 for gap in (DC,DC+1):
     m=Machine(); w,es=m.page_list(3)
@@ -1658,14 +1664,15 @@ m.advance(300); assert not m.clicks; passed()
 m=Machine(); w,es=m.page_list(3); m.release(); m.animating=1
 m.call(gap=100); m.animating=0; m.advance(300)
 assert not m.clicks and not m.timers; passed()
-# Timer allocation failure consumes both releases without activation or screen toggling.
+# Timer allocation failure consumes both releases without activation; the double press still turns
+# the screen off, as on any page that keeps Centre.
 m=Machine(); w,es=m.page_list(3); m.timer_fail=True
 assert m.release()==11 and m.release(100)==11
-m.advance(1000); assert not m.clicks and not m.screens and not m.timers; passed()
-# Empty menus never arm confirmation.
+m.advance(1000); assert not m.clicks and m.screens==[0] and not m.timers; passed()
+# Empty menus never arm confirmation; a double press there still turns the screen off.
 m=Machine(); m.page()
 assert m.release()==11 and m.release(100)==11
-assert not m.timers and not m.clicks and not m.screens; passed()
+assert not m.timers and not m.clicks and m.screens==[0]; passed()
 # Audit the stock creation path independently: live offset, duration, easing,
 # completion address and deselection agree with the fields used by the patch.
 m=Machine(); w=m.page('home_page','slide_menu')
