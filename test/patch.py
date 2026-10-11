@@ -3528,6 +3528,18 @@ for visit in range(5):
             assert cover_ready(row,big)==1, (visit,row,big)
             assert row not in cover_requests(row//9*9,big), (visit,row,big)
     for row in (-1,12): cover_done(row,1,'gone')
+# The folder-cover path (0x4eeddc) reaches the same completion call with its own copied key, not
+# whatever its last call left in a2.
+def folder_done(row,key,a2):
+    sp=0x7000d000
+    m.u.mem_write(sp+0x1688,key.encode()+b'\0'); m.word(sp+0x1828,row); m.word(sp+0x18,0xa26cc0)
+    m.u.reg_write(UC_MIPS_REG_SP,sp); m.u.reg_write(UC_MIPS_REG_GP,0xa26cc0)
+    m.u.reg_write(UC_MIPS_REG_S2,1); m.u.reg_write(UC_MIPS_REG_A2,m.string(a2))
+    m.u.emu_start(0x4eedd4,0x4edda8,count=m.budget)
+    assert m.u.reg_read(UC_MIPS_REG_PC)==0x4edda8
+for key,a2,ready in ((keys[3],'left over',1),('previous folder',keys[3],0)):
+    m.byte(m.items(m.get(syms['pdeq_albumcoverlist']))[3],0)
+    folder_done(3,key,a2); assert cover_ready(3,0)==ready, (key,a2)
 passed()
 # Scrolling never leaves the shared cover worker paused (albumcover_taskstate 2): stock resumed it only
 # when scroll end saw a new first row, so a wheel tick or a return to a scrolled grid stopped every

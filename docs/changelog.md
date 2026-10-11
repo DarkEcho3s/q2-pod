@@ -1,5 +1,6 @@
 # Changelog
 
+- **1.1.0**: Folder covers count as loaded again once they are made. 1.0.8 and 1.0.9 could keep remaking them, or in rare cases close the player while browsing folders.
 - **1.0.9**: Album covers keep loading after you open an album and go back, in an artist's albums and in Library → Albums, instead of stopping until a restart. An artist's albums further down the list now load their covers too.
 - **1.0.8**: Album grids ignore artwork completions from a previous list and clear loaded flags when an album's art key changes, so navigating while covers load cannot mark another album's missing art as already loaded. Scrolling can still request those covers, including the last album in an artist's grid.
 - **1.0.7**: **Wheel sensitivity** is removed: the wheel is fixed at 50% for everyone (a seventh of a turn per tick), and a value you set before is ignored. On Home, taps reach only the visible rows, not the hidden Settings list. Album art tries embedded art first, and a folder's cover.jpg only where no other album shares the folder, so one album's cover no longer fills a whole shared folder; press **Refresh** in Coverflow to rebuild covers already cached. A cover the cache missed while it was being prepared now shows without a reboot.

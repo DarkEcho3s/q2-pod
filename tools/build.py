@@ -7,7 +7,7 @@ import argparse, hashlib, io, json, pathlib, re, shlex, struct, subprocess, tarf
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ZIP_SHA = '154c17822d09be001be35c03d2d3488424dee195221790bd70864480d55b0f00'
 DEMO_SHA = '2c5f06142850b4fc168f82b44a81550cce0a5b4b9fe1c179dced4a08a3049138'
-VERSION = '1.0.9'  # major.minor.patch, single digits, shown as is (About, release tag and ZIPs)
+VERSION = '1.1.0'  # major.minor.patch, single digits, shown as is (About, release tag and ZIPs)
 # The updater's identity (firmware_v20.info and demo's version literal) must be 5 characters and
 # differ from the installed one, so it packs the digits: 1.0.1 is V101I. About shows the stock
 # firmware version and a CFW. Version row with VERSION and the edition instead (ringnav_about).
@@ -803,6 +803,8 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     patch_word(patched, 0x4edd9c, 0x8f99b6d4, 0x27a61688, 'cover completion key')
     patch_word(patched, 0x4edda0, 0x0411ff44, 0x0c000000 | ps['ringnav_cover_done'] >> 2,
                'discard stale cover completion')
+    # The folder-cover path branched past the key (b 0x4edda0); it enters at the key as the others do.
+    patch_word(patched, 0x4eeddc, 0x1000fbf0, 0x1000fbef, 'folder cover completion key')
     # Pin added private entry points as well as every replaced instruction, and the stock bitmap,
     # canvas and slide_menu entries Coverflow's depth renderer calls (docs/internals.md#coverflow-depth).
     for name, original in AUDIT['private_prologues'].items():
