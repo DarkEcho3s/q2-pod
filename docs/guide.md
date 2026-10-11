@@ -85,7 +85,6 @@ Every song can have 0 to 5 hearts.
 - **Rate:** hold the heart on Now Playing, or **Hold Play/Pause → Rate**. Turn the wheel to choose, press Centre to save, or Return to leave it as it was; tapping a heart saves that many.
 - **Five hearts is My Fav:** tapping the heart still adds a song to My Fav (five hearts) or takes it out (unrated). A song rated 1 to 4 shows its number on the empty heart.
 - **Library → Ratings** (where My Fav was): **Top Rated** (4 and 5 hearts), **Loved** (5), **All Rated** and **Disliked** (1), most hearts first. A row plays the list from that song.
-- **Audio settings → Skip disliked** (under Play Mode): shuffle passes over 1-heart songs. They still play when you pick them.
 - Ratings are kept by file path, so they survive Update Local Music but not moving or renaming the file.
 
 ### Shuffle, repeat and grouping
@@ -280,5 +279,5 @@ Playlist import, a stock feature, reads M3U files only from the **`_explaylist_d
 - Run **Update Local Music** first.
 - **First open** prepares artwork once; **Cancel** keeps progress. Later opens add only new albums; **Refresh library**, the last card, rebuilds everything.
 - **Sort**, the card before it: press to switch between **Album**, **Artist** (then year), **Recently Added**, **Most Played** and **Random**. The choice is kept; Random reshuffles each time you pick it.
-- **An artist's albums as Coverflow:** **Audio settings → Artist albums: Coverflow** opens an artist's albums in Coverflow instead of the grid. Return goes back to the artist's page, with the grid and All Songs.
+- **An artist's albums as Coverflow:** **System settings → Display → Artist albums: Coverflow** opens an artist's albums in Coverflow instead of the grid. Return goes back to the artist's page, with the grid and All Songs.
 - **Artwork:** embedded art first, then `cover.jpg` and `folder.jpg`; otherwise a placeholder. A folder shared by several albums skips its `cover.jpg` and `folder.jpg`, since they'd be another album's art.

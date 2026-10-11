@@ -3498,7 +3498,7 @@ for path,artist,want in (('/p/x','Artist','Album\x1fBaroness'),('/z/x','STP','Al
     m.call(address=HOOKS['load_localartist_list'][0],args=(0,0,0,0),gap=0)
     m.call(address=art['ringnav_artist_art_name'],args=(buf,0x100,0,m.string('Album')),gap=0); assert m.text(buf)=='Album'
 passed()
-# Artist albums: Coverflow (Audio settings): the albums tab's split albums go to Coverflow once the artist page is
+# Artist albums: Coverflow (Display settings): the albums tab's split albums go to Coverflow once the artist page is
 # up, once per page, so coming back from it shows the grid; Grid, the songs tab or another page leave it stock.
 class ArtistCoverflow(ArtistMachine):
     def hook(self,u,address,size,unused):
@@ -4230,6 +4230,14 @@ if variant=='ipod':
     assert step(m,gap=300)==11 and m.nodes[m.slider]['value']==5 and m.seeks==[]; passed()
     # Centre commits the target once; nothing seeks afterwards.
     centre(m,50); step(m,O['SCRUB_MS'],wait=True); ended(m,[5]); passed()
+    # Paused (mclGetPlayStatus 3), the player's second stands still after the seek: the bar keeps the
+    # target and stock's timer stays off until it plays; playing, SETTLE_PLAY_MS without reaching it
+    # gives the bar back to stock's timer.
+    PLAY_STATUS=0xa3beac
+    m=scrub_page(); m.word(PLAY_STATUS,3); centre(m); step(m); centre(m,50)
+    step(m,O['SCRUB_MS']+5000,wait=True); assert m.seeks==[105] and not m.starts and m.nodes[m.slider]['value']==105
+    m.word(PLAY_STATUS,2); step(m,1000,wait=True); assert not m.starts
+    step(m,1500,wait=True); assert m.starts==[m.win] and not m.timers; passed()
     # SCRUB_MS without input commits once and gives the wheel back to the volume, not a tick sooner.
     m=scrub_page(); centre(m); step(m)
     step(m,O['SCRUB_MS']-1,wait=True); assert m.seeks==[] and not m.starts
@@ -4262,14 +4270,14 @@ if variant=='ipod':
     # double press) is swallowed too.
     for presses in (1,2):
         m=scrub_page(); centre(m); step(m)
-        assert step(m,O['KEY_CENTER'])==11 and m.seeks==[105] and m.starts==[m.win]
+        assert step(m,O['KEY_CENTER'])==11 and m.seeks==[105] and not m.starts  # settle_poll restarts it
         if presses==2: assert step(m,O['KEY_CENTER'],gap=100)==11
         step(m,DC+O['SCRUB_MS'],wait=True); assert not m.screens and m.u.mem_read(syms['g_backlight_status'],1)[0]
         ended(m,[105],presses); passed()
     # Another window on top ends it with the one commit; the page's destruction drops the target and
     # keeps the timer off.
     m=scrub_page(); centre(m); step(m)
-    m.top=m.node('window','home_page'); step(m); assert m.seeks==[105] and m.starts==[m.win]
+    m.top=m.node('window','home_page'); step(m); assert m.seeks==[105] and not m.starts
     step(m,O['SCRUB_MS'],wait=True); assert m.seeks==[105] and m.starts==[m.win] and not m.timers; passed()
     m=scrub_page(); centre(m); step(m)
     f,ctx=m.handler(m.win,O['EVT_DESTROY']); step(m,address=f,args=(ctx,m.event,0,0),gap=0)
@@ -5111,8 +5119,8 @@ if variant=='ipod':
         if name in ('list_folder','list_tidal','player_playlist'): assert got==sample,name
     passed()
 
-    # Display settings: after the stock rows, Theme, Accent, Home and Battery rows in the native row
-    # widgets and styles, with the Display (Theme and Accent), cover mode and power manager icons;
+    # Display settings: after the stock rows, Theme, Accent, Home, Artist albums and Battery rows in the
+    # native row widgets and styles, with the Display (Theme and Accent), cover mode and power manager icons;
     # Centre or tap cycles and saves each; a new theme or accent drops the image cache and repaints, a
     # new Battery mode repaints the bar. The Accent row, after Theme, shows only in Classic.
     def display(config,card=True):
@@ -5129,9 +5137,9 @@ if variant=='ipod':
         kids=m.nodes[view]['children'][3:]
         return [next(r for r in kids if lab(r).startswith(k)) for k in ('Accent','Home','Battery','Theme')]
     m,view,rows=display({})
-    kids=m.nodes[view]['children'][3:]
-    assert kids==[rows[3],rows[0],rows[1],rows[2]] and m.nodes[rows[0]]['visible']==0  # Theme, hidden Accent, Home, Battery
-    assert m.icons_set==['system_display','system_display','playset_covermode','system_powermanager'] and all(m.nodes[r]['type']=='list_item' and m.nodes[r]['style']=='s_listitem_black' for r in rows)
+    kids=m.nodes[view]['children'][3:]; cf=kids[3]
+    assert kids==[rows[3],rows[0],rows[1],cf,rows[2]] and m.nodes[rows[0]]['visible']==0  # Theme, hidden Accent, Home, Artist albums, Battery
+    assert m.icons_set==['system_display','system_display','playset_covermode','playset_covermode','system_powermanager'] and all(m.nodes[r]['type']=='list_item' and m.nodes[r]['style']=='s_listitem_black' for r in rows)
     buttons=[m.nodes[r]['children'][0] for r in rows]; labels=[m.nodes[b]['children'][1] for b in buttons]
     for b,l in zip(buttons,labels):
         icon=m.nodes[b]['children'][0]  # stock's 0x4c19bc icon geometry, which the row layouter maps
@@ -5139,6 +5147,12 @@ if variant=='ipod':
         assert m.nodes[b]['style']=='s_btn_listitem' and [m.get(b+O[k]) for k in ('W_X','W_Y','W_W','W_H')]==[20,0,335,70]
         assert m.nodes[l]['type']=='hscroll_label' and m.nodes[l]['style']=='s_scrlabel_white24l' and m.get(l+O['W_X'])==72
     def texts(): return [m.nodes[l]['text'] for l in labels]
+    # Artist albums (Q2POD ARTISTCF), the other layout choice, after Home.
+    cf_label=m.nodes[m.nodes[cf]['children'][0]]['children'][1]; assert m.nodes[cf_label]['text']=='Artist albums: Grid'
+    f,ctx=m.handler(m.nodes[cf]['children'][0],O['EVT_CLICK']); m.calls=[]
+    assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0 and m.nodes[cf_label]['text']=='Artist albums: Coverflow'
+    assert [(c[1],m.text(c[2]),m.text(c[3])) for c in m.calls if c[0]=='write_int_config']==[(1,'Q2POD','ARTISTCF')]
+    m.call(address=f,args=(ctx,m.event,0,0),gap=0); assert m.nodes[cf_label]['text']=='Artist albums: Grid'; passed()
     assert texts()==['Accent: Graphite','Home: Split','Battery: Icon','Theme: Minimal']; passed()
     def click(i):
         m.calls=[]; f,ctx=m.handler(buttons[i],O['EVT_CLICK'])
@@ -5172,7 +5186,7 @@ if variant=='ipod':
     writes=click(3); assert [(w[0],m.text(w[1]),m.text(w[2])) for w in writes]==[(1,'IPOD','THEME')]
     assert ('image_manager_unload_all',0x1000500) in [c[:2] for c in m.calls] and ('widget_invalidate_force',m.wm) in [c[:2] for c in m.calls]
     kids=m.nodes[view]['children'][3:]
-    assert kids[:4]==[rows[3],rows[0],rows[1],rows[2]] and m.nodes[rows[0]]['visible']==1
+    assert kids==[rows[3],rows[0],rows[1],cf,rows[2]] and m.nodes[rows[0]]['visible']==1
     assert texts()==['Accent: Graphite','Home: Split','Battery: Icon','Theme: Classic']; home_bounds(False,True); passed()
     click(1); assert texts()[1]=='Home: Full'; home_bounds(True,True); click(1); home_bounds(False,True); passed()
     for value,name in ((1,'Crimson'),(2,'Tidal'),(3,'Champagne'),(0,'Graphite'),(1,'Crimson')):
@@ -5928,15 +5942,6 @@ m2.word(O['MCL_POS'],0); m2.advance(500); assert m2.badge() is None; passed()
 m2.word(O['MCL_POS'],1); m2.handlers[syms['navigator_to']]='q:navigator_to'; m2.press(100)
 assert m2.hold()==11 and m2.labels()[0]=='Rate  ♥♥♡♡♡' and m2.release()==0
 m2.pick(0); m2.advance(0); m2.top=m2.np; assert m2.caption()=='2 of 5' and m2.call(O['KEY_RETURN'])==11; passed()
-# Skip disliked (Playback settings): stock shuffle's pick passes over 1-heart songs, up to 8 more picks, so a queue
-# of only those still plays; off, the first pick stands.
-def shuffled(on,seq):
-    m=RateMachine(b''.join(struct.pack('<I',(key_of(n)&~7)|1) for n in 'AC').ljust(4*O['RATE_SLOTS'],b'\0'))
-    if on: m.config['SKIPDISLIKED']='1'
-    m.seq=list(seq); m.handlers[syms['mcl_shuffle_pick']]='r:pick'
-    assert m.call(address=payload_syms['ringnav_shuffle'],args=(1,0,0,0),gap=0)==1
-    return m.names()[m.get(O['MCL_POS'])],len(seq)-len(m.seq)
-assert shuffled(1,[0,2,1,0])==('B',3) and shuffled(0,[0,2,1])==('A',1) and shuffled(1,[0]*12)==('A',9); passed()
 # Ratings: Top Rated (4-5), Loved (5), All Rated and Disliked (1), most hearts first, then title order.
 m=RateMachine(b''.join(struct.pack('<I',(key_of(n)&~7)|h) for n,h in (('A',1),('C',4),('E',2))).ljust(4*O['RATE_SLOTS'],b'\0'))
 m.found=[m.song(n) for n in ('A','B','C','D','E')]; m.fav_songs=[m.song('D')]
@@ -6981,19 +6986,16 @@ assert click(2)==[(0,'Q2POD','WAKEDOUBLE')] and resume()==['awake_screen']; pass
 m,rows,texts,*_=settings_page('power','scroll_view_powermanager',{'CHARGELIMIT':'1','LOWPOWER':'1','WAKEDOUBLE':'1'})
 assert texts()==[f"Charge limit: {O['CHARGE_STOP']}%",'Low power: On','Wake: Double press']; passed()
 m,rows,texts,icons,click=settings_page('audioset','scroll_view_playset',stock_rows=15)
-assert len(rows)==4 and icons==['playset_playmode','playset_covermode','playset_folderjump','playset_gapless']
-assert texts()==['Skip disliked: Off','Artist albums: Grid','Artists: Artist','Crossfade: Off']
-assert click(2)==[(1,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==1 and texts()[2]=='Artists: Album Artist'
-assert click(2)==[(0,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==0
-assert click(0)==[(1,'Q2POD','SKIPDISLIKED')] and texts()[0]=='Skip disliked: On'
-assert click(1)==[(1,'Q2POD','ARTISTCF')] and texts()[1]=='Artist albums: Coverflow'; passed()
+assert len(rows)==2 and icons==['playset_folderjump','playset_gapless'] and texts()==['Artists: Artist','Crossfade: Off']
+assert click(0)==[(1,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==1 and texts()[0]=='Artists: Album Artist'
+assert click(0)==[(0,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==0; passed()
 # Playback Setting restacks by use (navigation.c playset_order): stock's rows by id, then ours.
 def stacked(m,view_name): return [(m.entries+rows).index(c) for c in m.nodes[named(m,m.top,view_name)]['children']]
-assert stacked(m,'scroll_view_playset')==[3,15,2,0,10,18,9,4,5,11,1,8,17,16,13,14,12,6,7]; passed()
+assert stacked(m,'scroll_view_playset')==[3,2,0,10,16,9,4,5,11,1,8,15,13,14,12,6,7]; passed()
 # Crossfade (crossfade.c): the row shows the saved length while on; an unreadable one is the default.
 for config,text in (({'XFADE':'1','XFADESEC':'7'},'Crossfade: 7 s'),({'XFADE':'1','XFADESEC':'11'},'Crossfade: 5 s'),({'XFADESEC':'7'},'Crossfade: Off')):
     m,rows,texts,*_=settings_page('audioset','scroll_view_playset',config,stock_rows=15)
-    assert texts()[3]==text and m.nodes[m.nodes[m.nodes[rows[3]]['children'][0]]['children'][1]].get('name')=='label_xfade'
+    assert texts()[1]==text and m.nodes[m.nodes[m.nodes[rows[1]]['children'][0]]['children'][1]].get('name')=='label_xfade'
 passed()
 
 # The power poll, on the UI loop. Charge limit: the charger stops (switch_charge_enable(0), the

@@ -152,8 +152,8 @@ typedef struct {
      * the check, 1 usable, 2 refused by an earlier boot's stall, 3 refused by the kernel;
      * last_input times the screen-on idle. */
     int pod_read, charge_limit, low_power, wake_double, wake_pass, charge_held, cpu_off, cpu_bad,
-        cpu_marked, skip_disliked, artist_cf;
-    void *pod_label[6];
+        cpu_marked, artist_cf;
+    void *pod_label[5];
     void *art_cf_win, *art_cf_list; /* the artist page given its Coverflow, the albums pending */
     unsigned art_cf_timer;
     unsigned wake_at; /* Wake: Double press, the screen-off centre press a second one must follow */
@@ -197,8 +197,8 @@ typedef struct {
     unsigned np_marquee;
     /* Scrub: a centre press at np_press_at waits DOUBLE_CLICK_MS in np_press for a second one;
      * scrub_to is the target second, scrub_moved set once the wheel changed it. */
-    unsigned np_press, np_press_at, scrub_timer, scrub_track;
-    int scrub, scrub_to, scrub_moved;
+    unsigned np_press, np_press_at, scrub_timer, scrub_track, settle_timer;
+    int scrub, scrub_to, scrub_moved, settle_played;
     unsigned lyric_timer; /* runs while the wheel holds the lyrics and stock's timer is stopped */
     /* The Display settings, read from config.ini on first use, and the display page's value labels.
      */
@@ -1764,20 +1764,19 @@ static void *list_row(void *view, const char *icon, int (*click)(void *, void *)
 }
 
 /* Power's Charge limit, Low power and Wake (docs/internals.md#charge-limit, #low-power,
- * #wake), Q2POD CHARGELIMIT, LOWPOWER and WAKEDOUBLE in config.ini, and Audio settings' Artists,
- * which is stock's own PLAYSET ARTISTTYPE (artist_type, the artist page's switch;
- * docs/internals.md#album-artists). */
+ * #wake), Q2POD CHARGELIMIT, LOWPOWER and WAKEDOUBLE in config.ini, Display's Artist albums
+ * (ARTISTCF), and Audio settings' Artists, which is stock's own PLAYSET ARTISTTYPE (artist_type,
+ * the artist page's switch; docs/internals.md#album-artists). */
 #define STR_(x) #x
 #define STR(x) STR_(x)
-enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_SKIP, POD_ARTIST_CF, POD_ARTISTS };
+enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_ARTIST_CF, POD_ARTISTS };
 static int *const pod_values[] = { &st.charge_limit, &st.low_power, &st.wake_double,
-                                   &st.skip_disliked, &st.artist_cf };
+                                   &st.artist_cf };
 static void pod_settings(void) {
     if (st.pod_read) return;
     st.charge_limit = config_value("Q2POD", "CHARGELIMIT", 2);
     st.low_power = config_value("Q2POD", "LOWPOWER", 2);
     st.wake_double = config_value("Q2POD", "WAKEDOUBLE", 2);
-    st.skip_disliked = config_value("Q2POD", "SKIPDISLIKED", 2);
     st.artist_cf = config_value("Q2POD", "ARTISTCF", 2);
     st.pod_read = 1;
 }
@@ -1786,7 +1785,6 @@ static void pod_text(int i) {
         { "Charge limit: Off", "Charge limit: " STR(CHARGE_STOP) "%" },
         { "Low power: Off", "Low power: On" },
         { "Wake: Single press", "Wake: Double press" },
-        { "Skip disliked: Off", "Skip disliked: On" },
         { "Artist albums: Grid", "Artist albums: Coverflow" },
         { "Artists: Artist", "Artists: Album Artist" },
     };
@@ -1804,8 +1802,7 @@ static int pod_click(void *ctx, void *event) {
         I(artist_type, 0) = v;
         write_int_config(v, "PLAYSET", "ARTISTTYPE");
     } else {
-        static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE", "SKIPDISLIKED",
-                                            "ARTISTCF" };
+        static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE", "ARTISTCF" };
         int *value = pod_values[i];
         *value = !*value;
         write_int_config(*value, "Q2POD", keys[i]);
@@ -1844,11 +1841,11 @@ static void reorder(void *view, const unsigned char *order, unsigned n) {
 
 /* Playback Setting: what is changed while listening first, then library behaviour, then output. */
 static const unsigned char playset_order[] = {
-    3 /* Play Mode */,     15 /* Skip disliked */, 2 /* EQ */,          0 /* Gain */,
-    10 /* ReplayGain */,   18 /* Crossfade */,     9 /* Gapless */,     4 /* Max Volume */,
-    5 /* Default Vol */,   11 /* Balance */,       1 /* Filters */,     8 /* Memory play */,
-    17 /* Artists */,      16 /* Artist albums */, 13 /* Folder art */, 14 /* Folder skip */,
-    12 /* Enlarged art */, 6 /* DSD Output */,     7 /* USB Audio */,
+    3 /* Play Mode */,   2 /* EQ */,           0 /* Gain */,          10 /* ReplayGain */,
+    16 /* Crossfade */,  9 /* Gapless */,      4 /* Max Volume */,    5 /* Default Vol */,
+    11 /* Balance */,    1 /* Filters */,      8 /* Memory play */,   15 /* Artists */,
+    13 /* Folder art */, 14 /* Folder skip */, 12 /* Enlarged art */, 6 /* DSD Output */,
+    7 /* USB Audio */,
 };
 /* System Setting: connections and display first, boot/update/reset/about last. */
 static const unsigned char sysset_order[] = {
@@ -1859,10 +1856,9 @@ static const unsigned char sysset_order[] = {
 };
 
 int ringnav_audioset(void *win, void *ctx) {
-    static const char *const icons[] = { "playset_playmode", "playset_covermode",
-                                         "playset_folderjump" };
+    static const char *const icons[] = { "playset_folderjump" };
     int result = stock_audioset_trampoline(win, ctx);
-    pod_rows(win, "scroll_view_playset", POD_SKIP, 3, icons);
+    pod_rows(win, "scroll_view_playset", POD_ARTISTS, 1, icons);
     void *view = win ? widget_lookup(win, "scroll_view_playset", 1) : (void *)0;
     if (view) xfade_row(list_row(view, "playset_gapless", xfade_open, (void *)0)); /* crossfade.c */
     reorder(view, playset_order, sizeof playset_order);
@@ -2081,18 +2077,42 @@ static void np_theme(void) {
     if (st.np_album) widget_set_opacity(st.np_album, ipod_classic() ? 255 : 0);
 }
 
+/* Paused, the player's second stands still after a seek until Play (stock player_seek_time waits
+ * 2 s for it, then gives up), and the page's timer would put the bar back on it. The bar keeps the
+ * target until the player reports it, the track changes or stops, or SETTLE_PLAY_MS of playing
+ * pass without it; then the page's timer comes back. */
+#define SETTLE_MS 250
+#define SETTLE_PLAY_MS 2000
+static int settle_poll(const void *info) {
+    (void)info;
+    int sec = -1, total, status = mclGetPlayStatus();
+    player_playtime_and_length(&sec, &total);
+    if (status == 2) st.settle_played += SETTLE_MS;
+    if (st.np_win && np_track() == st.scrub_track && (sec < st.scrub_to - 1 || sec > st.scrub_to + 1) &&
+        (status == 3 || (status == 2 && st.settle_played < SETTLE_PLAY_MS)))
+        return 8; /* RET_REPEAT: paused, or not there yet */
+    st.settle_timer = 0;
+    if (st.np_win) playing_timer_start(st.np_win);
+    return 0;
+}
+
 /* Commits a target the wheel moved, unless the playing track changed since the scrub began; the
- * page's timer and fill come back unless the page is gone. */
+ * fill comes back, and the page's timer once the player is there (settle_poll), unless the page is
+ * gone. */
 static void scrub_end(void) {
     if (!st.scrub) return;
     st.scrub = 0;
     stop_timer(&st.scrub_timer);
-    if (st.scrub_moved && np_track() == st.scrub_track)
-        player_seek_time(st.scrub_to); /* blocks the UI up to 2 s, as stock's key seek */
+    int seek = st.scrub_moved && np_track() == st.scrub_track;
+    if (seek) player_seek_time(st.scrub_to); /* blocks the UI up to 2 s, as stock's key seek */
     st.scrub_moved = 0;
     if (!st.np_win) return;
     np_fill(0);
-    playing_timer_start(st.np_win);
+    st.settle_played = 0;
+    if (seek)
+        rearm(&st.settle_timer, settle_poll, SETTLE_MS);
+    else
+        playing_timer_start(st.np_win);
 }
 
 static int scrub_expire(const void *info) {
@@ -2126,6 +2146,7 @@ static int np_lyrics(unsigned key) {
         !widget_count_children(lrc) || mclGetLyricSize() <= 0)
         return 0;
     scrub_end();
+    stop_timer(&st.settle_timer);
     if (!st.lyric_timer) playing_timer_clear(st.np_win);
     rearm(&st.lyric_timer, lyric_expire, SCRUB_MS);
     int y = clamp_step(I(lrc, SCROLL_Y), I(lrc, VIEW_CONTENT_H) - I(lrc, W_H),
@@ -2138,6 +2159,9 @@ static void np_cancel(void) {
     stop_timer(&st.np_press);
     scrub_end();
     lyric_end();
+    if (!st.settle_timer) return;
+    stop_timer(&st.settle_timer);
+    if (st.np_win) playing_timer_start(st.np_win);
 }
 
 /* A single centre press, DOUBLE_CLICK_MS on, never while scrubbing: it replays the release to stock
@@ -2168,6 +2192,7 @@ static int np_key(void *top, unsigned key) {
             st.scrub_moved = 0;
             st.scrub_to = widget_get_prop_int(st.np_slider, "value", 0);
             st.scrub_track = np_track();
+            stop_timer(&st.settle_timer);
             playing_timer_clear(st.np_win);
             np_fill(1);
             rearm(&st.scrub_timer, scrub_expire, SCRUB_MS);
@@ -2681,16 +2706,21 @@ int ringnav_playing(void *win, void *ctx) {
  * chevron, since they change in place. */
 int ringnav_display(void *win, void *ctx) {
     int result = stock_display_trampoline(win, ctx);
+    /* Artist albums: Grid or Coverflow, a layout as Home's, so it sits after Home. */
+    static const char *const cf_icon[] = { "playset_covermode" };
 #if IPOD
     void *view = win ? widget_lookup(win, "scroll_view_display", 1) : (void *)0;
     static const char *const icons[] = { "system_display", "playset_covermode",
                                          "system_powermanager", "system_display" };
     for (int k = 0; view && k < 4; ++k) {
-        int i = (k + 3) % 4; /* Theme first */
+        int i = (k + 3) % 4; /* Theme, Accent, Home, Battery */
+        if (i == 2) pod_rows(win, "scroll_view_display", POD_ARTIST_CF, 1, cf_icon);
         st.setting_label[i] = list_row(view, icons[i], setting_click, (void *)(long)i);
         setting_text(i);
     }
     if (view) accent_row();
+#else
+    pod_rows(win, "scroll_view_display", POD_ARTIST_CF, 1, cf_icon);
 #endif
     return result;
 }
@@ -4760,14 +4790,6 @@ int ringnav_keylong(void *ctx, void *event) {
  * becomes the next track if it is still at its index. */
 int ringnav_shuffle(int forward) {
     int result = mcl_shuffle_pick(forward);
-    /* Skip disliked: a 1-heart pick is passed over, as if played, a few times at most, so a queue
-     * of only those still plays. */
-    pod_settings();
-    for (int tries = 0; st.skip_disliked && tries < 8; tries++) {
-        void *r = rate_track();
-        if (result < 0 || !r || rate_kept(listen_key(r)) != 1) break;
-        result = mcl_shuffle_pick(forward);
-    }
     void *queue = P(mcl_pdeqplaylist, 0);
     unsigned at = st.qm_forced - 1;
     st.qm_forced = 0;
