@@ -4234,7 +4234,7 @@ if variant=='ipod':
     # target and stock's timer stays off until it plays; playing, SETTLE_PLAY_MS without reaching it
     # gives the bar back to stock's timer.
     PLAY_STATUS=0xa3beac
-    m=scrub_page(); m.word(PLAY_STATUS,3); centre(m); step(m); centre(m,50)
+    m=scrub_page(); m.handlers.pop(syms['mclGetPlayStatus']); m.word(PLAY_STATUS,3); centre(m); step(m); centre(m,50)
     step(m,O['SCRUB_MS']+5000,wait=True); assert m.seeks==[105] and not m.starts and m.nodes[m.slider]['value']==105
     m.word(PLAY_STATUS,2); step(m,1000,wait=True); assert not m.starts
     step(m,1500,wait=True); assert m.starts==[m.win] and not m.timers; passed()
