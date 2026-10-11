@@ -7,7 +7,7 @@ import argparse, hashlib, io, json, pathlib, re, shlex, struct, subprocess, tarf
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ZIP_SHA = '154c17822d09be001be35c03d2d3488424dee195221790bd70864480d55b0f00'
 DEMO_SHA = '2c5f06142850b4fc168f82b44a81550cce0a5b4b9fe1c179dced4a08a3049138'
-VERSION = '1.1.1'  # major.minor.patch, single digits, shown as is (About, release tag and ZIPs)
+VERSION = '1.1.2'  # major.minor.patch, single digits, shown as is (About, release tag and ZIPs)
 # The updater's identity (firmware_v20.info and demo's version literal) must be 5 characters and
 # differ from the installed one, so it packs the digits: 1.0.1 is V101I. About shows the stock
 # firmware version and a CFW. Version row with VERSION and the edition instead (ringnav_about).
@@ -187,6 +187,8 @@ ALBUM_ART = ((0x4a388c, 'ringnav_art_name'), (0x4a421c, 'ringnav_albumcovers'), 
              (0x4ae860, 'ringnav_artist_covers'), (0x4ae968, 'ringnav_artist_covers'),
              (0x4aebc0, 'ringnav_artist_covers'))
 ALBUM_ART_ROW = ((0x4a3890, 0x24c66c04, 0x02603025), (0x4ab808, 0x24c66c04, 0x02403025))
+# Library Artists rows: the row bind's bal to class_icon becomes jal ringnav_class_icon, which hides the head.
+CLASS_ICON = 0x4b0cec
 # Album grids' scroll start no longer pauses the cover worker (sw $3,0($2) -> nop); see docs/internals.md.
 COVER_PAUSE = ((0x4aab60, 0xac430000, 0), (0x4a22d0, 0xac430000, 0))
 # An artist's albums scroll end divides yoffset by its 160 px rows, not 256; see docs/internals.md.
@@ -508,6 +510,7 @@ FUNCTIONS = {
  'toolsQueryDbTable': ('int', 'const char *, const char *, void *, int'),  # db, sql, row, name sort
  'album_row': ('int', 'void *, int, char **, char **'),
  'albumcoverinfo_init': ('int', 'void *'),  # a list's cover tasks, each a copy of its row's name and path
+ 'class_icon': ('int', 'void *, int'),  # Artists, Composers and Genres rows' img_icon (CLASS_ICON)
 }
 # Local stock routines in the SHA-256-pinned V1.32 executable.
 PRIVATE_FUNCTIONS = {
@@ -520,6 +523,7 @@ PRIVATE_FUNCTIONS = {
     "mcl_shuffle_pick": 0x5a8120,
     "album_row": 0x4fc324,  # getAllAlbum's sqlite3_exec callback: id, album, songer, fileurl to a record
     "folder_refresh": 0x52176c,  # folder_page's navbar and table from p_deque_showlist (its init, back)
+    "class_icon": 0x4afc14,  # a category row's picture: the head for Artists, a genre icon, else .downpic
 }
 GLOBALS = ['g_time24h_flag', 'g_backlight_status', 'g_lockscreen_pageflag', 'g_testmode_flag',
            'g_bluetoothflag', 'bt_linkstatus', 'g_guideflag', 'g_poweroff_state', 'g_usblink_status', 'bt__recv_pageflag',
@@ -793,6 +797,8 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         patch_word(patched, address, 0x0320f809, 0x0c000000 | (ps[name] >> 2), 'same-named albums apart in art')
     for row in ALBUM_ART_ROW:
         patch_word(patched, *row, 'same-named albums apart in art')
+    patch_word(patched, CLASS_ICON, 0x04110000 | (syms['class_icon'] - CLASS_ICON - 4) >> 2 & 0xffff,
+               0x0c000000 | (ps['ringnav_class_icon'] >> 2), 'Artists rows without the head picture')
     for word in COVER_PAUSE:
         patch_word(patched, *word, 'album grids never pause the cover worker')
     for word in ARTIST_COVER_ROW:

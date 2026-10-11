@@ -1,5 +1,6 @@
 # Changelog
 
+- **1.1.2**: Coverflow's **Sort** card gains **Random**, which reshuffles the albums each time you pick it (and on Refresh). **ReplayGain** sits directly under **Gain** in Playback settings. **Library → Artists** drops the generic head picture, so longer artist names have room.
 - **1.1.1**: Faster startup when Memory playback restores a large queue, in both iPod and Stock. Queue restoration skips the library's title sort and uses an indexed lookup instead of searching the entire library for every saved track. Saved queue order, shuffle history, CUE tracks and playback position are preserved.
 - **1.1.0**: Folder covers count as loaded again once they are made. 1.0.8 and 1.0.9 could keep remaking them, or in rare cases close the player while browsing folders. iPod: the playlist page's **Import playlist** and **Export playlist** tiles drop their icons and show the full words, centred.
 - **1.0.9**: Album covers keep loading after you open an album and go back, in an artist's albums and in Library → Albums, instead of stopping until a restart. An artist's albums further down the list now load their covers too.

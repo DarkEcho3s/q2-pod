@@ -12,7 +12,7 @@ Things people often don't know are already there:
 - **Brightness, volume limits, balance, date and time and the sleep timer** take the wheel: turn to change, Centre to go back or move to the next field and then OK. In the pull-down, the wheel sets the brightness.
 - **Longer battery:** **System settings → Power → Low power** and **Charge limit**.
 - **Guest artists splitting albums?** **Audio settings → Artists → Album Artist**.
-- **Coverflow order:** the **Sort** card, just before Refresh library, switches to Artist, Recently Added or Most Played.
+- **Coverflow order:** the **Sort** card, just before Refresh library, switches to Artist, Recently Added, Most Played or Random.
 - **Screen waking in your pocket?** **System settings → Power → Wake: Double press**; stock's **Buttons lock** also keeps the buttons and volume still while the screen is off.
 - **Want stock's EQ presets?** **Equalizer → Presets → Stock presets** has Pop, Rock, Jazz and the rest; the ten default bands work as a 10-band graphic EQ.
 - **Wheel click gone?** Key Tone is the Q2's own speaker, so it stays quiet while headphones, Bluetooth or a USB DAC are connected.
@@ -260,5 +260,5 @@ Playlist import, a stock feature, reads M3U files only from the **`_explaylist_d
 
 - Run **Update Local Music** first.
 - **First open** prepares artwork once; **Cancel** keeps progress. Later opens add only new albums; **Refresh library**, the last card, rebuilds everything.
-- **Sort**, the card before it: press to switch between **Album**, **Artist** (then year), **Recently Added** and **Most Played**. The choice is kept.
+- **Sort**, the card before it: press to switch between **Album**, **Artist** (then year), **Recently Added**, **Most Played** and **Random**. The choice is kept; Random reshuffles each time you pick it.
 - **Artwork:** embedded art first, then `cover.jpg` and `folder.jpg`; otherwise a placeholder. A folder shared by several albums skips its `cover.jpg` and `folder.jpg`, since they'd be another album's art.

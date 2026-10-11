@@ -3302,6 +3302,16 @@ assert scan(0,nested)==(1,['/m/a','/m/sub/c','/m/sub/d','/m/b'],0,4); passed()
 assert scan(64998,nested)==(0,['/m/a','/m/sub/c'],1,65000); passed()  # the limit inside a subfolder ends the scan
 assert scan(0,nested,stop_at=2)==(0,['/m/a','/m/sub/c'],1,2); passed()  # the bnez delay slot's stop flag
 assert scan(0,{'/m':['a','b','c']},stop_at=1)==(0,['/m/a'],1,1); passed()
+# Library Artists rows hide the head picture (CLASS_ICON); Composers and Genres, sharing the rebound
+# rows, show theirs again through stock's setter.
+from build import CLASS_ICON
+assert struct.unpack_from('<I',demo,fileoff(demo,CLASS_ICON))[0]==0x0c000000|symbols(B/'patch.elf')['ringnav_class_icon']>>2
+m=Machine(); m.mock('class_icon'); icon=m.node('image','img_icon'); row=m.node('view','',[icon])
+for cls,shown in ((0xf004,0),(0xf006,1),(0xf005,1),(0xf004,0)):
+    m.word(syms['g_class_type'],cls); m.calls=[]
+    m.call(address=symbols(B/'patch.elf')['ringnav_class_icon'],args=(row,3,0,0),gap=0)
+    assert m.nodes[icon]['visible']==shown and [c[1:3] for c in m.calls if c[0]=='class_icon']==([(row,3)] if shown else [])
+passed()
 # Library sorts: both stock name comparators, on the patched trim calls, skip a leading article.
 from build import SORT_TRIMS
 from functools import cmp_to_key
@@ -6738,7 +6748,7 @@ assert click(0)==[(1,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==1 
 assert click(0)==[(0,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==0; passed()
 # Playback Setting restacks by use (navigation.c playset_order): stock's rows by id, then ours.
 def stacked(m,view_name): return [(m.entries+rows).index(c) for c in m.nodes[named(m,m.top,view_name)]['children']]
-assert stacked(m,'scroll_view_playset')==[3,2,0,16,9,10,4,5,11,1,8,15,13,14,12,6,7]; passed()
+assert stacked(m,'scroll_view_playset')==[3,2,0,10,16,9,4,5,11,1,8,15,13,14,12,6,7]; passed()
 # Crossfade (crossfade.c): the row shows the saved length while on; an unreadable one is the default.
 for config,text in (({'XFADE':'1','XFADESEC':'7'},'Crossfade: 7 s'),({'XFADE':'1','XFADESEC':'11'},'Crossfade: 5 s'),({'XFADESEC':'7'},'Crossfade: Off')):
     m,rows,texts,*_=settings_page('audioset','scroll_view_playset',config,stock_rows=15)

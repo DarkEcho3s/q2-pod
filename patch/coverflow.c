@@ -286,17 +286,18 @@ static void drop_unknown(void) {
 /* Sort, the card before Refresh (docs/internals.md#coverflow-sort): Album is the stock order;
  * Artist sorts by artist without a leading article, as every library list does (ringnav_sort_key),
  * then year, then album; Recently Added by the newest song's time_create; Most Played by the
- * album's listens (navigation.c album_plays). Ties keep the stock order, and the Unknown row stays
- * last. Ranks come from ALBUM_SQL with another ORDER BY (toolsQueryDbTable without its name sort),
+ * album's listens (navigation.c album_plays); Random by playback.c's rand_below, reshuffled whenever
+ * the list is rebuilt. Ties keep the stock order, and the Unknown row stays last. Ranks come from ALBUM_SQL with another ORDER BY (toolsQueryDbTable without its name sort),
  * matched back to the rows by album_cmp. */
-enum { SORT_ALBUM, SORT_ARTIST, SORT_ADDED, SORT_PLAYED, SORT_N };
+enum { SORT_ALBUM, SORT_ARTIST, SORT_ADDED, SORT_PLAYED, SORT_RANDOM, SORT_N };
 #define SORT_FILE PEQ_ROOT "/mnt/data/ringnav-coversort"
 #define ALBUM_SQL "select id,album,songer,fileurl,albumsonger from songtable group by album COLLATE NOCASE," \
     "ifnull(albumsonger,'') COLLATE NOCASE,case ifnull(albumsonger,'') when '' then rtrim(fileurl,replace(fileurl,'/','')) end"
 #define SORT_SQL ALBUM_SQL " order by "
 static const char *const sort_names[SORT_N] = { "Sort: Album", "Sort: Artist", "Sort: Recently Added",
-                                                "Sort: Most Played" };
+                                                "Sort: Most Played", "Sort: Random" };
 extern void album_plays(int (*album_of)(void *), unsigned *sum);
+extern unsigned rand_below(unsigned n);
 extern void ringnav_sort_key(char *s);
 #define ARTIST_KEY 96
 
@@ -778,7 +779,9 @@ static void *sorted(void) {
         album_plays(album_index, sum);
         for (unsigned i = 0; i < n; ++i)
             if (sum[i]) v[i].rank = ~sum[i]; /* most first; never played after, in stock order */
-    } else
+    } else if (cf.sort == SORT_RANDOM)
+        for (unsigned i = 0; i < n; ++i) v[i].rank = rand_below(~0u);
+    else
         rank_by(v, cf.sort == SORT_ADDED ? SORT_SQL "max(time_create) desc"
                                          : SORT_SQL "ifnull(max(year),0)=0,max(year),album COLLATE NOCASE");
     qsort(v, n, sizeof *v, artist ? by_artist : by_rank);

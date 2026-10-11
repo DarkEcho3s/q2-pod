@@ -37,6 +37,7 @@ explicit sites in the audit. Folder reset at 0x5217d4, return offset division at
 The category cover callback originally divides by 120 despite using 78-pixel
 rows; iPod corrects its audited divisor at 0x4b0608 to 72. Rebinding and delayed
 cover callbacks keep the same widget geometry and saved cover preferences.
+Artists rows hide their head picture (`CLASS_ICON`), so the title takes its width.
 
 Seven audited row-constructor calls install a per-instance children layouter for
 folder, song, album-list, category, album-track, artist-track and playlist rows.

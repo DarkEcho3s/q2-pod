@@ -330,6 +330,9 @@ int toolsQueryDbTable(const char *db, const char *sql, void *row, int sort) {
 }
 /* navigation.c's: Most Played's counts, per stock record here, and the library lists' article. */
 static unsigned played[64];
+/* playback.c's generator, falling: Random shows the stock order reversed. */
+static unsigned dice = 1000;
+unsigned rand_below(unsigned n) { return dice-- % n; }
 void album_plays(int (*album_of)(void *), unsigned *sum) {
     for (int i = 0; i < albums; ++i) {
         int a = played[i] ? album_of(records[i]) : -1;
@@ -732,6 +735,12 @@ static void sorting(void) {
     close_page();
     open_page();
     order_is((const char *const[]){ "New", "Folder", "C", 0 });
+    /* Random: the generator's order, nothing queried. */
+    q = queries;
+    press_sort();
+    assert(saved_sort() == 4 && queries == q);
+    order_is((const char *const[]){ "Tight", "C", "B", "A", "New", "None", "Embedded", "Folder", "Cover", 0 });
+    assert(coverflow_jump(slide(), 0, 1, &letter) == 1 && !letter);
     press_sort();
     assert(saved_sort() == 0);
     order_is((const char *const[]){ "Cover", "Folder", "Embedded", "None", "New", "A", "B", "C", "Tight", 0 });
@@ -760,7 +769,9 @@ static void unknown_card(void) {
     press_sort();
     assert(!strcmp(album_at(albums), "Unknown Album") && !strcmp(album_at(0), "None"));
     ranked[0] = 0;
-    for (int i = 0; i < 3; ++i) press_sort(); /* back to Album */
+    for (int i = 0; i < 3; ++i) press_sort(); /* to Random */
+    assert(!strcmp(album_at(albums), "Unknown Album"));
+    press_sort(); /* back to Album */
     close_page();
     assert(loads == unloads);
     unknown_row = unknown_songs = 0;
@@ -1144,7 +1155,7 @@ def main():
     print('Coverflow: art order, locks, markers, resume, cancel, Refresh, album list reuse, low space and empty library passed;'
           ' depth renderer (exact centre, clipping, symmetry, reflection, continuity),'
           ' its texture window, centre click, small libraries and flat fallback passed;'
-          ' Sort by artist, recently added and most played, kept across opens, passed;'
+          ' Sort by artist, recently added, most played and random, kept across opens, passed;'
           ' iPod Home art sources, fit, clip, cache and Split/Full layout in both themes passed.')
 
 

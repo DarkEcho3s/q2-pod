@@ -1788,8 +1788,8 @@ static void reorder(void *view, const unsigned char *order, unsigned n) {
 
 /* Playback Setting: what is changed while listening first, then library behaviour, then output. */
 static const unsigned char playset_order[] = {
-    3 /* Play Mode */,   2 /* EQ */,           0 /* Gain */,          16 /* Crossfade */,
-    9 /* Gapless */,     10 /* ReplayGain */,  4 /* Max Volume */,    5 /* Default Vol */,
+    3 /* Play Mode */,   2 /* EQ */,           0 /* Gain */,          10 /* ReplayGain */,
+    16 /* Crossfade */,  9 /* Gapless */,      4 /* Max Volume */,    5 /* Default Vol */,
     11 /* Balance */,    1 /* Filters */,      8 /* Memory play */,   15 /* Artists */,
     13 /* Folder art */, 14 /* Folder skip */, 12 /* Enlarged art */, 6 /* DSD Output */,
     7 /* USB Audio */,
@@ -3244,6 +3244,15 @@ int ringnav_art_header(char *buf, unsigned size, const char *fmt, const char *al
     const char *key = i < deque_size(covers) ? P(deque_at(covers, i), 4) : 0;
     return snprintf(buf, size, fmt,
                     key && !strncasecmp(key, album, n) && key[n] == 0x1f ? key : album);
+}
+
+/* Library Artists rows have no head picture, so the name gets its width (compact_row_layout skips
+ * hidden siblings). Composers and Genres share the rows, which are rebound, so they show theirs
+ * again. */
+int ringnav_class_icon(void *row, int i) {
+    int artists = I(g_class_type, 0) == 0xf004;
+    widget_set_visible(widget_lookup(row, "img_icon", 1), !artists, 0);
+    return artists ? 0 : class_icon(row, i);
 }
 
 /* load_localclass_list: stock fills p_deque_showlist and returns its size. getAllAlbum,
