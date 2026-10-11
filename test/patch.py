@@ -4085,6 +4085,17 @@ if variant=='ipod':
         assert ''.join(l['text'] for l in letters)=='KID A' and len({l['y'] for l in letters})==1
         assert letters[0]['x']==194
         assert {l['color'] for l in letters}=={color_t(O['SUDO_MUTED'])} and m.font==('default',O['NP_CAPS_PX']); passed()
+        # Wider than its label (5 letters, 58 px, in 40), the album holds, scrolls 2 px a step to its
+        # end, holds there, then starts over; the canvas gets its clip back.
+        m.timers.clear() # stock's own, not emulated
+        m.word(album+O['W_W'],40); border(page); assert len(m.timers)==1
+        def x(): return border(page)[0]['x']
+        m.advance(1499); assert x()==194
+        m.advance(1); assert ('widget_invalidate_force',album) in [c[:2] for c in m.calls] and x()==192
+        m.advance(50*8); assert x()==194-18
+        m.advance(1499); assert x()==194-18
+        clip=m.clip; m.advance(1); assert x()==194 and m.clip==clip
+        m.word(album+O['W_W'],165); x(); m.advance(1500); assert not m.timers and x()==194; passed()
     for theme in ('0','1'): minimal_np(theme)
 
     # The full-screen art: stock init runs first; the song name and its shade show BC_MS, then fade

@@ -192,6 +192,9 @@ typedef struct {
     unsigned vol_timer;
     unsigned np_hash; /* of the album text, position and queue length shown, 0 to refresh */
     int np_left;
+    /* Minimal's album marquee: np_off px scrolled of the np_over px the album overflows its label. */
+    int np_off, np_over;
+    unsigned np_marquee;
     /* Scrub: a centre press at np_press_at waits DOUBLE_CLICK_MS in np_press for a second one;
      * scrub_to is the target second, scrub_moved set once the wheel changed it. */
     unsigned np_press, np_press_at, scrub_timer, scrub_track;
@@ -1472,29 +1475,51 @@ static void paint_cover(void *w, void *canvas) {
 
 #if IPOD
 /* Minimal's small capitals (Sudo's): s from x, y (the text's top) in the default font at px,
- * upper-cased (ASCII and Latin-1), SUDO_TRACK px apart, cut off at x + max. The text color is
- * restored, the font is not. */
-static void draw_spaced(void *canvas, const unsigned *s, int x, int y, unsigned px, unsigned color,
+ * upper-cased (ASCII and Latin-1), SUDO_TRACK px apart, cut off at x + max; returns the whole
+ * text's width, a trailing SUDO_TRACK included. The text color is restored, the font is not. */
+static int draw_spaced(void *canvas, const unsigned *s, int x, int y, unsigned px, unsigned color,
                         int max) {
     unsigned text = (unsigned)I(P(canvas, CANVAS_LCD), LCD_TEXT_COLOR);
     canvas_set_font(canvas, (void *)0, px);
     canvas_set_text_color(canvas, color);
-    for (int at = 0; s && *s; ++s) {
+    int at = 0;
+    for (; s && *s; ++s) {
         unsigned c = *s;
         if ((c >= 'a' && c <= 'z') || (c >= 0xe0 && c <= 0xfe && c != 0xf7)) c -= 32;
         int cw = (int)(canvas_measure_text(canvas, &c, 1) + 0.5f);
-        if (at + cw > max) break;
-        canvas_draw_text(canvas, &c, 1, x + at, y);
+        if (at + cw > max)
+            max = -1; /* cut off: the rest is only measured */
+        else
+            canvas_draw_text(canvas, &c, 1, x + at, y);
         at += cw + SUDO_TRACK;
     }
     canvas_set_text_color(canvas, text);
+    return at;
+}
+
+/* Minimal's album marquee: MARQUEE_HOLD_MS at the start, MARQUEE_PX every MARQUEE_MS until the
+ * end shows, MARQUEE_HOLD_MS there, then back to the start. paint_caps measures the overflow and
+ * starts it; it stops once the album fits or the page goes. */
+#define MARQUEE_MS 50
+#define MARQUEE_PX 2
+#define MARQUEE_HOLD_MS 1500
+static int np_marquee(const void *info) {
+    (void)info;
+    st.np_marquee = 0;
+    if (!st.np_album || st.np_over <= 0) return 0;
+    int end = st.np_off >= st.np_over;
+    st.np_off = end ? 0 : st.np_off + MARQUEE_PX > st.np_over ? st.np_over : st.np_off + MARQUEE_PX;
+    widget_invalidate_force(st.np_album, (void *)0);
+    st.np_marquee = timer_add(np_marquee, (void *)0,
+                              end || st.np_off >= st.np_over ? MARQUEE_HOLD_MS : MARQUEE_MS);
+    return 0;
 }
 
 /* Minimal's Home labels are HOME_CAPS_PX small capitals over their transparent stock ink
  * (ringnav_style_color), white on the selected row, else SUDO_MUTED; the status bar's idle "Q2" is
  * the 1.0.1 wordmark's MARK_PX grey capitals; Now Playing's album (docs/ipod.md#now-playing) is
- * NP_CAPS_PX, painted on its page (view_album) over its transparent label. ponytail: long labels
- * are cut off, not scrolled. */
+ * NP_CAPS_PX, painted on its page (view_album) over its transparent label, scrolled by np_marquee
+ * when wider than it. ponytail: other long labels are cut off, not scrolled. */
 static void paint_caps(void *w, void *canvas) {
     if (!w || ipod_classic() || !P(canvas, CANVAS_LCD)) return;
     if (w == st.bar_idle) {
@@ -1503,9 +1528,19 @@ static void paint_caps(void *w, void *canvas) {
         return;
     }
     if (st.np_album && w == P(st.np_album, W_PARENT)) {
-        draw_spaced(canvas, widget_get_text(st.np_album), I(st.np_album, W_X),
-                    I(st.np_album, W_Y) + (I(st.np_album, W_H) - NP_CAPS_PX) / 2, NP_CAPS_PX,
-                    RGBA(SUDO_MUTED), I(st.np_album, W_W));
+        void *a = st.np_album;
+        int old[4], clip[4];
+        if (!clip_within(canvas, old, clip, I(canvas, CANVAS_X) + I(a, W_X),
+                         I(canvas, CANVAS_Y) + I(a, W_Y), I(a, W_W), I(a, W_H)))
+            return;
+        canvas_set_clip_rect(canvas, clip);
+        st.np_over = draw_spaced(canvas, widget_get_text(a), I(a, W_X) - st.np_off,
+                                 I(a, W_Y) + (I(a, W_H) - NP_CAPS_PX) / 2, NP_CAPS_PX,
+                                 RGBA(SUDO_MUTED), I(a, W_W) + st.np_off) -
+                     SUDO_TRACK - I(a, W_W);
+        canvas_set_clip_rect(canvas, old);
+        if (st.np_over > 0 && !st.np_marquee)
+            st.np_marquee = timer_add(np_marquee, (void *)0, MARQUEE_HOLD_MS);
         return;
     }
     if (tk_strcmp(widget_get_type(w), "hscroll_label") || !coverflow_home_owns(w)) return;
@@ -1997,6 +2032,8 @@ static void np_sync(void *top) {
         if (r) tk_snprintf(s, sizeof s, "%d of %d", at + 1, n);
         widget_set_text_utf8(st.np_pos, s);
         widget_set_text_utf8(st.np_album, album ? album : "");
+        st.np_off = 0;
+        stop_timer(&st.np_marquee); /* the next paint restarts it if the album overflows */
     }
     int left =
         widget_get_prop_int(st.np_slider, "max", 0) - widget_get_prop_int(st.np_slider, "value", 0);
@@ -2162,6 +2199,8 @@ static int np_gone(void *win, void *event) {
         st.np_pos = st.np_album = st.np_remain = st.np_slider = st.np_elapsed = st.np_cover =
             st.np_slide = st.np_lrc = (void *)0;
         st.scrub_moved = 0; /* the page is going: no seek */
+        st.np_off = 0;
+        stop_timer(&st.np_marquee);
         np_cancel();
     }
     return 0;
