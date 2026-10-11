@@ -13,16 +13,4 @@
 [ ] Audiobooks → Add .m4b audiobook support
 [ ] Airpods → Add AirPods Support (connect card with battery, ear detection, stem buttons, volume sync)
 	https://github.com/DiamondBond/q2-pod/commit/6799d59d708c667ea050e7ab5776c96ad21fef4c
-[ ] Later, own repo: shairport-sync 4.x AirPlay 2 add-on
-[ ] Not in 1.1.2: line-out warning toggle, sort albums by year
-
-Checklist:
-
-On the device, need to try:
-1. Rating: hold the heart, turn to a rating, press Centre. Five hearts should show up in My Fav, and a tap on the heart should still add or remove it. Then check Hold Play/Pause → Rate.
-2. Library → Ratings: the four lists. Then turn on Skip disliked and shuffle.
-3. Long Songs: let the first open measure the library, and check the lengths look right.
-4. Screen off: a double Centre in the Books reader, an empty list, and a page still sliding in.
-5. Hold Return: hold it on a list, then on Now Playing; it should take you back to that list.
-6. Artist albums: Coverflow: open an artist, then press Return.
-7. Streaming → AirPlay: switch it on, then stream from an iPhone.
+[x] Library artist browsing stays in place; System settings → Display → Artist albums toggles Grid / Coverflow, limited to the selected artist’s albums (Artist and Album Artist).

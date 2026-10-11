@@ -1561,7 +1561,7 @@ static int coverflow_open(void *ctx, void *event) {
     return 0;
 }
 
-/* Audio settings' Artist albums: Coverflow (navigation.c): albums, coverflow_split's, as the
+/* Display settings' Artist albums: Coverflow (navigation.c): albums, coverflow_split's, as the
  * covers, which the page owns; 0 when Coverflow is open already, and albums is the caller's. */
 int coverflow_artist(void *albums) {
     if (cf.page || !deque_size(albums) ||

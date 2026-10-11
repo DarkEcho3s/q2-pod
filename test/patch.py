@@ -3530,11 +3530,14 @@ passed()
 class ArtistCoverflow(ArtistMachine):
     def hook(self,u,address,size,unused):
         if address!=payload_syms['coverflow_artist']: return super().hook(u,address,size,unused)
-        self.handed.append(len(self.items(u.reg_read(REGS[0])))); u.reg_write(UC_MIPS_REG_V0,1); u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA))
-for on,tab,page,want in ((1,1,'artistinfo_page',[2]),(0,1,'artistinfo_page',[]),(1,0,'artistinfo_page',[]),(1,1,'localclass_page',[])):
+        self.handed.append(len(self.items(u.reg_read(REGS[0])))); self.covers=self.names(u.reg_read(REGS[0])); u.reg_write(UC_MIPS_REG_V0,1); u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA))
+for on,tab,page,want in ((1,1,'artistinfo_page',[1]),(0,1,'artistinfo_page',[]),(1,0,'artistinfo_page',[]),(1,1,'localclass_page',[])):
     m=ArtistCoverflow(page='localclass_page',cls=0xff01,rows=2); m.handed=[]
+    m.word(m.row(1)+O['REC_ALBUM'],m.string('Other album'))
     if on: m.config['ARTISTCF']='1'
     m.split=[m.song('Baroness'),m.song('STP')]
+    for r in m.split: m.word(r+O['REC_ALBUM_ARTIST'],m.get(r+O['REC_NAME']))
+    m.found=[m.split[0]]
     m.call(address=HOOKS['load_localartist_list'][0],args=(tab,0,0,0),gap=0)
     m.top=m.node('window',page); m.advance(0)
     assert m.handed==want,(on,tab,page,m.handed)
@@ -3544,6 +3547,30 @@ for on,tab,page,want in ((1,1,'artistinfo_page',[2]),(0,1,'artistinfo_page',[]),
         f,ctx=m.handler(m.top,O['EVT_DESTROY']); m.call(address=f,args=(ctx,m.event,0,0),gap=0)
         m.call(address=HOOKS['load_localartist_list'][0],args=(tab,0,0,0),gap=0); m.advance(0); assert len(m.handed)==2
     passed()
+# Same-named albums by other artists stay out, in both artist modes. Membership follows
+# the artist's songs, so a guest artist and multiple albums of one name work too.
+for mode in (0,1):
+    m=ArtistCoverflow(page='localclass_page',cls=0xff01,rows=1); m.handed=[]; m.config['ARTISTCF']='1'
+    m.word(syms['artist_type'],mode)
+    m.u.mem_write(syms['g_local_classinfo_save']+0x10d,b'Artist\0')
+    m.word(m.row(0)+O['REC_ARTIST'],m.string('Guest singer'))  # selected album artist comes from page context
+    m.split=[m.song(name) for name in ('Selected','Other','Guest')]
+    for r in m.split:
+        m.word(r+O['REC_ALBUM_ARTIST'],m.get(r+O['REC_NAME']))
+    m.found=[m.split[0],m.split[2],m.split[0]]  # duplicates must not create extra cards
+    staging=m.names(m.get(syms['tools_pdeq_directory']))
+    assert m.call(address=HOOKS['load_localartist_list'][0],args=(1,0,0,0),gap=0)==1
+    assert m.query[:2]==(('getMusicByAlbumArtist' if mode else 'getMusicBySonger'),'Artist')
+    assert m.names(m.get(syms['tools_pdeq_directory']))==staging
+    m.top=m.node('window','artistinfo_page'); m.advance(0)
+    assert m.covers==['Selected','Guest'] and m.handed==[2],(mode,m.covers)
+    assert m.names(m.get(syms['p_deque_showlist']))==['Row 0']  # the Library grid stays intact
+    passed()
+# No albums in the selected artist query leaves the grid rather than opening an empty Coverflow.
+m=ArtistCoverflow(page='localclass_page',cls=0xff01,rows=1); m.handed=[]; m.config['ARTISTCF']='1'; m.found=[]
+m.call(address=HOOKS['load_localartist_list'][0],args=(1,0,0,0),gap=0)
+m.top=m.node('window','artistinfo_page'); m.advance(0)
+assert m.handed==[0]; passed()  # coverflow_artist rejects the empty list (test/coverflow.py)
 # A local art job that finishes after a list rebuild must not mark the new row ready.
 # Run the worker's real completion call site, including its stack-buffer argument, then stock's
 # readiness check (used by the renderer and by the request queue to skip completed covers).

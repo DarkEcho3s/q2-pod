@@ -279,5 +279,5 @@ Playlist import, a stock feature, reads M3U files only from the **`_explaylist_d
 - Run **Update Local Music** first.
 - **First open** prepares artwork once; **Cancel** keeps progress. Later opens add only new albums; **Refresh library**, the last card, rebuilds everything.
 - **Sort**, the card before it: press to switch between **Album**, **Artist** (then year), **Recently Added**, **Most Played** and **Random**. The choice is kept; Random reshuffles each time you pick it.
-- **An artist's albums as Coverflow:** **System settings → Display → Artist albums: Coverflow** opens an artist's albums in Coverflow instead of the grid. Return goes back to the artist's page, with the grid and All Songs.
+- **An artist's albums as Coverflow:** **System settings → Display → Artist albums: Coverflow** toggles between the default Grid and Coverflow for **Library → Artists → selected artist → Albums**. Coverflow contains only that artist's albums, including when Artists is set to Album Artist. Return goes back to the artist's page, with the grid and All Songs.
 - **Artwork:** embedded art first, then `cover.jpg` and `folder.jpg`; otherwise a placeholder. A folder shared by several albums skips its `cover.jpg` and `folder.jpg`, since they'd be another album's art.

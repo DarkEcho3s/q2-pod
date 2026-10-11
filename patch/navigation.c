@@ -3329,6 +3329,31 @@ static int artist_album(void *all, void *r, int by_dir) {
     return -1;
 }
 extern int coverflow_artist(void *albums);
+static int artist_songs(void *unused) {
+    (void)unused;
+    return (I(artist_type, 0) == 1 ? getMusicByAlbumArtist : getMusicBySonger)(
+        g_local_classinfo_save[0xa] ? (const char *)0
+                                    : (const char *)g_local_classinfo_save + 0x10d);
+}
+/* Split artwork keys use the whole library; the layout uses only this artist's albums. */
+static void *artist_albums(void *all) {
+    int n;
+    void *songs = staged(artist_songs, 0, &n), *out = _create_deque("stSongInfo");
+    deque_init(out);
+    for (unsigned i = 0; i < deque_size(all); ++i) {
+        void *a = deque_at(all, i);
+        for (unsigned j = 0; j < deque_size(songs); ++j) {
+            void *s = deque_at(songs, j);
+            const char *name = P(s, REC_ALBUM);
+            if (I(a, REC_ID) < 0 ? !name || !*name : !album_cmp(a, s)) {
+                _deque_push_back(out, a);
+                break;
+            }
+        }
+    }
+    deque_destroy(songs);
+    return out;
+}
 static int artist_cf_gone(void *win, void *event) {
     (void)event;
     if (win == st.art_cf_win) st.art_cf_win = (void *)0;
@@ -3369,10 +3394,10 @@ int ringnav_artist_list(int tab) {
      * so coming back from it shows the stock grid. */
     pod_settings();
     if (st.artist_cf && !st.art_cf_list) {
-        st.art_cf_list = all;
+        st.art_cf_list = artist_albums(all);
         rearm(&st.art_cf_timer, artist_cf_open, 0);
-    } else
-        deque_destroy(all);
+    }
+    deque_destroy(all);
     return n;
 }
 static const char *artist_key(char *buf, void *list, unsigned i) {
