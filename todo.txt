@@ -1,10 +1,9 @@
-1.1.2 — issue #19
+1.1.2
 [x] Coverflow Sort: Random                         (384c98e)
 [x] ReplayGain under Gain                          (384c98e)
 [x] Library Artists: no head picture               (384c98e)
 [x] Ratings: 0-5 hearts, long-press heart / Hold Play "Rate" picker, My Fav = 5♥
 [x] Ratings submenu: Top Rated, Loved, All Rated, Disliked
-[x] Shuffle skips 1♥ (setting)
 [x] Long Songs (>10 min): TagLib length probed once on a worker, cached in /mnt/data/ringnav-lengths
 [x] Double-Centre screen-off on every page (video keeps Centre for seek)
 [x] Hold Return: Now Playing ⇄ origin (Stock + iPod)
