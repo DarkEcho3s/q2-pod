@@ -143,7 +143,7 @@ stock font at 16 pixels.
 - Icon: a clean 16×11 charge-level outline and a 2-pixel nub, drawn in `view_battery`.
 - Percent: stock's `label_battery`, 14 px, right-aligned in a 36-pixel slot.
 - Icon + Percent: the same charge-level icon with a readable 14 px percentage beside it, in a 56-pixel slot.
-- Percent Inside (`BATTERY=3`): a fixed 44×20 outline with a 2×6 terminal, and a centred 14 px percentage in a 36-pixel text area, lowered 2 pixels to centre the digits within the font’s line box. The interior stays black without a level fill; outline and text turn green while charging and red when low.
+- Percent Inside (`BATTERY=3`): a compact 32×16 solid battery with softly rounded corners and a 2×6 terminal. Centred 12 px dark digits show the percentage without a percent sign. The body turns green while charging and red when low.
 
 In Icon and Icon + Percent, charging fills the icon solid green (`BATT_CHARGE_RGB`); low battery always uses
 `BATT_LOW_RGB` (`#FF1448`) under every accent. Saved Battery values keep their existing meanings.

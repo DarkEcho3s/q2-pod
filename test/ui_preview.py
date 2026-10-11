@@ -319,21 +319,22 @@ with tempfile.TemporaryDirectory(prefix='q2-ui-preview-') as tmp:
                 fallback=isinstance(level,str)
                 if fallback: bw,bh,nh=inc('BATT_BODY_W'),inc('BATT_BODY_H'),inc('BATT_NUB_H')
                 x=375-STATUS_MARGIN-bw-inc('BATT_NUB_W'); y=(30+1-bh)//2
-                for dx,dy,w,h in ((1,0,bw-2,1),(1,bh-1,bw-2,1),(0,1,1,bh-2),(bw-1,1,1,bh-2),(bw,(bh-nh)//2,inc('BATT_NUB_W'),nh)):
-                    rect(a,x+dx,y+dy,w,h,color)
                 if fallback:
+                    for dx,dy,w,h in ((1,0,bw-2,1),(1,bh-1,bw-2,1),(0,1,1,bh-2),(bw-1,1,1,bh-2)):
+                        rect(a,x+dx,y+dy,w,h,color)
                     rect(a,x+2,y+2,bw-4,bh-4,color)
                 else:
-                    rect(a,x+1,y+1,bw-2,bh-2,'black')
+                    a += ['-fill',color,'-draw',f'roundrectangle {x},{y} {x+bw-1},{y+bh-1} 3,3']
                     glyph=tmp/f'battery-text-{state}-{level}.png'
-                    render(['-background','none','-fill',color,'-font',font,'-pointsize',inc('BATT_PX'),
-                            'label:'+str(level)+'%','-gravity','Center','-extent',f'{inc("BATT_PCT_W")}x{bh}'],glyph)
+                    render(['-background','none','-fill','black','-font',font,'-pointsize',inc('BATT_INSIDE_PX'),
+                            'label:'+str(level),'-gravity','Center','-extent',f'{bw-4}x{bh}'],glyph)
                     bounds=imagemagick(glyph,'-format','%@','info:',data=b'').decode().strip()
                     gw,gh,gx,gy=map(int,re.fullmatch(r'(\d+)x(\d+)\+(\d+)\+(\d+)',bounds).groups())
-                    # Visible glyph ink must leave at least three clear pixels inside each border.
-                    dx=(bw-inc('BATT_PCT_W'))//2; dy=inc('BATT_INSIDE_TEXT_DY')
-                    assert dx+gx>=4 and dx+gx+gw<=bw-4 and gy+dy>=4 and gy+dy+gh<=bh-4, bounds
+                    # Visible glyph ink must leave at least three pixels of padding inside the body.
+                    dx=2; dy=inc('BATT_INSIDE_TEXT_DY')
+                    assert dx+gx>=3 and dx+gx+gw<=bw-3 and gy+dy>=3 and gy+dy+gh<=bh-3, bounds
                     a += [glyph,'-gravity','NorthWest','-geometry',f'+{x+dx}+{y+dy}','-composite']
+                rect(a,x+bw,y+(bh-nh)//2,inc('BATT_NUB_W'),nh,color)
                 # Ordinary Bluetooth and Wi-Fi fit alongside every percentage.
                 wifi=asset(after,'images/xx/bar_wifi4.png')
                 ww,wh=png_header(wifi.read_bytes())[:2]

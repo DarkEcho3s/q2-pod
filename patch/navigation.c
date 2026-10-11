@@ -1986,33 +1986,36 @@ static void bar_sync(void *bar) {
     widget_invalidate_force(st.bar_slot, (void *)0);
 }
 
-/* Charge-level outline and nub, percentage alongside in mode 2 or inside an unfilled outline
- * in mode 3; charging fills only the small icon. Restore canvas state. */
+/* Mode 3 uses a compact solid battery with dark digits; mode 2 puts the percentage beside
+ * the charge-level icon. Restore canvas state. */
 static void paint_battery(void *w, void *canvas) {
     void *lcd = P(canvas, CANVAS_LCD);
     if (!lcd) return;
     unsigned fill = (unsigned)I(lcd, LCD_FILL_COLOR);
     unsigned key = st.batt_key, level = key >> 2, s[4], n = put_num(s, level);
-    s[n++] = '%';
-    unsigned color = RGBA(key & 2 ? BATT_CHARGE_RGB : key & 1 ? BATT_LOW_RGB : 0xffffff);
     int inside = st.batt_mode == 3;
+    if (!inside) s[n++] = '%';
+    unsigned color = RGBA(key & 2 ? BATT_CHARGE_RGB : key & 1 ? BATT_LOW_RGB : 0xffffff);
     const int bw = inside ? BATT_INSIDE_W : BATT_BODY_W, bh = inside ? BATT_INSIDE_H : BATT_BODY_H,
               nh = inside ? BATT_INSIDE_NUB_H : BATT_NUB_H, y = (I(w, W_H) + 1 - bh) / 2;
     canvas_set_fill_color(canvas, color);
+    if (inside) {
+        rect_t body = { 0, y, bw, bh };
+        fill_box(canvas, &body, color, 3);
+        canvas_set_fill_color(canvas, color);
+        canvas_fill_rect(canvas, bw, y + (bh - nh) / 2, BATT_NUB_W, nh);
+        /* Digits have no descenders: lower their ink within the font's line box. */
+        rect_t r = { 2, y + BATT_INSIDE_TEXT_DY, bw - 4, bh };
+        draw_centred(canvas, s, n, &r, BATT_INSIDE_PX, RGBA(0));
+        canvas_set_fill_color(canvas, fill);
+        return;
+    }
     canvas_fill_rect(canvas, 1, y, bw - 2, 1);
     canvas_fill_rect(canvas, 1, y + bh - 1, bw - 2, 1);
     canvas_fill_rect(canvas, 0, y + 1, 1, bh - 2);
     canvas_fill_rect(canvas, bw - 1, y + 1, 1, bh - 2);
     canvas_fill_rect(canvas, bw, y + (bh - nh) / 2, BATT_NUB_W, nh);
-    if (inside) {
-        canvas_set_fill_color(canvas, RGBA(0));
-        canvas_fill_rect(canvas, 1, y + 1, bw - 2, bh - 2);
-        /* Digits have no descenders: lower their ink within the font's line box. */
-        rect_t r = { (bw - BATT_PCT_W) / 2, y + BATT_INSIDE_TEXT_DY, BATT_PCT_W, bh };
-        draw_centred(canvas, s, n, &r, BATT_PX, color);
-    } else {
-        canvas_fill_rect(canvas, 2, y + 2, (bw - 4) * (key & 2 ? 100 : level) / 100, bh - 4);
-    }
+    canvas_fill_rect(canvas, 2, y + 2, (bw - 4) * (key & 2 ? 100 : level) / 100, bh - 4);
     if (st.batt_mode == 2) {
         rect_t r = { bw + BATT_NUB_W + BATT_GAP, 0, BATT_PCT_W, I(w, W_H) };
         draw_centred(canvas, s, n, &r, BATT_PX, color);
