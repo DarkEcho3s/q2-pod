@@ -729,6 +729,13 @@ def patch_code(data, symbols):
     # Only the final long-Return call changes. All stock gates and its release guard precede it.
     word(0x4e8924, 0x04110fdf, 0x0c000000 | (symbols['compact_now_playing'] >> 2),
          'long Return destination after stock input gates')
+    # Playlist page's Import/Export tiles: no icon (0 wide), the label spans the 164px tile in
+    # stock's centred s_scrlabel_white24c (0x769220) instead of 91px after the icon.
+    for icon, style in ((0x4b2fa0, 0x4b3028), (0x4b30a4, 0x4b3130)):
+        word(icon, 0x24070032, 0x24070000, 'playlist tile icon width 0')
+        word(icon + 0x54, 0x2407005b, 0x240700a4, 'playlist tile label spans the tile')
+        word(icon + 0x60, 0x2405003f, 0x24050000, 'playlist tile label at the tile edge')
+        word(style, 0x25058c04, 0x25059220, 'playlist tile label centred')
     # iPod settings rows: the list_view layouter's layout slot (data, vtable 0x926928 + 8).
     word(inc('LIST_VIEW_LAYOUT_SLOT'), inc('LIST_VIEW_LAYOUT'), symbols['ipod_list_layout'],
          'settings lists stack SET_ROW rows and map their children')

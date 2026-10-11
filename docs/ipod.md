@@ -328,8 +328,10 @@ composers), the album list and folder rows that are not songs, hidden in multi-s
 it, aligned with those (see [internals.md](internals.md#drawing)), only on the `DRILL` windows in
 `patch/contexts.inc`: Home and the playlist list, whose rows open their tracks. Classic's Home
 draws only the highlighted row's, so it moves with the selection bar; Minimal's Home has none. Tiles narrower
-than half the list (playlist Import/Export) get none. The artist page's Albums tab drills but has
-no stock chevron or payload row layouter, so it has none.
+than half the list (playlist Import/Export) get none. Those two tiles, built by stock at run time,
+have no icon: the build gives the icon no width and stretches the label across the tile in stock's
+centred `s_scrlabel_white24c` (`tools/ipod.py`). The artist page's Albums tab drills but has no
+stock chevron or payload row layouter, so it has none.
 
 ## Fast-scroll letter
 
