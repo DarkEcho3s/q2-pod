@@ -4,7 +4,7 @@
 [x] Library Artists: no head picture               (384c98e)
 [x] Ratings: 0-5 hearts, long-press heart / Hold Play "Rate" picker, My Fav = 5♥
 [x] Ratings submenu: Top Rated, Loved, All Rated, Disliked
-[ ] Shuffle skips 1♥ (setting)
+[x] Shuffle skips 1♥ (setting)
 [ ] Long Songs (>10 min) next to Hi-Res
 [ ] Double-Centre screen-off on every page
 [ ] Hold Return: Now Playing ⇄ origin (Stock + iPod)

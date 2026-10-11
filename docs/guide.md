@@ -81,6 +81,7 @@ Every song can have 0 to 5 hearts.
 - **Rate:** hold the heart on Now Playing, or **Hold Play/Pause → Rate**. Turn the wheel to choose, press Centre to save, or Return to leave it as it was; tapping a heart saves that many.
 - **Five hearts is My Fav:** tapping the heart still adds a song to My Fav (five hearts) or takes it out (unrated). A song rated 1 to 4 shows its number on the empty heart.
 - **Library → Ratings** (where My Fav was): **Top Rated** (4 and 5 hearts), **Loved** (5), **All Rated** and **Disliked** (1), most hearts first. A row plays the list from that song.
+- **Audio settings → Skip disliked** (under Play Mode): shuffle passes over 1-heart songs. They still play when you pick them.
 - Ratings are kept by file path, so they survive Update Local Music but not moving or renaming the file.
 
 ### Shuffle, repeat and grouping

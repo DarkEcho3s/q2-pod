@@ -5806,6 +5806,7 @@ class RateMachine(ShuffleMachine):
             path,data=self.open_files.pop(a)
             if data: self.files[path]=data
         elif name=='rename': self.files[self.text(b)]=self.files.pop(self.text(a))
+        elif name=='pick': self.word(O['MCL_POS'],self.seq.pop(0)); ret=1
         elif name=='getAllFav':
             self.deqs[self.get(syms['tools_pdeq_directory'])][1]=[self.copy('stSongInfo',e) for e in self.fav_songs]; ret=len(self.fav_songs)
         elif name=='fav_click':  # stock: My Fav toggled for the playing track, and the heart's image
@@ -5871,6 +5872,15 @@ m2.word(O['MCL_POS'],0); m2.advance(500); assert m2.badge() is None; passed()
 m2.word(O['MCL_POS'],1); m2.handlers[syms['navigator_to']]='q:navigator_to'; m2.press(100)
 assert m2.hold()==11 and m2.labels()[0]=='Rate  ♥♥♡♡♡' and m2.release()==0
 m2.pick(0); m2.advance(0); m2.top=m2.np; assert m2.caption()=='2 of 5' and m2.call(O['KEY_RETURN'])==11; passed()
+# Skip disliked (Playback settings): stock shuffle's pick passes over 1-heart songs, up to 8 more picks, so a queue
+# of only those still plays; off, the first pick stands.
+def shuffled(on,seq):
+    m=RateMachine(b''.join(struct.pack('<I',(key_of(n)&~7)|1) for n in 'AC').ljust(4*O['RATE_SLOTS'],b'\0'))
+    if on: m.config['SKIPDISLIKED']='1'
+    m.seq=list(seq); m.handlers[syms['mcl_shuffle_pick']]='r:pick'
+    assert m.call(address=payload_syms['ringnav_shuffle'],args=(1,0,0,0),gap=0)==1
+    return m.names()[m.get(O['MCL_POS'])],len(seq)-len(m.seq)
+assert shuffled(1,[0,2,1,0])==('B',3) and shuffled(0,[0,2,1])==('A',1) and shuffled(1,[0]*12)==('A',9); passed()
 # Ratings: Top Rated (4-5), Loved (5), All Rated and Disliked (1), most hearts first, then title order.
 m=RateMachine(b''.join(struct.pack('<I',(key_of(n)&~7)|h) for n,h in (('A',1),('C',4),('E',2))).ljust(4*O['RATE_SLOTS'],b'\0'))
 m.found=[m.song(n) for n in ('A','B','C','D','E')]; m.fav_songs=[m.song('D')]
@@ -6872,16 +6882,17 @@ assert click(2)==[(0,'Q2POD','WAKEDOUBLE')] and resume()==['awake_screen']; pass
 m,rows,texts,*_=settings_page('power','scroll_view_powermanager',{'CHARGELIMIT':'1','LOWPOWER':'1','WAKEDOUBLE':'1'})
 assert texts()==[f"Charge limit: {O['CHARGE_STOP']}%",'Low power: On','Wake: Double press']; passed()
 m,rows,texts,icons,click=settings_page('audioset','scroll_view_playset',stock_rows=15)
-assert len(rows)==2 and icons==['playset_folderjump','playset_gapless'] and texts()==['Artists: Artist','Crossfade: Off']
-assert click(0)==[(1,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==1 and texts()==['Artists: Album Artist','Crossfade: Off']
-assert click(0)==[(0,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==0; passed()
+assert len(rows)==3 and icons==['playset_playmode','playset_folderjump','playset_gapless'] and texts()==['Skip disliked: Off','Artists: Artist','Crossfade: Off']
+assert click(1)==[(1,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==1 and texts()==['Skip disliked: Off','Artists: Album Artist','Crossfade: Off']
+assert click(1)==[(0,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==0
+assert click(0)==[(1,'Q2POD','SKIPDISLIKED')] and texts()[0]=='Skip disliked: On'; passed()
 # Playback Setting restacks by use (navigation.c playset_order): stock's rows by id, then ours.
 def stacked(m,view_name): return [(m.entries+rows).index(c) for c in m.nodes[named(m,m.top,view_name)]['children']]
-assert stacked(m,'scroll_view_playset')==[3,2,0,10,16,9,4,5,11,1,8,15,13,14,12,6,7]; passed()
+assert stacked(m,'scroll_view_playset')==[3,15,2,0,10,17,9,4,5,11,1,8,16,13,14,12,6,7]; passed()
 # Crossfade (crossfade.c): the row shows the saved length while on; an unreadable one is the default.
 for config,text in (({'XFADE':'1','XFADESEC':'7'},'Crossfade: 7 s'),({'XFADE':'1','XFADESEC':'11'},'Crossfade: 5 s'),({'XFADESEC':'7'},'Crossfade: Off')):
     m,rows,texts,*_=settings_page('audioset','scroll_view_playset',config,stock_rows=15)
-    assert texts()[1]==text and m.nodes[m.nodes[m.nodes[rows[1]]['children'][0]]['children'][1]].get('name')=='label_xfade'
+    assert texts()[2]==text and m.nodes[m.nodes[m.nodes[rows[2]]['children'][0]]['children'][1]].get('name')=='label_xfade'
 passed()
 
 # The power poll, on the UI loop. Charge limit: the charger stops (switch_charge_enable(0), the

@@ -152,8 +152,8 @@ typedef struct {
      * the check, 1 usable, 2 refused by an earlier boot's stall, 3 refused by the kernel;
      * last_input times the screen-on idle. */
     int pod_read, charge_limit, low_power, wake_double, wake_pass, charge_held, cpu_off, cpu_bad,
-        cpu_marked;
-    void *pod_label[4];
+        cpu_marked, skip_disliked;
+    void *pod_label[5];
     unsigned wake_at; /* Wake: Double press, the screen-off centre press a second one must follow */
     unsigned charge_at, last_input, cpu_retry;
     void *pull_page, *pull_surface;
@@ -1728,13 +1728,15 @@ static void *list_row(void *view, const char *icon, int (*click)(void *, void *)
  * docs/internals.md#album-artists). */
 #define STR_(x) #x
 #define STR(x) STR_(x)
-enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_ARTISTS };
-static int *const pod_values[] = { &st.charge_limit, &st.low_power, &st.wake_double };
+enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_SKIP, POD_ARTISTS };
+static int *const pod_values[] = { &st.charge_limit, &st.low_power, &st.wake_double,
+                                   &st.skip_disliked };
 static void pod_settings(void) {
     if (st.pod_read) return;
     st.charge_limit = config_value("Q2POD", "CHARGELIMIT", 2);
     st.low_power = config_value("Q2POD", "LOWPOWER", 2);
     st.wake_double = config_value("Q2POD", "WAKEDOUBLE", 2);
+    st.skip_disliked = config_value("Q2POD", "SKIPDISLIKED", 2);
     st.pod_read = 1;
 }
 static void pod_text(int i) {
@@ -1742,6 +1744,7 @@ static void pod_text(int i) {
         { "Charge limit: Off", "Charge limit: " STR(CHARGE_STOP) "%" },
         { "Low power: Off", "Low power: On" },
         { "Wake: Single press", "Wake: Double press" },
+        { "Skip disliked: Off", "Skip disliked: On" },
         { "Artists: Artist", "Artists: Album Artist" },
     };
     int v = i < POD_ARTISTS ? *pod_values[i] : I(artist_type, 0) == 1;
@@ -1758,7 +1761,8 @@ static int pod_click(void *ctx, void *event) {
         I(artist_type, 0) = v;
         write_int_config(v, "PLAYSET", "ARTISTTYPE");
     } else {
-        static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE" };
+        static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE",
+                                            "SKIPDISLIKED" };
         int *value = pod_values[i];
         *value = !*value;
         write_int_config(*value, "Q2POD", keys[i]);
@@ -1797,11 +1801,11 @@ static void reorder(void *view, const unsigned char *order, unsigned n) {
 
 /* Playback Setting: what is changed while listening first, then library behaviour, then output. */
 static const unsigned char playset_order[] = {
-    3 /* Play Mode */,   2 /* EQ */,           0 /* Gain */,          10 /* ReplayGain */,
-    16 /* Crossfade */,  9 /* Gapless */,      4 /* Max Volume */,    5 /* Default Vol */,
-    11 /* Balance */,    1 /* Filters */,      8 /* Memory play */,   15 /* Artists */,
-    13 /* Folder art */, 14 /* Folder skip */, 12 /* Enlarged art */, 6 /* DSD Output */,
-    7 /* USB Audio */,
+    3 /* Play Mode */,   15 /* Skip disliked */, 2 /* EQ */,           0 /* Gain */,
+    10 /* ReplayGain */, 17 /* Crossfade */,     9 /* Gapless */,      4 /* Max Volume */,
+    5 /* Default Vol */, 11 /* Balance */,       1 /* Filters */,      8 /* Memory play */,
+    16 /* Artists */,    13 /* Folder art */,    14 /* Folder skip */, 12 /* Enlarged art */,
+    6 /* DSD Output */,  7 /* USB Audio */,
 };
 /* System Setting: connections and display first, boot/update/reset/about last. */
 static const unsigned char sysset_order[] = {
@@ -1812,9 +1816,9 @@ static const unsigned char sysset_order[] = {
 };
 
 int ringnav_audioset(void *win, void *ctx) {
-    static const char *const icons[] = { "playset_folderjump" };
+    static const char *const icons[] = { "playset_playmode", "playset_folderjump" };
     int result = stock_audioset_trampoline(win, ctx);
-    pod_rows(win, "scroll_view_playset", POD_ARTISTS, 1, icons);
+    pod_rows(win, "scroll_view_playset", POD_SKIP, 2, icons);
     void *view = win ? widget_lookup(win, "scroll_view_playset", 1) : (void *)0;
     if (view) xfade_row(list_row(view, "playset_gapless", xfade_open, (void *)0)); /* crossfade.c */
     reorder(view, playset_order, sizeof playset_order);
@@ -4449,6 +4453,15 @@ int ringnav_keylong(void *ctx, void *event) {
  * becomes the next track if it is still at its index. */
 int ringnav_shuffle(int forward) {
     int result = mcl_shuffle_pick(forward);
+    /* Skip disliked: a 1-heart pick is passed over, as if played, a few times at most, so a queue
+     * of only those still plays. */
+    pod_settings();
+    for (int tries = 0; st.skip_disliked && tries < 8; tries++) {
+        unsigned at, n;
+        void *r = queue_now(&at, &n);
+        if (result < 0 || !r || rate_kept(listen_key(r)) != 1) break;
+        result = mcl_shuffle_pick(forward);
+    }
     void *queue = P(mcl_pdeqplaylist, 0);
     unsigned at = st.qm_forced - 1;
     st.qm_forced = 0;
