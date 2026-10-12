@@ -5422,7 +5422,8 @@ static void bt_volume_poll(void) {
 }
 
 /* main_loop_sleep_default paces the UI loop at 8 ms (125 Hz), screen on or off. With the backlight
- * off it first idles SCREEN_OFF_SLEEP_MS (Low power: LOW_OFF_SLEEP_MS); stock then finds its 8 ms
+ * off it first idles SCREEN_OFF_SLEEP_MS (Low power: LOW_OFF_SLEEP_MS; DARK_IDLE_SLEEP_MS once nothing
+ * plays and the DAC is off, unless Wake's second press may be coming); stock then finds its 8 ms
  * gone, sleeps 0 and keeps its own bookkeeping. The first pass with it back on repaints every
  * window once, so nothing drawn while dark, or only partly, stays on screen until the next input.
  * With Low power and the screen on, a pass idles LOW_IDLE_SLEEP_MS once input and window
@@ -5438,7 +5439,12 @@ int ringnav_sleep(void *loop) {
     power_poll();
     if (!g_backlight_status) {
         st.dark = 1;
-        sleep_ms(st.low_power ? LOW_OFF_SLEEP_MS : SCREEN_OFF_SLEEP_MS);
+        int quiet = I(g_dacoff_time, 0) < 0 && !media_playing() && !video_on() &&
+                    airplayGetFlag() != 2 && (signed char)bt__recv_pageflag != 2 &&
+                    time_now_ms() - st.wake_at >= WAKE_MS;
+        sleep_ms(quiet          ? DARK_IDLE_SLEEP_MS
+                 : st.low_power ? LOW_OFF_SLEEP_MS
+                                : SCREEN_OFF_SLEEP_MS);
     } else if (st.dark) {
         st.dark = 0;
         widget_invalidate_force(window_manager(), (void *)0);

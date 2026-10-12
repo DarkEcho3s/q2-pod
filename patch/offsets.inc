@@ -258,6 +258,11 @@
 /* With the screen off the UI loop idles this long a turn instead of stock's 8 ms; screen-off keys
  * (volume, play/pause, wake) wait at most this much longer. */
 #define SCREEN_OFF_SLEEP_MS 40
+/* Screen off, nothing playing (media_playing) and the DAC already off (check_dacoff_state, about 31
+ * s after playback stops; g_dacoff_time -1): the turn idles DARK_IDLE_SLEEP_MS, about 4 turns a
+ * second instead of 25, so a Q2 left dark without Standby stops waking the CPU for nothing. The
+ * first key waits at most that; Wake's second press is timed at stock pace. */
+#define DARK_IDLE_SLEEP_MS 250
 /* Low power (docs/internals.md#low-power): the screen-off turn idles LOW_OFF_SLEEP_MS instead, and
  * with the screen on, once LOW_IDLE_MS pass without input or a window animation, each turn idles
  * LOW_IDLE_SLEEP_MS (about 30 passes a second; the first input after waits at most that). CPU1

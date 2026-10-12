@@ -7280,8 +7280,22 @@ m=PowerMachine(); level(m,95,2); assert m.pass_()[0]==[]; passed()  # the limit 
 # back with the screen; the screen-off pass idles LOW_OFF_SLEEP_MS, and a screen-on pass with no input
 # or animation for LOW_IDLE_MS idles LOW_IDLE_SLEEP_MS. Off, no file is touched.
 CPU1,MARK='/sys/devices/system/cpu/cpu1/online','/mnt/data/q2pod-cpu1'
+inp_hook=HOOKS['window_manager_dispatch_input_event'][0]
 m=PowerMachine()
 m.byte(syms['g_backlight_status'],0); assert m.pass_(1)[1]==[O['SCREEN_OFF_SLEEP_MS']] and not m.writes and not m.opens; passed()
+# Dark with nothing playing and the DAC off (check_dacoff_state's -1), a pass idles DARK_IDLE_SLEEP_MS,
+# Low power or not; playing, a DAC still counting, or a Wake press that may get its second, stock pace.
+for config in ({},{'LOWPOWER':'1'}):
+    m=PowerMachine(config); m.handlers.pop(syms['mclGetPlayStatus'],None); m.byte(syms['g_backlight_status'],0)
+    off=O['LOW_OFF_SLEEP_MS'] if config else O['SCREEN_OFF_SLEEP_MS']
+    for play,dac,want in ((3,-1,O['DARK_IDLE_SLEEP_MS']),(2,-1,off),(3,5,off),(1,-1,O['DARK_IDLE_SLEEP_MS'])):
+        m.word(0xa3beac,play); m.word(syms['g_dacoff_time'],dac&0xffffffff)
+        assert m.pass_(1)[1]==[want],(config,play,dac); passed()
+m=PowerMachine({'WAKEDOUBLE':'1'}); m.handlers.pop(syms['mclGetPlayStatus'],None); m.word(0xa3beac,3)
+m.byte(syms['g_backlight_status'],0); m.word(syms['g_dacoff_time'],0xffffffff); m.handlers[inp_hook+12]='stock_input'
+assert m.pass_(1)[1]==[O['DARK_IDLE_SLEEP_MS']]  # reads Wake
+m.call(O['KEY_CENTER'],address=inp_hook,args=(m.wm,m.event,0,0),event_type=O['EVT_KEY_DOWN'],gap=0,clear=False)
+assert m.pass_(1)[1]==[O['SCREEN_OFF_SLEEP_MS']] and m.pass_(O['WAKE_MS'])[1]==[O['DARK_IDLE_SLEEP_MS']]; passed()
 m=PowerMachine({'LOWPOWER':'1'}); m.byte(syms['g_backlight_status'],0)
 assert m.pass_(1)[1]==[O['LOW_OFF_SLEEP_MS']] and m.writes==[(MARK,b''),(CPU1,b'0')] and MARK not in m.files
 assert [c[0] for c in m.calls if c[0] in ('fsync','unlink')]==['fsync','fsync','unlink','fsync']; passed()  # the marker, then its removal, on flash
