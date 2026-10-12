@@ -1377,6 +1377,26 @@ for path in (b'\0',b'x'*1024):
     w2,es2=m.page_list(8,name='folder_page'); m.paint(w2)
     assert m.selected(w2)==0; passed()
 
+# Root collections keep selection after a detail page overwrites the shared query.
+for cls in (O['CLASS_ALBUMS'],0xf004,0xf005,0xf006):
+    for reuse in (False,True):
+        m=Machine(); m.word(syms['g_class_type'],cls)
+        w,rs,es=m.table_page(n=12,name='localclass_page',rebind=True)
+        m.word(w+O['W_H'],288); m.paint(w)
+        for _ in range(7): m.call()
+        before=(m.selected(w),m.get(w+O['TABLE_TOP'])); assert before==(7,108)
+        page=m.top; m.page('artistinfo_page')
+        m.u.mem_write(syms['g_local_classinfo_save']+0x10d,b'Selected Artist\0')
+        m.top=page
+        if not reuse: w,rs,es=m.table_page(n=12,name='localclass_page',rebind=True)
+        m.word(w+O['W_H'],288); m.paint(w)
+        assert (m.selected(w),m.get(w+O['TABLE_TOP']))==before
+        # Switching Artist / Album Artist still opens a separate collection.
+        m.word(syms['g_artist_type'],1)
+        w,rs,es=m.table_page(n=12,name='localclass_page',rebind=True); m.paint(w)
+        assert m.selected(w)==0
+        passed()
+
 # Same-sized local lists must not inherit selection across query or browsing-mode changes.
 for changed in ('g_class_type','g_local_classinfo_save','g_artist_type','album_modetype'):
     m=Machine(); w,rs,es=m.table_page(); m.paint(w); m.call(); m.call()
@@ -4432,6 +4452,31 @@ for page,want in (('localclass_page',0),('coverflow_page',11)):
         assert ret==(want if key!=O['KEY_CENTER'] else 0)
         assert any(c[0]=='reset_poweroptions_timer' for c in m.calls)
 assert m.call()==11; m.advance(300); assert m.get(m.slide+O['SLIDE_INDEX'])==1; passed()
+
+# Native delivery also reaches the old focused widget after the before-filter. Stop every
+# wheel-key phase at the covered page/child, before its handler or native vtable can navigate.
+m=CoverflowMachine(); under=m.node('window','artistinfo_page'); row=m.node('list_item')
+m.word(row+O['W_PARENT'],under); m.word(under+O['W_PARENT'],m.wm); m.open()
+m.word(m.page+O['W_PARENT'],m.wm)
+for typ in (O['EVT_KEY_DOWN'],0x111,O['EVT_KEY_DOWN_BEFORE'],O['EVT_KEY_UP'],O['EVT_KEY_UP_BEFORE']):
+    for target in (under,row):
+        for key in (O['KEY_PREV'],O['KEY_NEXT']):
+            assert m.call(key,address=HOOKS['widget_dispatch'][0],args=(target,m.event,0,0),event_type=typ,gap=0)==11
+            assert not m.dispatched()
+for target in (m.page,m.slide,m.wm):
+    assert m.call(address=HOOKS['widget_dispatch'][0],args=(target,m.event,0,0),event_type=O['EVT_KEY_DOWN'],gap=0)==0
+    assert m.dispatched()
+for key in (O['KEY_CENTER'],O['KEY_RETURN']):
+    assert m.call(key,address=HOOKS['widget_dispatch'][0],args=(row,m.event,0,0),event_type=O['EVT_KEY_UP'],gap=0)==0
+    assert m.dispatched()
+# Execute stock's dispatch-then-vtable keydown helper (0x65f688), with the native navigation
+# callback replaced by a recorded service; STOP must prevent it from running at all.
+m.handlers[0x667974]='reset_poweroptions_timer'
+assert m.call(address=0x65f688,args=(row,m.event,0,0),event_type=O['EVT_KEY_DOWN'],gap=0)==11
+assert not m.dispatched() and not any(c[0]=='reset_poweroptions_timer' for c in m.calls)
+m.top=under
+assert m.call(address=0x65f688,args=(row,m.event,0,0),event_type=O['EVT_KEY_DOWN'],gap=0)==0
+assert m.dispatched() and any(c[0]=='reset_poweroptions_timer' for c in m.calls); passed()
 
 # Slow steps stay precise. Continuous 50ms ticks cross the 300ms threshold and jump groups.
 m=CoverflowMachine(albums=10)

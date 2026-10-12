@@ -734,7 +734,14 @@ static int context_now(unsigned *scope) {
         if (!n || n == 1024) return -1;
         *scope = hash_bytes(FNV_SEED, g_folder_path, n);
     } else if (contexts[ctx].kind == CTX_LOCAL) {
-        *scope = hash_bytes(local_hash(FNV_SEED), album_modetype, 4);
+        unsigned h = local_hash(FNV_SEED);
+        int cls = I(g_class_type, 0);
+        /* Root collections ignore the saved detail query, which opening an artist overwrites. */
+        if (!tk_strcmp(name, "localclass_page") && cls >= CLASS_ALBUMS && cls <= 0xf006) {
+            h = hash_bytes(FNV_SEED, g_class_type, 4);
+            h = hash_bytes(h, g_artist_type, 4);
+        }
+        *scope = hash_bytes(h, album_modetype, 4);
     } else if (contexts[ctx].kind == CTX_FIXED) {
         *scope = 1;
     } else if (!tk_strcmp(name, "coverflow_page")) {
@@ -2927,6 +2934,18 @@ static int selects(menu_t *m, void *target) {
 /* Observe actual clicks BEFORE app callbacks can navigate or destroy/rebind their widgets.
  * Do not turn pointer-down into selection: a swipe is not a tap. */
 int ringnav_dispatch(void *target, void *event) {
+    /* Native key delivery can retain the covered window's focused widget. */
+    if (target && event && I(event, EVENT_TYPE) >= EVT_KEY_DOWN &&
+        I(event, EVENT_TYPE) <= EVT_KEY_UP_BEFORE &&
+        (I(event, EVENT_KEY) == KEY_PREV || I(event, EVENT_KEY) == KEY_NEXT)) {
+        void *wm = window_manager(), *top = window_manager_get_top_window(wm);
+        if (target != wm && top &&
+            !tk_strcmp(widget_get_prop_str(top, "name", ""), "coverflow_page")) {
+            void *w = target;
+            while (w && w != top) w = P(w, W_PARENT);
+            if (!w) return STOP;
+        }
+    }
     if (st.pull_page && (!event || !pull_live() || I(event, EVENT_TYPE) == EVT_KEY_DOWN_BEFORE))
         pull_cancel();
     if (target && event && I(event, EVENT_TYPE) == EVT_CLICK) {

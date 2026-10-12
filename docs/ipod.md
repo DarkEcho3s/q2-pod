@@ -393,7 +393,7 @@ a transport glyph; stock may update its visibility without making it appear. The
 spinner stays centred on the artwork. The on-screen Return icon moves off-screen, as on the pages whose navbars are
 hidden; the hardware Return does the same. More keeps its place at the top row's right. The play
 mode (shuffle/order) and Favourite icons sit at the foot of the art page under the text, the
-favourite centred directly beneath More at x 303, with the play-mode control 66 pixels to its left, leaving a 16 px gap between touch targets;
+favourite centred directly beneath More at x 303, with the play-mode control 56 pixels to its left, leaving a 6 px gap between touch targets;
 the three lines centre in the art's height above them. Both retain their 50 px touch targets and
 vertical position. Both keep their stock images and handlers and swipe away with the art.
 Internet Radio uses the same heart alignment in both iPod themes.
