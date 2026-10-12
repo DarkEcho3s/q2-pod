@@ -164,8 +164,8 @@ p:has(+ ul), p:has(+ ol), p:has(+ table), p:has(+ pre), .task, h2, h3 { break-af
     <li><span class="n">{{p:cf}}</span><a href="#cf">Browsing with Coverflow</a></li>
 
     <li class="chap"><span class="n">{{p:c4}}</span><a href="#c4">Chapter 4: EQ</a></li>
-    <li><span class="n">{{p:eq3}}</span><a href="#eq3">3EQ</a></li>
-    <li><span class="n">{{p:eq}}</span><a href="#eq">Using the parametric EQ</a></li>
+    <li><span class="n">{{p:eq3}}</span><a href="#eq3">Simple</a></li>
+    <li><span class="n">{{p:eq}}</span><a href="#eq">Advanced: the parametric EQ</a></li>
     <li><span class="n">{{p:eqimport}}</span><a href="#eqimport">Importing a preset</a></li>
 
     <li class="chap"><span class="n">{{p:c5}}</span><a href="#c5">Chapter 5: Streaming</a></li>
@@ -449,7 +449,6 @@ ALBUM_ARTIST=1</pre>
     <li><b>First open</b> prepares artwork once; <b>Cancel</b> keeps progress. Later opens add only new albums; <b>Refresh library</b>, the last card, rebuilds everything.</li>
     <li><b>Sort</b>, the card before it: press to switch between <b>Album</b>, <b>Artist</b> (then year), <b>Year</b> (newest or oldest first, as <b>Year order</b>), <b>Recently Added</b>, <b>Most Played</b> and <b>Random</b>. The choice is kept; Random reshuffles each time you pick it.</li>
     <li><b>An artist’s albums as Coverflow:</b> <b>System settings → Display → Artist albums: Coverflow</b> switches <b>Library → Artists → artist → Albums</b> from the default Grid to Coverflow. It contains only that artist’s albums, also when Artists is set to Album Artist. Return goes straight back to the Artists list.</li>
-    <li><b>Album sleeve:</b> Centre (or a tap) on an album slides its track list out from behind the cover, which shrinks into the list’s title. Return slides it back onto the same album, sort and place on the shelf.</li>
     <li><b>Artwork:</b> embedded art first, then <code>cover.jpg</code> and <code>folder.jpg</code>; otherwise a placeholder. A folder shared by several albums skips its <code>cover.jpg</code> and <code>folder.jpg</code>, since they’d be another album’s art.</li>
   </ul>
   </div>
@@ -461,19 +460,20 @@ ALBUM_ARTIST=1</pre>
   <p class="lead">Shape the sound with up to 30 bands and a live curve, or load an AutoEQ preset for your headphones.</p>
 
   <div class="sec">
-  <h2 id="eq3">3EQ</h2>
-  <p><b>Audio settings → 3EQ</b> is a simple tone control, after Apple’s AirPods EQ: <b>Low</b>, <b>Mid</b> and <b>High</b> sliders, each −6 to +6 dB in 0.5 dB steps.</p>
+  <h2 id="eq3">Simple</h2>
+  <p><b>Audio settings → EQ</b> opens on <b>Simple</b>; <b>Advanced</b>, the other tab, is the parametric EQ. Tap a tab, or turn the wheel up past the top control (Advanced: past the list’s first row) and press Centre. Switching tabs changes nothing that plays.</p>
+  <p>Simple is a tone control after Apple’s AirPods EQ: <b>Low</b>, <b>Mid</b> and <b>High</b> sliders, each −6 to +6 dB in 0.5 dB steps.</p>
   <ul>
     <li><b>Wheel:</b> turn to pick a slider, the switch or <b>Reset</b>; press Centre on a slider, turn to set it, then Centre or Return. Return otherwise leaves the page.</li>
     <li><b>Touch:</b> drag a slider; tap the switch or <b>Reset</b>.</li>
-    <li><b>3EQ On/Off:</b> On plays 3EQ and turns PEQ off. Changes are heard as you make them while it’s on; edits made while it’s off are kept for later without turning it on. While the page is open, Off keeps 3EQ’s headroom cut, so comparing isn’t suddenly louder.</li>
+    <li><b>Simple On/Off:</b> On plays Simple and turns Advanced off. Changes are heard as you make them while it’s on; edits made while it’s off are kept for later without turning it on. While the page is open, Off keeps Simple’s headroom cut, so comparing isn’t suddenly louder.</li>
     <li><b>Reset</b> sets all three to 0 dB.</li>
-    <li><b>Headroom:</b> boosts get just enough cut to avoid clipping, as PEQ’s Auto preamp.</li>
+    <li><b>Headroom:</b> boosts get just enough cut to avoid clipping, as Advanced’s Auto preamp.</li>
   </ul>
-  <p>One EQ plays at a time: 3EQ, PEQ or neither. Each keeps its own settings, and the status-bar <b>EQ</b> icon shows while either is on.</p>
+  <p>One EQ plays at a time: Simple, Advanced or neither. Each keeps its own settings, and the status-bar <b>EQ</b> icon shows while either is on.</p>
 
-  <h2 id="eq">Using the parametric EQ</h2>
-  <p>Open <b>Audio settings → PEQ</b>.</p>
+  <h2 id="eq">Advanced: the parametric EQ</h2>
+  <p>Open <b>Audio settings → EQ</b>, then the <b>Advanced</b> tab.</p>
   <table>
     <thead><tr><th>Feature</th><th>What it does</th></tr></thead>
     <tbody>
@@ -484,7 +484,7 @@ ALBUM_ARTIST=1</pre>
       <tr><td>Balance</td><td>L 12.0 dB to R 12.0 dB in 0.5 dB steps; <b>R 1.0 dB</b> plays the left 1 dB quieter.</td></tr>
       <tr><td>Stock presets</td><td><b>Presets → Stock presets</b> loads stock’s Pop, Rock, Dance, Blues, Metal, Vocal, Classical or Jazz curve into the ten bands. Edit it, apply it, or save it as your own.</td></tr>
       <tr><td>Apply changes</td><td>Edits and presets take effect only when chosen.</td></tr>
-      <tr><td>PEQ: ON/OFF</td><td>Applies at once and persists; ON turns 3EQ off. The status-bar <b>EQ</b> icon follows it.</td></tr>
+      <tr><td>Advanced: On/Off</td><td>Applies at once and persists; On turns Simple off. The status-bar <b>EQ</b> icon follows it.</td></tr>
       <tr><td>Preamp</td><td><b>Auto</b> cuts just enough that boosts don’t clip. Or pick +12 to −24 dB; above Auto, loud boosts can clip.</td></tr>
     </tbody>
   </table>
@@ -496,7 +496,7 @@ ALBUM_ARTIST=1</pre>
   <ol class="steps">
     <li>Copy an AutoEQ / Equalizer APO <code>.txt</code> file to <code>/EQ/</code> on the card. <code>Channel: L</code>, <code>R</code> and <code>all</code> sections work.</li>
     <li>Choose <b>Presets → Import from SD /EQ</b>, then pick the file.</li>
-    <li>Select the saved preset, then <b>Apply changes</b> (and <b>PEQ: ON</b>).</li>
+    <li>Select the saved preset, then <b>Apply changes</b> (and <b>Advanced: On</b>).</li>
   </ol>
   </div>
 </section>
@@ -661,8 +661,7 @@ http://stream.radioparadise.com/mp3-128</pre>
       <tr><td>Year order</td><td><b>Newest first</b> (default) or <b>Oldest first</b>: the order of every year view, an artist’s albums (grid and Coverflow) and Coverflow’s <b>Year</b> sort. Undated albums go last.</td></tr>
       <tr><td>Artists</td><td><b>Artist</b> (default) or <b>Album Artist</b>: browse Artists by the Album Artist tag, so guest artists don’t split albums.</td></tr>
       <tr><td>Crossfade</td><td>Fades one song into the next, 1–10 s (5 by default): turn the wheel or drag the slider, all the way down for Off; Centre switches it on or off. Only between different albums, so albums stay gapless; needs stock’s <b>Gapless</b> on. Off by default.</td></tr>
-      <tr><td>3EQ</td><td>Low, Mid and High tone controls (see Chapter 4).</td></tr>
-      <tr><td>PEQ</td><td>The parametric EQ (see Chapter 4).</td></tr>
+      <tr><td>EQ</td><td>Simple tone controls and the parametric EQ (see Chapter 4).</td></tr>
       <tr><td>Filter</td><td>Stock’s DAC filter.</td></tr>
     </tbody>
   </table>
@@ -784,7 +783,7 @@ http://stream.radioparadise.com/mp3-128</pre>
     <li><b>Guest artists splitting albums?</b> <b>Audio settings → Artists → Album Artist</b>.</li>
     <li><b>Coverflow order:</b> the <b>Sort</b> card, just before Refresh library, switches to Artist, Year, Recently Added, Most Played or Random.</li>
     <li><b>Screen waking in your pocket?</b> <b>System settings → Power → Wake: Double press</b>.</li>
-    <li><b>Want stock’s EQ presets?</b> <b>PEQ → Presets → Stock presets</b> has Pop, Rock, Jazz and the rest; the ten default bands work as a 10-band graphic EQ.</li>
+    <li><b>Want stock’s EQ presets?</b> <b>EQ → Advanced → Presets → Stock presets</b> has Pop, Rock, Jazz and the rest; the ten default bands work as a 10-band graphic EQ.</li>
     <li><b>Wheel click gone?</b> Key Tone is the Q2’s own speaker, so it stays quiet while headphones, Bluetooth or a USB DAC are connected.</li>
     <li><b>Lock screen is black?</b> It shows your own images: see Chapter 6.</li>
     <li><b>Importing an M3U playlist?</b> It has to be in <code>_explaylist_data/</code>: see Chapter 2.</li>

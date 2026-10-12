@@ -224,8 +224,7 @@ WHEEL_TS_READ = (0x625b6c, 0x0320f809)
 # English labels renamed: Now Playing More's queue, which stock calls "Playlists" (player_playlist,
 # used nowhere else; Local Music's are "Playlist"), System settings' Idle (system_powermanager) and
 # its standby/shutdown row.
-LABELS = ((b'player_playlist', b'Playlists', b'Queue'), (b'system_powermanager', b'Idle', b'Power'), (b'powerm_deep_off', b'standby/shutdown', b'Standby'),
-          (b'playset_eq', b'EQ', b'PEQ'))
+LABELS = ((b'player_playlist', b'Playlists', b'Queue'), (b'system_powermanager', b'Idle', b'Power'), (b'powerm_deep_off', b'standby/shutdown', b'Standby'))
 
 # The stock font (Arial merged with a CJK font) gives curly quotes the CJK em advance, a wide gap
 # inside words wherever a tag has one; its cmaps map them to the straight glyphs instead. Its hearts

@@ -43,10 +43,10 @@ About's **FW. Version** row reads the same literal, so it shows the stock firmwa
 ## Tests
 
 ```sh
-python3 test/peq.py                        # PEQ parser, storage, DSP, editor, 3EQ, player, visualizer FFT and scrobble upload (host cc; player needs -m32 libs, upload libcrypto)
-python3 test/peq.py --captures /tmp/eq --font BUILD/default.ttf  # the same, plus 3EQ's page in both iPod themes as PNGs
+python3 test/peq.py                        # PEQ parser, storage, DSP, EQ page (both tabs), 3EQ filters, player, visualizer FFT and scrobble upload (host cc; player needs -m32 libs, upload libcrypto)
+python3 test/peq.py --captures /tmp/eq --font BUILD/default.ttf  # the same, plus the EQ page's Simple tab in both iPod themes as PNGs
 python3 test/coverflow.py                  # Coverflow art cache and depth renderer (host cc -m32, pthreads)
-python3 test/coverflow.py --captures /tmp/cf  # the same, plus the renderer's and the album sleeve's frames as PNGs
+python3 test/coverflow.py --captures /tmp/cf  # the same, plus the renderer's frames as PNGs
 python3 test/mp3.py                        # native Xing seek bounds, CRC and truncated headers
 python3 test/build.py                      # JPEG header checks; no emulator required
 python3 test/build.py 'Q2 Firmware V1.32.zip'   # packaging checks (custom logo, quoted paths)

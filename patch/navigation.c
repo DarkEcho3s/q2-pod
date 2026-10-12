@@ -38,7 +38,7 @@ extern int spot_media(unsigned key), spot_key(void *top, unsigned key),
 extern void radio_poll(void);
 extern void xfade_row(void *label);
 extern int xfade_open(void *ctx, void *event), xfade_key(void *top, unsigned key);
-extern int eq3_open(void *ctx, void *event), eq3_key(void *top, unsigned key); /* peq_ui.c */
+extern int eq_key(void *top, unsigned key); /* peq_ui.c */
 extern int radio_media(unsigned key), radio_open(void *ctx, void *event);
 extern const char *radio_hold(void *top);
 extern void visualizer_paint(void *w, void *canvas), visualizer_attach(void *win);
@@ -1904,11 +1904,11 @@ static void reorder(void *view, const unsigned char *order, unsigned n) {
 
 /* Playback Setting: what is changed while listening first, then library behaviour, then output. */
 static const unsigned char playset_order[] = {
-    3 /* Play Mode */,     18 /* 3EQ */,        2 /* PEQ */,         0 /* Gain */,
-    10 /* ReplayGain */,   17 /* Crossfade */,  9 /* Gapless */,     4 /* Max Volume */,
-    5 /* Default Vol */,   11 /* Balance */,    1 /* Filters */,     8 /* Memory play */,
-    16 /* Artists */,      15 /* Year order */, 13 /* Folder art */, 14 /* Folder skip */,
-    12 /* Enlarged art */, 6 /* DSD Output */,  7 /* USB Audio */,
+    3 /* Play Mode */,   2 /* EQ */,          0 /* Gain */,         10 /* ReplayGain */,
+    17 /* Crossfade */,  9 /* Gapless */,     4 /* Max Volume */,   5 /* Default Vol */,
+    11 /* Balance */,    1 /* Filters */,     8 /* Memory play */,  16 /* Artists */,
+    15 /* Year order */, 13 /* Folder art */, 14 /* Folder skip */, 12 /* Enlarged art */,
+    6 /* DSD Output */,  7 /* USB Audio */,
 };
 /* System Setting: connections and display first, boot/update/reset/about last. */
 static const unsigned char sysset_order[] = {
@@ -1924,7 +1924,6 @@ int ringnav_audioset(void *win, void *ctx) {
     pod_rows(win, "scroll_view_playset", POD_YEAR_OLD, 2, icons);
     void *view = win ? widget_lookup(win, "scroll_view_playset", 1) : (void *)0;
     if (view) xfade_row(list_row(view, "playset_gapless", xfade_open, (void *)0)); /* crossfade.c */
-    if (view) widget_set_text_utf8(list_row(view, "playset_eq", eq3_open, (void *)0), "3EQ");
     reorder(view, playset_order, sizeof playset_order);
     return result;
 }
@@ -5781,7 +5780,7 @@ int ringnav(void *ctx, void *event) {
     if (spot_key(top, key)) return STOP; /* Spotify's page: Centre scrubs */
     if (xfade_key(top, key))
         return STOP; /* Crossfade's page: Centre toggles, the wheel sets the length */
-    if (eq3_key(top, key)) return STOP; /* 3EQ's page: the wheel moves or adjusts, Centre acts */
+    if (eq_key(top, key)) return STOP; /* EQ's Simple tab, or its tabs: the wheel moves or adjusts, Centre acts */
     if (edit_key(top, key)) {
         drop_input();
         return STOP;

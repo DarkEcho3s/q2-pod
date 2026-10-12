@@ -46,10 +46,13 @@ enum { BACK = 1000, APPLY, BYPASS, MENU, IMPORT, SAVE, ENABLE, TYPE, RAISE, LOWE
 #define ROW_X 12
 #define TONE 0xffffff
 #endif
+/* The page's two tabs: Simple, 3EQ's sliders (e3), and Advanced, the PEQ editor (ui.screen). */
+enum { SIMPLE, ADVANCED };
 static struct {
-    void *page, *view, *edit, *graph;
+    void *page, *view, *edit, *graph, *bar; /* bar: the title, which shows the tabs on the top screens */
     unsigned timer;
     int screen, band, step, count, previous, rendered, dirty, pick, adjust, tries;
+    int tab, tabs; /* tabs: the wheel is on the tab bar, over Advanced's list */
     double typed;
     peq_preset draft, candidate, named; /* named: the preset applied under applied's name */
     char (*names)[256];
@@ -61,9 +64,9 @@ static struct {
 static const int steps[] = {1, 10, 100, 1000};
 /* Wheel pickers in 0.5 dB rows: row i is first + step * i. Preamp's row 0 is Auto (first is unused there). */
 static const struct { double first, step; int rows; } picks[] = {{-12, 0.5, 49}, {12.5, -0.5, 74}, {24, -0.5, 97}};
-/* 3EQ (docs/internals.md#3eq): Low, Mid and High, -6 to +6 dB in 0.5 dB steps, on one page that
- * e3_paint draws: the switch and Reset under the title, then a slider per band over a 0 dB line.
- * The wheel moves between the five; Centre flips the switch, resets, or takes a slider, whose gain
+/* Simple, 3EQ (docs/internals.md#3eq): Low, Mid and High, -6 to +6 dB in 0.5 dB steps, on a view
+ * that e3_paint draws: the switch and Reset under the tabs, then a slider per band over a 0 dB line.
+ * The wheel moves between the tabs and the five; Centre flips the switch, resets, or takes a slider, whose gain
  * the wheel then turns until Centre or Return. A touch on a slider drags it. Edits are saved at
  * most every E3_SAVE_MS, and at once when an adjustment ends; the player hears them only while
  * 3EQ is on, which turns PEQ off. */
@@ -71,9 +74,9 @@ static const struct { double first, step; int rows; } picks[] = {{-12, 0.5, 49},
 #define E3_BUTTONS 52 /* the switch and Reset, 40px high */
 #define E3_SLIDERS 104
 #define E3_SAVE_MS 250
-enum { E3_SWITCH, E3_LOW, E3_HIGH = 3, E3_RESET };
+enum { E3_TABS, E3_SWITCH, E3_LOW, E3_HIGH = 4, E3_RESET };
 static struct {
-    void *page, *view, *title;
+    void *view;
     unsigned save, press, press_at;
     int focus, adjusting, dragging, dirty, on, h;
     double gain[3];
@@ -263,6 +266,7 @@ static int action(void *ctx, void *event) {
     if (id == KEYBOARD) { widget_set_focused(ui.edit, 1); return 0; }
     peq_band *b = &ui.draft.bands[ui.band];
     ui.status[0] = 0;
+    ui.tabs = 0;
     /* Band edits keep the preamp on Auto (just enough cut for the boosts) only if it was there. */
     int edit = (id >= ENABLE && id < STEP) || (id < 256 && ui.screen == PICK && ui.pick == GAIN);
     int automatic = edit && on_auto();
@@ -285,7 +289,7 @@ static int action(void *ctx, void *event) {
         s.mode = ui.draft.bypass ? EQ_PEQ : EQ_OFF;
         s.hold = 0;
         if (eq_commit(&s)) ui.draft.bypass = s.mode != EQ_PEQ;
-        else snprintf(ui.status, sizeof(ui.status), "Switch failed; PEQ unchanged");
+        else snprintf(ui.status, sizeof(ui.status), "Switch failed; EQ unchanged");
     }
     else if (id == ENABLE) b->enabled = !b->enabled;
     else if (id == TYPE) b->type = (b->type + 1) % 3;
@@ -366,10 +370,25 @@ static int action(void *ctx, void *event) {
     return 0;
 }
 
+static void *bar(void *page, int x, int w);
+static void e3_show(void);
+static int e3_touch(void *ctx, void *event);
+
 static int render(const void *unused) {
     (void)unused;
     ui.timer = 0;
     if (!ui.page) return 7;
+    if (ui.tab == SIMPLE) { /* the sliders' view, under the tabs */
+        ui.view = ui.graph = ui.edit = 0;
+        ui.rendered = -1;
+        widget_destroy_children(ui.page);
+        e3.view = widget_factory_create_widget(widget_factory(), "view", ui.page, 0, 0, 375, e3.h);
+        widget_on(e3.view, EVT_POINTER_DOWN, e3_touch, 0);
+        ui.bar = bar(ui.page, 0, 375);
+        e3_show();
+        return 7;
+    }
+    e3.view = 0;
     int selection = 0, offset = 0;
     int height = widget_get_prop_int(ui.page, "h", 320), graph = ui.screen == HOME || ui.screen == BAND;
     int top = 48 + graph * PEQ_GRAPH_H;
@@ -399,21 +418,21 @@ static int render(const void *unused) {
     ui.view = view;
     widget_set_prop_int(view, "yslidable", 1);
     widget_set_prop_int(view, "xslidable", 0);
-    widget_set_prop_int(view, "_ringnav_index", selection);
+    widget_set_prop_int(view, "_ringnav_index", ui.tabs && ui.screen == HOME ? -1 : selection);
     char text[160], value[32];
     int n = 0;
     static const char *const types[] = {"Peaking", "Low shelf", "High shelf"};
     /* No Back row: Return steps back on every screen (keyup). */
     if (ui.screen == HOME) {
         row(view, n++, ui.dirty ? "Apply changes" : "Nothing to apply", ui.dirty ? APPLY : -1);
-        row_dim(view, n++, "PEQ", ui.draft.bypass ? "Off" : "On", BYPASS, 0);
+        row_dim(view, n++, "Advanced", ui.draft.bypass ? "Off" : "On", BYPASS, 0);
         snprintf(value, sizeof(value), on_auto() ? "%.1f dB (Auto)" : "%.1f dB", ui.draft.preamp);
         row_dim(view, n++, "Preamp", value, PREAMP, 0);
         /* Balance turns one side down: R 1.0 dB is the left 1 dB quieter. */
         snprintf(value, sizeof(value), __builtin_fabs(ui.draft.balance) >= 0.05 ? "%s %.1f dB" : "Centre",
                  ui.draft.balance > 0 ? "R" : "L", __builtin_fabs(ui.draft.balance));
         row_dim(view, n++, "Balance", value, BALANCE, 0);
-        row(view, n++, "Presets", MENU);
+        row_dim(view, n++, "Presets", ui.name[0] ? ui.name : 0, MENU, 0); /* the draft's preset */
         /* Ten rows, then one spare past the last used band to add another. */
         for (int i = 0; i < PEQ_BANDS && (i < 10 || i <= ui.draft.count); ++i) {
             peq_band *b = &ui.draft.bands[i];
@@ -497,17 +516,17 @@ static int render(const void *unused) {
         curve();
         ui.graph = widget_factory_create_widget(widget_factory(), "view", ui.page, 0, 48, 375, PEQ_GRAPH_H);
     }
-    /* A message takes the title bar until the next action, so it never shrinks the list. */
-    void *title = label_create(ui.page, 8, 0, 359, 48);
-    widget_use_style(title, "s_label_white20c");
-    widget_set_prop_int(title, "line_wrap", 1);
+    /* A message takes the title bar until the next action, so it never shrinks the list; on the
+     * main screen the bar otherwise shows the tabs (peq_paint). */
+    void *title = ui.screen == HOME ? bar(ui.page, 0, 375) : bar(ui.page, 8, 359);
+    ui.bar = ui.screen == HOME ? title : 0;
+    text[0] = 0;
     if (ui.status[0]) snprintf(text, sizeof(text), "%s", ui.status);
-    else if (ui.screen == BAND) snprintf(text, sizeof(text), "PEQ Band %d", ui.band + 1);
-    else if (ui.screen == ADJUST) snprintf(text, sizeof(text), ui.adjust == QUALITY ? "PEQ Band %d Q" : "PEQ Band %d Frequency (Hz)", ui.band + 1);
-    else if (ui.screen == PICK && ui.pick == GAIN) snprintf(text, sizeof(text), "PEQ Band %d Gain", ui.band + 1);
-    else if (ui.screen == PICK) snprintf(text, sizeof(text), ui.pick == PREAMP ? "PEQ Preamp" : "PEQ Balance");
-    else if (ui.name[0]) snprintf(text, sizeof(text), "PEQ: %s", ui.name);
-    else snprintf(text, sizeof(text), "PEQ");
+    else if (ui.screen == BAND) snprintf(text, sizeof(text), "Band %d", ui.band + 1);
+    else if (ui.screen == ADJUST) snprintf(text, sizeof(text), ui.adjust == QUALITY ? "Band %d Q" : "Band %d Frequency (Hz)", ui.band + 1);
+    else if (ui.screen == PICK && ui.pick == GAIN) snprintf(text, sizeof(text), "Band %d Gain", ui.band + 1);
+    else if (ui.screen == PICK) snprintf(text, sizeof(text), ui.pick == PREAMP ? "Preamp" : "Balance");
+    else if (ui.screen != HOME) snprintf(text, sizeof(text), "Presets");
     widget_set_text_utf8(title, text);
     widget_invalidate_force(ui.page, 0);
     return 7; /* RET_REMOVE */
@@ -534,9 +553,10 @@ static void path(void *vg, const float *y) {
  * and 10 kHz, labelled in grey; the response as a 2px line in the accent's light tone (white in
  * Stock), fading to clear toward 0 dB, the other channel's dimmer when the two differ; a ring on each
  * band in use, the edited band's larger and filled. Off: the line alone, grey. */
-static void e3_paint(void *canvas);
+static void e3_paint(void *canvas), tabs_paint(void *canvas);
 void peq_paint(void *w, void *canvas) {
     if (w && w == e3.view && P(canvas, CANVAS_LCD)) e3_paint(canvas);
+    if (w && w == ui.bar && P(canvas, CANVAS_LCD)) tabs_paint(canvas);
     if (!w || w != ui.graph || !P(canvas, CANVAS_LCD)) return;
     static const int lines[] = {0, 6, -6, 12, -12}, ticks[] = {100, 1000, 10000};
     static const char *const labels[] = {"100", "1k", "10k"};
@@ -590,15 +610,29 @@ void peq_paint(void *w, void *canvas) {
     vgcanvas_restore(vg);
 }
 
-/* Replaces the stock page's on_common_keyup: Return steps back one screen. */
+static void e3_done(void);
+/* Replaces the stock page's on_common_keyup: Return steps back one screen; on Simple it ends an
+ * adjustment, else leaves. */
 static int keyup(void *ctx, void *event) {
     if (I(event, EVENT_KEY) != KEY_RETURN) return 0;
-    action((void *)(long)BACK, ctx);
+    if (ui.tab == ADVANCED) action((void *)(long)BACK, ctx);
+    else if (e3.adjusting) {
+        e3_done();
+        e3_show();
+    } else navigator_back();
     return 11; /* RET_STOP */
 }
 
+static int e3_flush(void);
+/* Leaving saves what Simple has unsaved and lets go of its Off comparison's held preamp. */
 static int closed(void *ctx, void *event) {
     (void)ctx; (void)event;
+    stop_timer(&e3.press);
+    e3_flush();
+    eq_state s;
+    if (eq_load(&s) && s.hold && (s.hold = 0, eq_save(&s))) peq_stock_eq(1);
+    memset(&e3, 0, sizeof e3);
+    ui.bar = 0;
     if (ui.timer) timer_remove(ui.timer);
     ui.timer = 0;
     ui.page = 0;
@@ -609,6 +643,50 @@ static int closed(void *ctx, void *event) {
     return 0;
 }
 
+/* What plays, for both tabs: Simple's gains and switch, Advanced's switch. Boot instantiates the
+ * filter only when the switch left PLAYSET/EQFLAG set; the flag then follows the mode
+ * (peq_stock_eq), so a mode saved on with the flag clear is not playing. */
+static void load(eq_state *s) {
+    eq_load(s);
+    e3.on = g_equalizer_flag && s->mode == EQ_3;
+    for (int i = 0; i < 3; ++i) e3.gain[i] = s->eq3.bands[i].gain;
+    ui.draft.bypass = !g_equalizer_flag || s->mode != EQ_PEQ;
+}
+
+/* The tab bar's tap, or Centre on it: the other tab, the wheel kept on the bar. Neither changes
+ * what plays. */
+static void tab_to(int tab) {
+    if (tab == ui.tab) return;
+    if (ui.tab == SIMPLE) e3_done();
+    eq_state s;
+    load(&s);
+    ui.tab = tab;
+    ui.tabs = 1;
+    ui.screen = HOME;
+    ui.status[0] = 0;
+    e3.focus = E3_TABS;
+    e3.status = 0;
+    if (!ui.timer) ui.timer = timer_add(render, 0, 1); /* not inside the press's own widget */
+}
+
+static int tab_touch(void *ctx, void *event) {
+    (void)ctx;
+    int xy[2] = { I(event, EVENT_X), I(event, EVENT_Y) };
+    widget_to_local(ui.page, xy);
+    tab_to(xy[0] < 188 ? SIMPLE : ADVANCED);
+    return 0;
+}
+
+/* The title label; the tabs' bar when the bar takes their taps. */
+static void *bar(void *page, int x, int w) {
+    void *title = label_create(page, x, 0, w, 48);
+    widget_use_style(title, "s_label_white20c");
+    widget_set_prop_int(title, "line_wrap", 1);
+    if (w == 375) widget_on(title, EVT_POINTER_DOWN, tab_touch, 0);
+    return title;
+}
+
+/* Audio settings' EQ row: Simple first, every time. Opening changes nothing. */
 int peq_page_init(void *page, void *context) {
     (void)context;
     if (!page) return 16;
@@ -617,16 +695,21 @@ int peq_page_init(void *page, void *context) {
     ui.screen = HOME;
     ui.status[0] = 0;
     ui.dirty = 0;
+    ui.tab = SIMPLE;
+    ui.tabs = 0;
     eq_state s;
     eq_load(&s);
     ui.draft = s.peq;
-    /* Boot instantiates the filter only when the switch left PLAYSET/EQFLAG set; the flag
-     * then follows the mode (peq_stock_eq). */
-    ui.draft.bypass = ui.named.bypass = !g_equalizer_flag || s.mode != EQ_PEQ;
+    load(&s);
+    ui.named.bypass = ui.draft.bypass;
     if (memcmp(&ui.draft, &ui.named, sizeof(ui.named))) ui.applied[0] = 0; /* replaced since */
     memcpy(ui.name, ui.applied, sizeof(ui.name));
+    e3.focus = E3_LOW;
+    e3.h = widget_get_prop_int(page, "h", 290);
     widget_on(page, EVT_DESTROY, closed, 0);
     widget_on(page, EVT_KEY_UP, keyup, 0);
+    widget_on(page, EVT_POINTER_MOVE_BEFORE, e3_touch, 0); /* a slider's drag */
+    widget_on(page, EVT_POINTER_UP_BEFORE, e3_touch, 0);
     render(0);
     return 0;
 }
@@ -645,8 +728,8 @@ static void e3_preset(peq_preset *p) {
 }
 
 static void e3_show(void) {
-    if (e3.title) widget_set_text_utf8(e3.title, e3.status ? e3.status : "3EQ");
-    if (e3.page) widget_invalidate_force(e3.page, 0);
+    if (ui.bar && ui.tab == SIMPLE) widget_set_text_utf8(ui.bar, e3.status ? e3.status : "");
+    if (ui.page) widget_invalidate_force(ui.page, 0);
 }
 
 /* The gains into the saved state, the mode as it is; the player told while it hears them. */
@@ -657,7 +740,7 @@ static int e3_flush(void) {
     eq_load(&s);
     e3_preset(&s.eq3);
     if (!eq_save(&s)) {
-        e3.status = "Save failed; 3EQ unchanged"; /* kept dirty: the next edit tries again */
+        e3.status = "Save failed; EQ unchanged"; /* kept dirty: the next edit tries again */
         return 0;
     }
     e3.dirty = 0;
@@ -704,7 +787,8 @@ static void e3_switch(void) {
 
 static void e3_activate(void) {
     e3.status = 0;
-    if (e3.focus == E3_SWITCH) e3_switch();
+    if (e3.focus == E3_TABS) tab_to(ADVANCED);
+    else if (e3.focus == E3_SWITCH) e3_switch();
     else if (e3.focus == E3_RESET) {
         for (int i = 0; i < 3; ++i) e3_set(i, 0);
         e3_flush();
@@ -715,14 +799,27 @@ static void e3_activate(void) {
 static int e3_single(const void *unused) {
     (void)unused;
     e3.press = 0;
-    e3_activate();
+    if (ui.tab == ADVANCED) tab_to(SIMPLE);
+    else e3_activate();
     return 7;
 }
 
-/* ringnav(), the page on top: the wheel and Centre. */
-int eq3_key(void *top, unsigned key) {
+/* ringnav(), the page on top: Simple's wheel and Centre, and Advanced's tab bar, which the wheel
+ * reaches past the list's first row. */
+int eq_key(void *top, unsigned key) {
     static const unsigned release[EVENT_KEY / 4 + 1] = { [EVENT_KEY / 4] = KEY_CENTER };
-    if (!e3.page || top != e3.page) return 0;
+    if (!ui.page || top != ui.page) return 0;
+    if (ui.tab == ADVANCED) {
+        if (ui.screen != HOME || !ui.view ||
+            (!ui.tabs && (key != KEY_PREV || widget_get_prop_int(ui.view, "_ringnav_index", -1) > 0)))
+            return 0; /* the list's */
+        if (key == KEY_NEXT || key == KEY_PREV) {
+            ui.tabs = key == KEY_PREV;
+            widget_set_prop_int(ui.view, "_ringnav_index", ui.tabs ? -1 : 0);
+            e3_show();
+            return 1;
+        }
+    }
     if (key == KEY_CENTER && e3.adjusting) {
         e3_done();
         e3_show();
@@ -736,7 +833,7 @@ int eq3_key(void *top, unsigned key) {
     if (key != KEY_NEXT && key != KEY_PREV) return 0;
     int dir = key == KEY_NEXT ? 1 : -1;
     if (e3.adjusting) e3_set(e3.focus - E3_LOW, e3.gain[e3.focus - E3_LOW] + 0.5 * dir);
-    else e3.focus = e3.focus + dir < E3_SWITCH ? E3_SWITCH : e3.focus + dir > E3_RESET ? E3_RESET : e3.focus + dir;
+    else e3.focus = e3.focus + dir < E3_TABS ? E3_TABS : e3.focus + dir > E3_RESET ? E3_RESET : e3.focus + dir;
     e3_show();
     return 1;
 }
@@ -784,7 +881,7 @@ static void e3_paint(void *canvas) {
         int focus = e3.focus == (i ? E3_RESET : E3_SWITCH);
         e3_box(canvas, i ? 192 : 12, E3_BUTTONS, 171, 40, focus ? 0x333333 : 0x1a1a1a);
         if (!i) e3_box(canvas, 12, E3_BUTTONS + 36, 171, 4, tone);
-        caption(canvas, i ? "Reset" : e3.on ? "3EQ On" : "3EQ Off", i ? 192 : 12, E3_BUTTONS, 171, 40, 20, 0xffffffffu);
+        caption(canvas, i ? "Reset" : e3.on ? "Simple On" : "Simple Off", i ? 192 : 12, E3_BUTTONS, 171, 40, 20, 0xffffffffu);
     }
     for (int i = 0; i < 3; ++i) {
         static const char *const names[] = { "Low", "Mid", "High" };
@@ -801,47 +898,17 @@ static void e3_paint(void *canvas) {
     canvas_set_fill_color(canvas, fill);
 }
 
-/* Return ends an adjustment, else leaves. */
-static int e3_keyup(void *ctx, void *event) {
-    (void)ctx;
-    if (I(event, EVENT_KEY) != KEY_RETURN) return 0;
-    if (e3.adjusting) {
-        e3_done();
-        e3_show();
-    } else navigator_back();
-    return 11; /* RET_STOP */
-}
-
-/* Leaving saves what is unsaved and lets go of the Off comparison's held preamp. */
-static int e3_closed(void *ctx, void *event) {
-    (void)ctx, (void)event;
-    stop_timer(&e3.press);
-    e3_flush();
-    eq_state s;
-    if (eq_load(&s) && s.hold && (s.hold = 0, eq_save(&s))) peq_stock_eq(1);
-    memset(&e3, 0, sizeof e3);
-    return 0;
-}
-
-/* Audio settings' 3EQ row (navigation.c ringnav_audioset). Opening changes nothing. */
-int eq3_open(void *ctx, void *event) {
-    (void)ctx, (void)event;
-    if (e3.page) return 0;
-    void *page = page_open("eq3_page", e3_closed, e3_keyup);
-    if (!page) return 0;
-    eq_state s;
-    eq_load(&s);
-    e3.page = page;
-    e3.on = g_equalizer_flag && s.mode == EQ_3; /* as PEQ: a mode saved on with the stock flag clear is not playing */
-    for (int i = 0; i < 3; ++i) e3.gain[i] = s.eq3.bands[i].gain;
-    e3.focus = E3_LOW;
-    e3.h = widget_get_prop_int(page, "h", 290);
-    e3.view = widget_factory_create_widget(widget_factory(), "view", page, 0, 0, 375, e3.h);
-    e3.title = label_create(page, 8, 0, 359, 48);
-    widget_use_style(e3.title, "s_label_white20c");
-    widget_on(e3.view, EVT_POINTER_DOWN, e3_touch, 0);
-    widget_on(page, EVT_POINTER_MOVE_BEFORE, e3_touch, 0);
-    widget_on(page, EVT_POINTER_UP_BEFORE, e3_touch, 0);
-    e3_show();
-    return 0;
+/* The tab bar, unless a message has it: the open tab white over an accent line, the other grey,
+ * and while the wheel is on the bar, the other on the lighter card Centre would open. */
+static void tabs_paint(void *canvas) {
+    int simple = ui.tab == SIMPLE, focus = simple ? e3.focus == E3_TABS : ui.tabs;
+    if (simple ? e3.status != 0 : ui.status[0] != 0) return;
+    unsigned fill = (unsigned)I(P(canvas, CANVAS_LCD), LCD_FILL_COLOR);
+    for (int i = 0; i < 2; ++i) {
+        int x = i ? 191 : 8, shown = i == !simple;
+        if (focus && !shown) e3_box(canvas, x, 4, 176, 40, 0x333333);
+        caption(canvas, i ? "Advanced" : "Simple", x, 4, 176, 40, 20, shown ? 0xffffffffu : CF_GREY);
+        if (shown) e3_box(canvas, x + 40, 42, 96, 3, TONE);
+    }
+    canvas_set_fill_color(canvas, fill);
 }

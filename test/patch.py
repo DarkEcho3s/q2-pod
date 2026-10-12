@@ -4786,9 +4786,7 @@ for w,px in ((name,O['CF_NAME_PX']),(artist,O['CF_ARTIST_PX'])):
     x,top,wd,h=cf_geometry(m,w); assert clear(x,top+(h-px)//2,wd,px)
 if variant=='ipod':
     view=m.tracks(); lv=m.get(view+O['W_PARENT']); title=next(w for w in m.nodes[m.get(lv+O['W_PARENT'])]['children'] if m.nodes[w]['type']=='hscroll_label')
-    # the sleeve's title bar: a 40px thumbnail at the text column, the album 8px after it
-    thumb=next(w for w in m.nodes[m.get(lv+O['W_PARENT'])]['children'] if m.nodes[w]['type']=='image')
-    assert cf_geometry(m,thumb)==(E,4,40,40) and cf_geometry(m,title)[::2]==(E+48,375-2*E-48) and clear(E+48,14,375-2*E-48,20)
+    assert cf_geometry(m,title)[::2]==(E,375-2*E) and clear(E,14,375-2*E,20)
     rows=(290-48)//48
     for item in m.nodes[view]['children']:
         label=m.nodes[item]['children'][0]; assert cf_geometry(m,label)[::2]==(E,375-2*E)
@@ -7215,16 +7213,14 @@ assert click(2)==[(0,'Q2POD','WAKEDOUBLE')]; passed()
 m,rows,texts,*_=settings_page('power','scroll_view_powermanager',{'CHARGELIMIT':'1','LOWPOWER':'1','WAKEDOUBLE':'1'})
 assert texts()==[f"Charge limit: {O['CHARGE_STOP']}%",'Low power: On','Wake: Double press']; passed()
 m,rows,texts,icons,click=settings_page('audioset','scroll_view_playset',stock_rows=15)
-assert len(rows)==4 and icons==['playset_covermode','playset_folderjump','playset_gapless','playset_eq'] and texts()==['Year order: Newest first','Artists: Artist','Crossfade: Off','3EQ']
-assert m.handler(m.nodes[rows[3]]['children'][0],O['EVT_CLICK'])[0]==payload_syms['eq3_open']  # 3EQ's page (peq_ui.c)
+assert len(rows)==3 and icons==['playset_covermode','playset_folderjump','playset_gapless'] and texts()==['Year order: Newest first','Artists: Artist','Crossfade: Off']
 assert click(0)==[(1,'Q2POD','YEAROLD')] and texts()[0]=='Year order: Oldest first'
 assert click(0)==[(0,'Q2POD','YEAROLD')] and texts()[0]=='Year order: Newest first'
 assert click(1)==[(1,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==1 and texts()[1]=='Artists: Album Artist'
 assert click(1)==[(0,'PLAYSET','ARTISTTYPE')] and m.get(syms['artist_type'])==0; passed()
-# Playback Setting restacks by use (navigation.c playset_order): stock's rows by id, then ours; 3EQ
-# above stock's EQ, which the build relabels PEQ.
+# Playback Setting restacks by use (navigation.c playset_order): stock's rows by id, then ours.
 def stacked(m,view_name): return [(m.entries+rows).index(c) for c in m.nodes[named(m,m.top,view_name)]['children']]
-assert stacked(m,'scroll_view_playset')==[3,18,2,0,10,17,9,4,5,11,1,8,16,15,13,14,12,6,7]; passed()
+assert stacked(m,'scroll_view_playset')==[3,2,0,10,17,9,4,5,11,1,8,16,15,13,14,12,6,7]; passed()
 # Crossfade (crossfade.c): the row shows the saved length while on; an unreadable one is the default.
 for config,text in (({'XFADE':'1','XFADESEC':'7'},'Crossfade: 7 s'),({'XFADE':'1','XFADESEC':'11'},'Crossfade: 5 s'),({'XFADESEC':'7'},'Crossfade: Off')):
     m,rows,texts,*_=settings_page('audioset','scroll_view_playset',config,stock_rows=15)

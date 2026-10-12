@@ -48,7 +48,7 @@ widget_count_children widget_get_child widget_lookup widget_move_resize widget_g
 canvas_get_clip_rect canvas_set_clip_rect widget_set_sensitive widget_get_type tk_strcmp
 timer_add timer_remove navigator_back_to_home navigator_back window_manager_close_window_force navigator_to_with_context bitmap_create_ex bitmap_destroy bitmap_unlock_buffer
 bitmap_lock_buffer_for_read bitmap_lock_buffer_for_write bitmap_get_line_length
-canvas_draw_image slide_menu_set_spacer window_manager time_now_ms canvas_set_fill_color canvas_fill_rect widget_to_local
+canvas_draw_image slide_menu_set_spacer window_manager
 """.split() for r, a in [PROTOTYPES[n]]) + r"""
 void *shim_calloc(size_t, size_t);
 #define calloc shim_calloc
@@ -68,7 +68,7 @@ const char *track_name(char *, unsigned, void *);
 
 /* Widgets: raw memory first, so the payload's field reads (SLIDE_INDEX) land in it. */
 typedef struct { char raw[0x100]; int parent, visible, kids[512], nkids, bg; char type[32], text[160], image[600];
-                 handler click, down; void *ctx; } widget;
+                 handler click; void *ctx; } widget;
 static widget w[8192];
 static int nw;
 static widget *W(void *p) { return (widget *)p; }
@@ -148,7 +148,6 @@ int widget_set_prop_int(void *x, const char *k, int v) { if (!strcmp(k, "style:n
 const char *widget_get_prop_str(void *x, const char *k, const char *d) { return strcmp(k, "image") ? d : W(x)->image; }
 unsigned widget_on(void *x, unsigned type, handler f, void *ctx) {
     if (!x) return 0;
-    if (type == EVT_POINTER_DOWN) W(x)->down = f;
     if (type == EVT_CLICK || type == EVT_KEY_UP || type == EVT_DESTROY) {
         widget *h = type == EVT_CLICK ? W(x) : &w[0] + (type == EVT_KEY_UP ? 8190 : 8191); /* page handlers */
         h->click = f; h->ctx = ctx;
@@ -178,7 +177,6 @@ int widget_move_resize(void *x, int left, int top, int ww, int h) {
     return 0;
 }
 static int insensitive; /* the widget last made insensitive */
-int widget_to_local(void *x, void *xy) { (void)x; (void)xy; return 0; } /* the page at the screen's origin */
 int widget_set_sensitive(void *x, int v) { if (!v) insensitive = W(x) - w; return 0; }
 static int clip_rect[4] = { 0, 0, 375, 320 }; /* the canvas clip, screen x, y, w, h */
 int canvas_get_clip_rect(void *c, void *r) { (void)c; memcpy(r, clip_rect, sizeof clip_rect); return 0; }
@@ -211,34 +209,10 @@ int bitmap_destroy(void *b) { free(*(void **)((char *)b + 0x14)); free(b); --fra
 unsigned char *bitmap_lock_buffer_for_write(void *b) { ++locks; return *(unsigned char **)((char *)b + 0x14); }
 int bitmap_unlock_buffer(void *b) { (void)b; return 0; }
 unsigned bitmap_get_line_length(void *b) { return ((unsigned *)b)[2]; }
-/* The sleeve: its scaled draws of the frame (the cover), the boxes it fills, and the clock. */
-static int scaled, scaled_src[4], scaled_dst[4], boxes, box_last[4];
-static unsigned box_color[64], clock_ms, screen[290 * 375]; /* screen: what they draw, for captures */
-static void blend(unsigned *d, unsigned c) { /* color_t c (bytes r, g, b, a) over d */
-    unsigned a = c >> 24, out = 0xff000000u;
-    for (int k = 0; k < 24; k += 8) out |= ((((c >> k) & 255) * a + ((*d >> k) & 255) * (255 - a)) / 255) << k;
-    *d = out;
-}
-unsigned time_now_ms(void) { return clock_ms; }
-unsigned rgba(unsigned c, unsigned a) { return a << 24 | (c & 255) << 16 | (c & 0xff00) | c >> 16; }
-int canvas_set_fill_color(void *c, unsigned v) { (void)c; box_color[boxes % 64] = v; return 0; }
-int canvas_fill_rect(void *c, int x, int y, int ww, int h) {
-    (void)c; int r[4] = { x, y, ww, h }; memcpy(box_last, r, sizeof r); ++boxes;
-    for (int j = y < 0 ? 0 : y; j < y + h && j < 290; ++j)
-        for (int i = x < 0 ? 0 : x; i < x + ww && i < 375; ++i) blend(&screen[j * 375 + i], box_color[(boxes - 1) % 64]);
-    return 0;
-}
 int canvas_draw_image(void *c, void *b, const void *src, const void *dst) {
     (void)c; ++draws;
     const int *r = dst, *q = src;
-    assert(((unsigned short *)b)[6] & 1); /* marked opaque */
-    const unsigned char *bits = *(unsigned char **)((char *)b + 0x14);
-    unsigned line = ((unsigned *)b)[2];
-    for (int y = 0; y < r[3] && r[1] + y < 290; ++y) /* nearest, as a scaled draw roughly does */
-        for (int x = 0; x < r[2] && r[0] + x < 375; ++x)
-            if (r[0] + x >= 0 && r[1] + y >= 0)
-                memcpy(&screen[(r[1] + y) * 375 + r[0] + x], bits + (q[1] + y * q[3] / r[3]) * line + (q[0] + x * q[2] / r[2]) * 4, 4);
-    if (memcmp(r, q, 16)) { ++scaled; memcpy(scaled_src, q, 16); memcpy(scaled_dst, r, 16); return 0; }
+    assert(!memcmp(r, q, 16) && ((unsigned short *)b)[6] & 1); /* 1:1, and marked opaque */
     memcpy(drawn, r, sizeof drawn);
     for (int y = 0; y < CF_VIEW_H; ++y) memcpy(shown + y * CF_VIEW_W, *(unsigned char **)((char *)b + 0x14) + y * ((unsigned *)b)[2], CF_VIEW_W * 4);
     return 0;
@@ -258,8 +232,7 @@ unsigned timer_add(int (*f)(const void *), void *ctx, unsigned ms) { (void)ctx; 
 int timer_remove(unsigned id) { (void)id; timer_fn = 0; return 0; }
 void stop_timer(unsigned *t) { if (*t) timer_remove(*t); *t = 0; } /* navigation.c's */
 void rearm(unsigned *t, int (*f)(const void *), unsigned ms) { stop_timer(t); *t = timer_add(f, 0, ms); }
-static void run(void) { while (timer_fn) { int (*f)(const void *) = timer_fn; timer_fn = 0; usleep(1000); clock_ms += 11; f(0); } }
-static void step(void) { int (*f)(const void *) = timer_fn; timer_fn = 0; if (f) f(0); } /* one timer, the clock still */
+static void run(void) { while (timer_fn) { int (*f)(const void *) = timer_fn; timer_fn = 0; usleep(1000); f(0); } }
 
 /* libcstl: a deque of record pointers; the query stubs fill the staging deque. */
 typedef struct { unsigned n; void *at[64]; } deque;
@@ -500,16 +473,6 @@ static int differ(const unsigned *a, const unsigned *b, int tolerance) {
             for (int i = 0; i < 3; ++i) if (abs(ch(a[y * PITCH + x], i) - ch(b[y * PITCH + x], i)) > tolerance) { ++n; break; }
     return n;
 }
-static void capture_screen(const char *name) { /* the page, 375 x 290 */
-    const char *dir = getenv("CF_CAPTURES");
-    if (!dir) return;
-    char path[600];
-    snprintf(path, sizeof(path), "%s/%s.screen", dir, name);
-    FILE *f = fopen(path, "wb");
-    fwrite(screen, 4, 290 * 375, f);
-    fclose(f);
-}
-static void blank(void) { for (int i = 0; i < 290 * 375; ++i) screen[i] = 0xff000000u; }
 static void capture(const char *name) {
     const char *dir = getenv("CF_CAPTURES");
     if (!dir) return;
@@ -615,98 +578,6 @@ static void renderer(void) {
     assert(worst < CF_VIEW_W * CF_VIEW_H / 50);
 }
 
-/* The album sleeve (coverflow.c sleeve_*): Centre builds the album's list hidden and opens the sleeve
-   over SLEEVE_MS, the cover moving from the shelf to the list's thumbnail while the card slides out;
-   the shelf takes no wheel or Centre meanwhile. Return closes it, or turns an opening one back, onto
-   the same album. */
-static widget *title_w(void) {
-    for (int i = nw; i > page - w; --i) if (!strcmp(w[i].type, "hscroll_label") && w[w[i].parent].parent == page - w) return &w[i];
-    return 0;
-}
-static void sleeve(widget *s, widget *covers) {
-    extern void *coverflow_tracks(void *), *coverflow_album(void *);
-    int lcd[64] = { 0 }, canvas[64] = { 0 };
-    *(void **)((char *)canvas + CANVAS_LCD) = lcd;
-    char *raw = s->raw;
-    *(int *)(raw + SLIDE_INDEX) = 2; /* Embedded: no art, the placeholder */
-    coverflow_paint(s, canvas);      /* the shelf at rest, as the sleeve's frame */
-    w[s->kids[2]].click(w[s->kids[2]].ctx, 0);
-    step(); /* the list, built and hidden; the sleeve's first frame due */
-    widget *body = &w[title_w()->parent];
-    assert(timer_fn && covers->visible && !s->visible && !body->visible && !strcmp(title(), names[2]));
-    assert(!coverflow_tracks(page) && !coverflow_album(page)); /* no queue menu target mid-move */
-    int (*tick)(const void *) = timer_fn;
-    w[s->kids[3]].click(w[s->kids[3]].ctx, 0); /* Centre again: ignored */
-    assert(timer_fn == tick);
-    /* Its frames, captured; at half the time the cover is between its shelf square and the
-       thumbnail, the shelf half faded. */
-    for (int t = 0; t < 110; t += 55) {
-        blank(); coverflow_paint(covers, canvas);
-        char name[32]; snprintf(name, sizeof name, "sleeve-%03d", t); capture_screen(name);
-        clock_ms += 55; step();
-    }
-    int before = scaled; boxes = 0;
-    blank(); coverflow_paint(covers, canvas); capture_screen("sleeve-110");
-    assert(scaled == before + 1 && scaled_src[0] == CF_CX - 80 && scaled_src[1] == CF_TOP && scaled_src[2] == 160);
-    int cf_x = IPOD ? CF_EDGE : 8;
-    assert(scaled_dst[0] > cf_x && scaled_dst[0] < CF_CX - 80 && scaled_dst[2] > 40 && scaled_dst[2] < 160 && scaled_dst[2] == scaled_dst[3]);
-    assert(boxes == 5 && (box_color[1] >> 24) > 64 && (box_color[1] >> 24) < 192); /* slot, fade, card, edge, line */
-    for (int t = 165; t <= 220; t += 55) {
-        clock_ms += 55; step();
-        char name[32]; snprintf(name, sizeof name, "sleeve-%03d", t);
-        blank(); coverflow_paint(t < 220 ? covers : &w[title_w()->parent], canvas); capture_screen(name);
-    }
-    assert(!timer_fn && !covers->visible); /* settled: the list */
-    key(KEY_RETURN); w[s->kids[2]].click(w[s->kids[2]].ctx, 0); step(); clock_ms += 110; step();
-    /* Return mid-way turns it back: the shelf again, on the same album, its widgets shown. */
-    key(KEY_RETURN);
-    assert(covers->visible && s->visible && !body->visible && *(int *)(raw + SLIDE_INDEX) == 2 && !timer_fn);
-    /* Opened all the way: the list, its title beside the thumbnail (the placeholder), the edge painted over it. */
-    w[s->kids[2]].click(w[s->kids[2]].ctx, 0);
-    run();
-    body = &w[title_w()->parent];
-    assert(!covers->visible && body->visible && coverflow_tracks(page) && !timer_fn);
-    widget *thumb = 0;
-    for (int i = 0; i < body->nkids; ++i) if (!strcmp(w[body->kids[i]].type, "image")) thumb = &w[body->kids[i]];
-    assert(thumb && !strcmp(thumb->image, "default_album_big") && ((int *)thumb->raw)[0] == cf_x && ((int *)thumb->raw)[2] == 40);
-    assert(((int *)title_w()->raw)[0] == cf_x + 48);
-    boxes = 0; coverflow_paint(body, canvas); assert(boxes == 2 && box_last[1] == 48);
-    /* Return closes it; another Return meanwhile changes nothing; the shelf is where it was. */
-    int e[16] = { 0 }; e[EVENT_KEY / 4] = KEY_RETURN;
-    w[8190].click(0, e); step();
-    assert(covers->visible && !s->visible && timer_fn);
-    w[8190].click(0, e); run();
-    assert(covers->visible && s->visible && !body->visible && *(int *)(raw + SLIDE_INDEX) == 2);
-    /* An album with art: the thumbnail is its cached cover. */
-    *(int *)(raw + SLIDE_INDEX) = 0;
-    blank(); coverflow_paint(s, canvas);
-    w[s->kids[0]].click(w[s->kids[0]].ctx, 0); step();
-    for (int t = 55; t <= 165; t += 55) {
-        clock_ms += 55; step();
-        char name[32]; snprintf(name, sizeof name, "sleeve-art-%03d", t);
-        blank(); coverflow_paint(covers, canvas); capture_screen(name);
-    }
-    run();
-    body = &w[title_w()->parent];
-    for (int i = 0; i < body->nkids; ++i) if (!strcmp(w[body->kids[i]].type, "image")) thumb = &w[body->kids[i]];
-    assert(!strncmp(thumb->image, "file://", 7));
-    key(KEY_RETURN);
-    assert(covers->visible && *(int *)(raw + SLIDE_INDEX) == 0);
-    /* A tap on the centre cover opens it as Centre does; beside it, or mid-turn, nothing. */
-    int tap[16] = { 0 };
-    tap[EVENT_X / 4] = CF_CX + 100, tap[EVENT_Y / 4] = CF_TOP + 80;
-    covers->down(0, tap); assert(!timer_fn);
-    tap[EVENT_X / 4] = CF_CX; *(int *)(raw + SLIDE_OFFSET) = -20;
-    covers->down(0, tap); assert(!timer_fn);
-    *(int *)(raw + SLIDE_OFFSET) = 0;
-    covers->down(0, tap); run();
-    assert(!covers->visible && !strcmp(title(), names[0]));
-    key(KEY_RETURN);
-    covers->down(0, tap); step(); assert(timer_fn); /* the sleeve under way: another tap is ignored */
-    tick = timer_fn; covers->down(0, tap); assert(timer_fn == tick);
-    run(); key(KEY_RETURN);
-}
-
 static void depth(void) {
     renderer();
     /* On the page: the slide_menu spans the frame, one album per CF_STRIDE px, with empty children
@@ -765,16 +636,9 @@ static void depth(void) {
     key(KEY_RETURN); /* back to the same album, still drawn */
     assert(covers_view->visible && *(int *)(raw + SLIDE_INDEX) == 6);
     coverflow_paint(s, canvas);
-    sleeve(s, covers_view);
     /* Refresh and close release the frame and every texture. */
     close_page();
     assert(frames == 0 && loads == unloads);
-    /* Leaving mid-move stops the sleeve's timer with the rest. */
-    open_page(); s = slide();
-    w[s->kids[1]].click(w[s->kids[1]].ctx, 0); step();
-    assert(timer_fn);
-    close_page();
-    assert(!timer_fn && frames == 0);
     /* Small libraries: two albums and the Sort and Refresh cards wrap round the ring, each album decoded
        once however often it repeats; missing art shows the placeholder. */
     int keep = albums;
@@ -804,11 +668,6 @@ static void depth(void) {
     int before = draws;
     coverflow_paint(s, canvas);
     assert(draws == before);
-    /* The sleeve without a frame: the list at once, the same layout, and Return straight back. */
-    w[s->kids[1]].click(w[s->kids[1]].ctx, 0); run();
-    widget *covers_flat = &w[s->parent];
-    assert(!covers_flat->visible && w[title_w()->parent].visible && draws == before);
-    key(KEY_RETURN); assert(covers_flat->visible && s->visible && draws == before);
     close_page();
     assert(loads == unloads);
     tex_fail = 0;
@@ -1332,8 +1191,7 @@ def main():
     import argparse, os
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--captures', type=pathlib.Path,
-                    help='write the renderer\'s frames (rest, quarter, half, three-quarter turns, one album) and the'
-                         ' album sleeve\'s (sleeve-000 to sleeve-220 ms, the last its open edge) as PNGs here')
+                    help='write the renderer\'s frames (rest, quarter, half, three-quarter turns, one album) as PNGs here')
     a = ap.parse_args()
     with tempfile.TemporaryDirectory(prefix='q2-coverflow-check-') as directory:
         tmp = pathlib.Path(directory)
@@ -1357,12 +1215,8 @@ def main():
             for raw in sorted((tmp/'frames').glob('*.rgba')):  # RGBA8888 rows, the frame's byte order
                 (a.captures/(raw.stem + '.png')).write_bytes(imagemagick(
                     '-size', size, '-depth', '8', 'rgba:-', '-alpha', 'off', 'png:-', data=raw.read_bytes()))
-            for raw in sorted((tmp/'frames').glob('*.screen')):  # the sleeve's frames: the whole page
-                (a.captures/(raw.stem + '.png')).write_bytes(imagemagick(
-                    '-size', '375x290', '-depth', '8', 'rgba:-', '-alpha', 'off', 'png:-', data=raw.read_bytes()))
     print('Coverflow: art order, locks, markers, resume, cancel, Refresh, album list reuse, low space and empty library passed;'
           ' depth renderer (exact centre, clipping, symmetry, reflection, continuity),'
-          ' the album sleeve (opening, ignored Centre, turning back, closing, thumbnail, flat fallback, leaving mid-move),'
           ' its texture window, centre click, small libraries and flat fallback passed;'
           ' Sort by artist, year, recently added, most played and random, kept across opens, passed; an artist\'s albums alone passed;'
           ' iPod Home art sources, fit, clip, cache and Split/Full layout in both themes passed.')

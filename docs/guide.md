@@ -19,7 +19,7 @@ Things people often don't know are already there:
 - **Guest artists splitting albums?** **Audio settings → Artists → Album Artist**.
 - **Coverflow order:** the **Sort** card, just before Refresh library, switches to Artist, Year, Recently Added, Most Played or Random.
 - **Screen waking in your pocket?** **System settings → Power → Wake: Double press**; stock's **Buttons lock** also keeps the buttons and volume still while the screen is off.
-- **Want stock's EQ presets?** **PEQ → Presets → Stock presets** has Pop, Rock, Jazz and the rest; the ten default bands work as a 10-band graphic EQ.
+- **Want stock's EQ presets?** **EQ → Advanced → Presets → Stock presets** has Pop, Rock, Jazz and the rest; the ten default bands work as a 10-band graphic EQ.
 - **Wheel click gone?** Key Tone is the Q2's own speaker, so it stays quiet while headphones, Bluetooth or a USB DAC are connected.
 - **Lock screen is black?** It shows your own images: see [Lock screen](#lock-screen).
 - **Importing an M3U playlist?** It has to be in `_explaylist_data/`: see [Playlists](#playlists).
@@ -191,21 +191,23 @@ There's no FM radio: the Q2 has no FM tuner.
 
 **Streaming → AirPlay** opens **Network service**, where the Q2's own AirPlay receiver is switched on. Then pick the Q2 from your iPhone's AirPlay menu. It is AirPlay 1 (audio from one device; Apple Music works), not AirPlay 2 multiroom.
 
-## 3EQ
+## EQ
 
-**Audio settings → 3EQ** is a simple tone control, after Apple's AirPods EQ: **Low**, **Mid** and **High** sliders, each -6 to +6 dB in 0.5 dB steps.
+**Audio settings → EQ** opens on **Simple**; **Advanced**, the other tab, is the parametric EQ. Tap a tab, or turn the wheel up past the top control (Advanced: past the list's first row) and press Centre. Switching tabs changes nothing that plays.
+
+One EQ plays at a time: Simple, Advanced or neither. Each keeps its own settings, and the status-bar **EQ** icon shows while either is on.
+
+### Simple
+
+A tone control after Apple's AirPods EQ: **Low**, **Mid** and **High** sliders, each -6 to +6 dB in 0.5 dB steps.
 
 - **Wheel:** turn to pick a slider, the switch or **Reset**; press Centre on a slider, turn to set it, then Centre or Return. Return otherwise leaves the page.
 - **Touch:** drag a slider; tap the switch or **Reset**.
-- **3EQ On/Off:** On plays 3EQ and turns PEQ off. Changes are heard as you make them while it's on; edits made while it's off are kept for later without turning it on. While the page is open, Off keeps 3EQ's headroom cut, so comparing isn't suddenly louder.
+- **Simple On/Off:** On plays Simple and turns Advanced off. Changes are heard as you make them while it's on; edits made while it's off are kept for later without turning it on. While the page is open, Off keeps Simple's headroom cut, so comparing isn't suddenly louder.
 - **Reset** sets all three to 0 dB.
-- **Headroom:** boosts get just enough cut to avoid clipping, as PEQ's Auto preamp.
+- **Headroom:** boosts get just enough cut to avoid clipping, as Advanced's Auto preamp.
 
-One EQ plays at a time: 3EQ, PEQ or neither. Each keeps its own settings, and the status-bar **EQ** icon shows while either is on.
-
-## Parametric EQ
-
-**Audio settings → PEQ**:
+### Advanced
 
 - **Curve:** the response is drawn above the list as you edit, with a ring on each band.
 - **Bands:** Peaking, Low shelf or High shelf; frequency, gain, Q, on/off, channel (both, **L** or **R**).
@@ -214,14 +216,14 @@ One EQ plays at a time: 3EQ, PEQ or neither. Each keeps its own settings, and th
 - **Balance:** L 12.0 dB to R 12.0 dB in 0.5 dB steps; **R 1.0 dB** plays the left 1 dB quieter.
 - **Stock presets:** **Presets → Stock presets** loads stock's Pop, Rock, Dance, Blues, Metal, Vocal, Classical or Jazz curve into the ten bands, built into the firmware; edit it, Apply it, or save it as your own.
 - **Apply changes:** edits and presets take effect only when chosen.
-- **PEQ: ON/OFF:** applies at once and persists; ON turns 3EQ off. The status-bar **EQ** icon follows it.
+- **Advanced: On/Off:** applies at once and persists; On turns Simple off. The status-bar **EQ** icon follows it.
 - **Preamp:** **Auto** cuts just enough that boosts don't clip. Or pick +12 to -24 dB; above Auto, loud boosts can clip.
 
 ### Import a preset
 
 1. Copy an AutoEQ / Equalizer APO `.txt` to `/EQ/` on the card. `Channel: L`, `R` and `all` sections work.
 2. **Presets → Import from SD /EQ**, then pick the file.
-3. Select the saved preset, then **Apply changes** (and **PEQ: ON**).
+3. Select the saved preset, then **Apply changes** (and **Advanced: On**).
 
 ## microSD card
 
@@ -304,7 +306,6 @@ Playlist import, a stock feature, reads M3U files only from the **`_explaylist_d
 - **First open** prepares artwork once; **Cancel** keeps progress. Later opens add only new albums; **Refresh library**, the last card, rebuilds everything.
 - **Sort**, the card before it: press to switch between **Album**, **Artist** (then year), **Year** (newest or oldest first, as Playback settings → **Year order**), **Recently Added**, **Most Played** and **Random**. The choice is kept; Random reshuffles each time you pick it.
 - **An artist's albums as Coverflow:** **System settings → Display → Artist albums: Coverflow** toggles between the default Grid and Coverflow for **Library → Artists → selected artist → Albums**. Coverflow contains only that artist's albums, including when Artists is set to Album Artist. Return goes straight back to the Artists list.
-- **Album sleeve:** Centre (or a tap) on an album slides its track list out from behind the cover, which shrinks into the list's title. Return slides it back onto the same album, sort and place on the shelf.
 - **Artwork:** embedded art first, then `cover.jpg` and `folder.jpg`; otherwise a placeholder. A folder shared by several albums skips its `cover.jpg` and `folder.jpg`, since they'd be another album's art.
 
 ## M4B audiobooks

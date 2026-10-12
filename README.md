@@ -28,7 +28,7 @@
 
 - **iPod UI:** Home, menus, Now Playing, Coverflow and four visualizers. Choose your accent colour, Home layout and battery display.
 - **Wheel navigation:** scrolling is now smooth and menus remember your place.
-- **EQ:** 3EQ's Low, Mid and High sliders, or the parametric EQ's up to 30 bands with a live curve. Import AutoEQ and Equalizer APO presets.
+- **EQ:** Simple's Low, Mid and High sliders, or Advanced's parametric EQ with up to 30 bands and a live curve. Import AutoEQ and Equalizer APO presets.
 - **Streaming:** Spotify Connect (Premium), AirPlay from your iPhone, and Internet Radio.
 - **Scrobbling:** send your listens to Last.fm or ListenBrainz over Wi-Fi.
 - **Ratings:** rate songs and albums 0–5 hearts, then browse Top Rated, Loved and rated albums.
