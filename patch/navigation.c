@@ -2635,10 +2635,13 @@ int ringnav_image_add(void *manager, const char *name, void *bitmap) {
         tk_strcmp(name, "img_path") && !dark && !ipod_classic())
         tone = SUDO_MUTED;
     /* Minimal: the settings icons' coloured discs all turn MINIMAL_CHEVRON, like list_into's ink
-     * and stock's grey list discs. A pixel's saturation (max - min) against the disc's (the icon's
+     * and stock's grey list discs. The Bluetooth rows' white marks (device, refresh, delete) take
+     * list_into's ink too, or they vanish on the selected row's off-white card. A pixel's saturation (max - min) against the disc's (the icon's
      * most saturated) says how far it blends towards the white glyph, so edges stay smooth; alpha
      * kept. */
-    int into = s && !*s && !tk_strcmp(name, "list_into");
+    int into = s && !*s &&
+               (!tk_strcmp(name, "list_into") || !tk_strcmp(name, "bt_lefticon") ||
+                !tk_strcmp(name, "bt_refresh") || !tk_strcmp(name, "img_delete"));
     int icon = s && !*s &&
                (settings_icon(name) || tk_str_start_with(name, "local_") ||
                 (tk_str_start_with(name, "list_") && !into) || tk_str_start_with(name, "small_") ||
