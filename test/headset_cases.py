@@ -119,6 +119,16 @@ assert [x[1] for x in m.sent]==['v'+chr(32),'g'+chr(100)]
 ready_gain(m,0,32); m.now+=500; m.sent=[]; endpoint(m,'video_poll'); assert m.sent[-1][1]=='g'+chr(32)
 m.files['/tmp/q2video.state']=bytearray(struct.pack('<i',1)); m.now+=500; endpoint(m,'video_poll'); assert endpoint(m,'video_status')==3
 passed()
+# Manual video pause must take effect before the helper's next state report.
+m=BooksMachine({},{}); m.word(payload_syms['vid']+12,4242); m.word(payload_syms['vid']+16,7)
+endpoint(m,'headset_ears',7); endpoint(m,'video_key',O['KEY_PLAY'])
+assert endpoint(m,'video_status')==3
+endpoint(m,'headset_ears',6); endpoint(m,'headset_ears',7)
+assert endpoint(m,'video_status')==3
+m.files['/tmp/q2video.state']=bytearray(struct.pack('<i',0)); m.now+=400; endpoint(m,'video_poll')
+assert endpoint(m,'video_status')==3  # stale helper state cannot undo the manual pause
+endpoint(m,'video_key',O['KEY_PLAY']); assert endpoint(m,'video_status')==2
+passed()
 # Stock Tidal shares the native queue controls and session cancellation.
 m=HeadsetMachine(); m.word(O['MCL_TYPE'],2); m.ears(3); m.ears(1); assert not m.playing
 m.ears(3); assert m.playing; m.command(163); assert m.actions[-1]==(1,'local_next'); passed()

@@ -853,6 +853,10 @@ void video_key(unsigned key) {
         char path[108];
     } to = { 1, VIDEO_SOCK };
     if (c[0]) sendto(vid.sock, c, c[0] == 'v' ? 2 : 1, 0x40, &to, sizeof to); /* MSG_DONTWAIT */
+    if (c[0] == 'p') {
+        vid.paused = !vid.paused;
+        vid.control_at = time_now_ms();
+    }
     if (c[0] == 'v') {
         char g[2] = { 'g', (char)headset_gain() };
         dgram_send(&vid.sock, VIDEO_SOCK, g, 2);
