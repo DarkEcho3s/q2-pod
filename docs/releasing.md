@@ -12,6 +12,8 @@ python3 tools/release.py upload /tmp/q2-release
 python3 tools/release.py upload /tmp/q2-release --publish
 ```
 
+The README links the user guide as `releases/latest/download/Q2-Pod-User-Guide.pdf`, so attach it to every release: `python3 docs/manual/build.py`, then `gh release upload <tag> docs/manual/Q2-Pod-User-Guide.pdf`.
+
 Packaging requires a fresh output directory, builds each variant twice, runs the shared MIPS
 suite and asset checks on each build, and compares update.tar and ZIP bytes. It writes both
 ZIPs, manifests, SHA256SUMS, release notes and source revision/hash. Stock is the default for

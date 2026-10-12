@@ -20,7 +20,7 @@
 <p align="center">
   <b><a href="https://github.com/DiamondBond/q2-pod/releases/latest">Download</a></b> ·
   <b><a href="#install">Install</a></b> ·
-  <b><a href="docs/guide.md">User guide</a></b> ·
+  <b><a href="https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf">User guide</a></b> ·
   <b><a href="docs/changelog.md">Changelog</a></b>
 </p>
 
@@ -54,9 +54,9 @@
 
 ## Extras
 
-- **Spotify Connect:** unzip `q2-librespot-*.zip` from [q2-librespot's latest release](https://github.com/DiamondBond/q2-librespot/releases/latest) to the card's root. Then open **Streaming → Spotify** on the Q2 and pick it in the Spotify app. [More](docs/guide.md#spotify).
-- **Scrobbling:** connect Last.fm or ListenBrainz with the [scrobbling guide](docs/guide.md#set-up-scrobbling).
-- **Lock screen:** add your own [images](docs/guide.md#lock-screen); it's black until you do.
+- **Spotify Connect:** unzip `q2-librespot-*.zip` from [q2-librespot's latest release](https://github.com/DiamondBond/q2-librespot/releases/latest) to the card's root. Then open **Streaming → Spotify** on the Q2 and pick it in the Spotify app. [More](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf).
+- **Scrobbling:** connect Last.fm or ListenBrainz with the [user guide](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf).
+- **Lock screen:** add your own images ([user guide](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf)); it's black until you do.
 - **Rockbox:** unzip [`rockbox.zip`](https://github.com/DiamondBond/q2-rockbox/releases) to the card's root. Hold Play/Pause while powering on to use Q2 Pod for that session. See the [setup guide](docs/setup.md) and [ported themes](https://github.com/DiamondBond/q2-rockbox-themes/releases).
 
 ## Controls
@@ -68,13 +68,13 @@
 | **Hold Play/Pause** | Track, queue, playlist and shuffle/repeat options.                       |
 | **Hold Return**     | Jump to Now Playing; hold again to go back.                              |
 
-The [user guide](docs/guide.md) covers every [control](docs/guide.md#controls), [EQ](docs/guide.md#parametric-eq), [Coverflow](docs/guide.md#coverflow) and more [tips](docs/guide.md#tips).
+The [user guide](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf) covers every control, EQ, Coverflow and more tips.
 
 ## Library
 
 Copy your music to the card over USB-C, then run **Library → Update Local Music** on the Q2.
 
-These folders at the card's root each add their own Library entry: `Podcasts/`, `Audiobooks/`, `Photos/`, `Books/`, `Videos/`, and `EQ/` for EQ presets. See the [microSD card guide](docs/guide.md#microsd-card) for supported formats.
+These folders at the card's root each add their own Library entry: `Podcasts/`, `Audiobooks/`, `Photos/`, `Books/`, `Videos/`, and `EQ/` for EQ presets. See the [user guide](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf) for supported formats.
 
 Settings, play counts, ratings and resume points are stored on the Q2 itself, so they stay put when you swap cards.
 
@@ -94,7 +94,7 @@ Repeat the [install steps](#install) with the newest release. Your settings, rat
 
 ## Documentation
 
-- **For users:** [User guide](docs/guide.md) · [Setup](docs/setup.md) · [Changelog](docs/changelog.md)
+- **For users:** [User guide (PDF)](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf) · [Setup](docs/setup.md) · [Changelog](docs/changelog.md)
 - **For developers:** [Building](docs/building.md) · [Releasing](docs/releasing.md) · [Internals](docs/internals.md)
 
 ## License
