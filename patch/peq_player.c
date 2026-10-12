@@ -42,7 +42,7 @@ static int control(af_instance *af, int command, void *arg) {
         } else if (!ext->channel) {
             peq_preset p;
             /* Control executes on the playback loop, outside the PCM callback. */
-            if (peq_load(PEQ_ACTIVE, &p) && memcmp(&p, &s->preset, sizeof(p)) &&
+            if (peq_load_active(&p) && memcmp(&p, &s->preset, sizeof(p)) &&
                 peq_update(&s->dsp, &p)) s->preset = p;
         }
         return 1; /* Stock graphic gains never reach the replacement DSP. */

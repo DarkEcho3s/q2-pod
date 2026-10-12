@@ -212,24 +212,83 @@ int peq_load(const char *path, peq_preset *out) {
     return 1;
 }
 
-void peq_load_active(peq_preset *p) {
-    peq_default(p);
-    peq_load(PEQ_ACTIVE, p);
-}
-
-int peq_save(const char *path, const peq_preset *p, int replace) {
+/* magic (8 bytes) then data, fsynced under path.tmp and renamed over path. */
+static int save_file(const char *path, const char *magic, const void *data, unsigned size) {
     char tmp[600];
-    if (!peq_valid(p) || strlen(path) > 580) return 0;
-    if (!replace && !access(path, 0)) return 2;
+    if (strlen(path) > 580) return 0;
     snprintf(tmp, sizeof(tmp), "%s.tmp", path);
     void *f = fopen(tmp, "wb");
     if (!f) return 0;
-    int ok = fwrite("Q2PEQ02", 1, 8, f) == 8 && fwrite(p, 1, sizeof(*p), f) == sizeof(*p);
+    int ok = fwrite(magic, 1, 8, f) == 8 && fwrite(data, 1, size, f) == size;
     if (fflush(f) || fsync(fileno(f))) ok = 0;
     if (fclose(f)) ok = 0;
     if (ok && !rename(tmp, path)) return 1;
     unlink(tmp);
     return 0;
+}
+
+int peq_save(const char *path, const peq_preset *p, int replace) {
+    if (!peq_valid(p)) return 0;
+    if (!replace && !access(path, 0)) return 2;
+    return save_file(path, "Q2PEQ02", p, sizeof(*p));
+}
+
+/* The 3EQ's fixed filters at gain dB each: a 155 Hz low shelf, a peak at 900 Hz to cut or 1750 Hz to
+ * boost (Listener's reading of Apple's AirPods EQ; Q 0.707 and the frequencies within its ranges are
+ * Q2 Pod's choices), a 5 kHz high shelf. A zero gain is an identity band. */
+void eq3_bands(peq_preset *p, const double gain[3]) {
+    static const int types[3] = {1, 0, 2};
+    static const double frequencies[3] = {155, 1750, 5000};
+    memset(p, 0, sizeof(*p));
+    p->count = 3;
+    for (int i = 0; i < 3; ++i)
+        p->bands[i] = (peq_band){1, types[i], i == 1 && gain[1] < 0 ? 900 : frequencies[i], gain[i], 0.707};
+}
+
+static int eq_valid(const eq_state *s) {
+    return s->mode >= EQ_OFF && s->mode <= EQ_PEQ && (s->hold == 0 || s->hold == 1) && peq_valid(&s->peq) &&
+           peq_valid(&s->eq3) && s->eq3.count == 3;
+}
+
+/* Q2PEQ03, else a Q2PEQ01/02 preset from before 3EQ: its PEQ, on unless bypassed, and a flat 3EQ. */
+int eq_load(eq_state *s) {
+    static const double flat[3];
+    struct { char magic[8]; eq_state s; } file;
+    memset(s, 0, sizeof(*s));
+    peq_default(&s->peq);
+    eq3_bands(&s->eq3, flat);
+    void *f = fopen(PEQ_ACTIVE, "rb");
+    if (!f) return 0;
+    char extra;
+    memset(file.magic, 0, sizeof(file.magic));
+    unsigned n = fread(&file, 1, sizeof(file), f);
+    int ok = n == sizeof(file) && fread(&extra, 1, 1, f) == 0 && !ferror(f);
+    if (fclose(f)) ok = 0;
+    if (ok && !memcmp(file.magic, "Q2PEQ03", 8) && eq_valid(&file.s)) {
+        *s = file.s;
+        return 1;
+    }
+    if (!peq_load(PEQ_ACTIVE, &s->peq)) return 0;
+    s->mode = s->peq.bypass ? EQ_OFF : EQ_PEQ;
+    return 1;
+}
+
+int eq_save(const eq_state *s) {
+    return eq_valid(s) && save_file(PEQ_ACTIVE, "Q2PEQ03", s, sizeof(*s));
+}
+
+/* What plays: the mode's preset, bypassed when Off, or with hold the 3EQ's preamp alone. */
+void eq_effective(const eq_state *s, peq_preset *out) {
+    *out = s->mode == EQ_3 ? s->eq3 : s->peq;
+    out->bypass = s->mode == EQ_OFF && !s->hold;
+    if (s->mode == EQ_OFF && s->hold) out->count = 0, out->preamp = s->eq3.preamp, out->balance = 0;
+}
+
+int peq_load_active(peq_preset *p) {
+    eq_state s;
+    int ok = eq_load(&s);
+    eq_effective(&s, p);
+    return ok;
 }
 
 /* RBJ peaking and Q-form shelves. All design work is outside the PCM callback. */

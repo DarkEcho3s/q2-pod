@@ -20,6 +20,10 @@ class Preset(C.Structure):
     _fields_ = [('count', C.c_int), ('bypass', C.c_int), ('preamp', C.c_double), ('bands', Band * 30),
                 ('balance', C.c_double)]
 
+class State(C.Structure):
+    _fields_ = [('mode', C.c_int), ('hold', C.c_int), ('peq', Preset), ('eq3', Preset)]
+EQ_OFF, EQ_3, EQ_PEQ = range(3)
+
 class Error(C.Structure):
     _fields_ = [('line', C.c_uint), ('reason', C.c_char_p)]
 
@@ -53,6 +57,9 @@ def library(tmp):
         'peq_reset': [C.POINTER(DSP), C.c_int, C.c_int, C.POINTER(Preset)],
         'peq_update': [C.POINTER(DSP), C.POINTER(Preset)],
         'peq_process': [C.POINTER(DSP), C.POINTER(C.c_float), C.c_uint],
+        'eq3_bands': [C.POINTER(Preset), C.POINTER(C.c_double * 3)],
+        'eq_load': [C.POINTER(State)], 'eq_save': [C.POINTER(State)],
+        'eq_effective': [C.POINTER(State), C.POINTER(Preset)], 'peq_load_active': [C.POINTER(Preset)],
     }
     for name, args in signatures.items(): getattr(lib, name).argtypes = args
     return lib
@@ -286,7 +293,7 @@ SHIM_H = r"""
 #include <dirent.h>
 #include <sys/stat.h>
 typedef int (*handler)(void *, void *);
-extern volatile unsigned char g_equalizer_flag;
+extern volatile unsigned char g_equalizer_flag, g_backlight_status;
 """ + ''.join(f'{r} {n}({a});\n' for n in """
 list_item_create label_create list_view_create scroll_view_create widget_use_style
 widget_set_text_utf8 widget_on widget_get_prop_int widget_set_prop_int widget_destroy_children
@@ -296,13 +303,14 @@ widget_get_text widget_set_focused widget_lookup window_manager pages_set_active
 canvas_set_fill_color canvas_fill_rect canvas_get_vgcanvas vgcanvas_save vgcanvas_restore vgcanvas_translate
 vgcanvas_begin_path vgcanvas_close_path vgcanvas_move_to vgcanvas_line_to vgcanvas_arc vgcanvas_fill vgcanvas_stroke
 vgcanvas_set_fill_color vgcanvas_set_stroke_color vgcanvas_set_fill_linear_gradient vgcanvas_set_line_width
+widget_to_local on_wm_keyup_fun
 """.split() for r, a in [PROTOTYPES[n]]) + r"""
 """
 SHIM = r"""
-static struct { int parent, h, bg; char text[160]; handler click, destroy, keyup, change, focus; void *ctx; } w[4096];
+static struct { int parent, h, bg; char text[160]; handler click, destroy, keyup, change, focus, down, move, up; void *ctx; } w[4096];
 static int count = 1, timers, removed, backs;
 static int (*timer_fn)(const void *);
-volatile unsigned char g_equalizer_flag;
+volatile unsigned char g_equalizer_flag, g_backlight_status = 1;
 int stock_eq_trampoline(int mode) { return mode; }
 static void *make(void *parent, int h) {
     ++count; w[count].parent = (int)(long)parent; w[count].h = h;
@@ -317,9 +325,18 @@ void *widget_factory_create_widget(void *f, const char *type, void *p, int x, in
     if (!strcmp(type, "edit")) { edit_widget = (int)(long)e; keyboard[0] = 0; focused = 0; }
     return e;
 }
-/* The curve's drawing (peq_paint) is checked on the device; here it only has to link. */
-int canvas_set_fill_color(void *c, unsigned v) { (void)c; (void)v; return 0; }
-int canvas_fill_rect(void *c, int x, int y, int ww, int h) { (void)c; (void)x; (void)y; (void)ww; (void)h; return 0; }
+/* The curve's vgcanvas drawing (peq_paint) is checked on the device; here it only has to link. Filled
+   rectangles land in screen and captions in texts, for 3EQ's captures. */
+static unsigned fill_color, screen[290 * 375];
+static struct { int r[4]; unsigned px, color; char s[32]; } texts[64];
+static int ntexts;
+int canvas_set_fill_color(void *c, unsigned v) { (void)c; fill_color = v; return 0; }
+int canvas_fill_rect(void *c, int x, int y, int ww, int h) {
+    (void)c;
+    for (int j = y < 0 ? 0 : y; j < y + h && j < 290; ++j)
+        for (int i = x < 0 ? 0 : x; i < x + ww && i < 375; ++i) screen[j * 375 + i] = fill_color;
+    return 0;
+}
 void *canvas_get_vgcanvas(void *c) { (void)c; return 0; }
 #define VG(name, ...) int name(void *vg, ##__VA_ARGS__) { (void)vg; return 0; }
 VG(vgcanvas_save) VG(vgcanvas_restore) VG(vgcanvas_begin_path) VG(vgcanvas_close_path) VG(vgcanvas_fill) VG(vgcanvas_stroke)
@@ -334,8 +351,18 @@ int vgcanvas_set_fill_linear_gradient(void *vg, float a, float b, float c, float
     (void)vg; (void)a; (void)b; (void)c; (void)d; (void)e; (void)f; return 0;
 }
 void draw_centred(void *canvas, const unsigned *s, unsigned n, const void *r, unsigned px, unsigned color) {
-    (void)canvas; (void)s; (void)n; (void)r; (void)px; (void)color;
+    (void)canvas;
+    if (ntexts == 64) return;
+    memcpy(texts[ntexts].r, r, sizeof texts[ntexts].r);
+    texts[ntexts].px = px, texts[ntexts].color = color;
+    for (unsigned i = 0; i < n && i < 31; ++i) texts[ntexts].s[i] = (char)s[i], texts[ntexts].s[i + 1] = 0;
+    ++ntexts;
 }
+/* iPod builds' theme: Classic's Graphite light tone, or Minimal's fill. */
+static int shim_classic_on = 1;
+int ipod_classic(void) { return shim_classic_on; }
+unsigned accent_tone(int tone) { (void)tone; return shim_classic_on ? 0x6e6e6e : 0xeeeeec; }
+void shim_classic(int on) { shim_classic_on = on; }
 int widget_set_prop_str(void *x, const char *k, const char *v) {
     if ((long)x == edit_widget && !strcmp(k, "keyboard")) snprintf(keyboard, sizeof(keyboard), "%s", v);
     return 0;
@@ -381,6 +408,9 @@ unsigned widget_on(void *x, unsigned type, handler f, void *ctx) {
     else if (type == 0x0c) w[i].destroy = f;
     else if (type == 0x0e) w[i].change = f;
     else if (type == 0x10e) w[i].focus = f;
+    else if (type == 0x100) w[i].down = f;
+    else if (type == 0x102) w[i].move = f;
+    else if (type == 0x104) w[i].up = f;
     else w[i].keyup = f;
     return 1;
 }
@@ -432,6 +462,56 @@ const char *shim_title(void) {
     return "";
 }
 int shim_list_height(void) { return w[2].h; } /* the list view is the page's first child */
+/* 3EQ's page: a runtime window (3000), its view the widget with the press handler. Centre's single
+ * press runs at once; a double press is the screen's. */
+#include "offsets.inc"
+#define E3 3000
+static int screen_off;
+void *page_open(const char *name, handler closed, handler keyup) {
+    (void)name; w[E3].destroy = closed; w[E3].keyup = keyup; w[E3].move = w[E3].up = 0; return (void *)(long)E3;
+}
+void stop_timer(unsigned *t) { if (*t) timer_remove(*t); *t = 0; }
+int center_press(unsigned *timer, unsigned *at, int (*single)(const void *), int scrubbing) {
+    (void)timer; (void)at; (void)scrubbing; single(0); return 1;
+}
+int on_wm_keyup_fun(void *a, void *b) { (void)a; (void)b; return ++screen_off; }
+int widget_to_local(void *x, void *xy) { (void)x; (void)xy; return 0; }
+int eq3_open(void *ctx, void *event);
+int eq3_key(void *top, unsigned key);
+int shim_e3_open(void) { return eq3_open(0, 0); }
+int shim_e3_key(int k) { return eq3_key((void *)(long)E3, (unsigned[]){KEY_PREV, KEY_NEXT, KEY_CENTER}[k]); }
+void shim_e3_return(void) { int event[8] = {0}; event[EVENT_KEY / 4] = KEY_RETURN; w[E3].keyup(0, event); }
+void shim_e3_close(void) { w[E3].destroy(0, 0); }
+int shim_e3_touch(int type, int x, int y) {
+    int event[8] = {0}, view = 0;
+    event[EVENT_TYPE / 4] = type; event[EVENT_X / 4] = x; event[EVENT_Y / 4] = y;
+    for (int i = 2; i <= count; ++i) if (w[i].parent == E3 && w[i].down) view = i;
+    handler f = type == EVT_POINTER_DOWN ? w[view].down : type == EVT_POINTER_UP_BEFORE ? w[E3].up : w[E3].move;
+    return f ? f(0, event) : -1;
+}
+const char *shim_e3_title(void) {
+    for (int i = count; i > 1; --i) if (w[i].parent == E3 && w[i].h == 48) return w[i].text;
+    return "";
+}
+int shim_timers(void) { return timers; }
+/* 3EQ's page painted black first, as the window's background is; then its rectangles and captions. */
+void peq_paint(void *w, void *canvas);
+const unsigned *shim_e3_paint(void) {
+    static char canvas[0x100], lcd[0x100];
+    *(void **)(canvas + CANVAS_LCD) = lcd;
+    int view = 0;
+    for (int i = 2; i <= count; ++i) if (w[i].parent == E3 && w[i].down) view = i;
+    for (int i = 0; i < 290 * 375; ++i) screen[i] = 0xff000000u;
+    ntexts = 0;
+    peq_paint((void *)(long)view, canvas);
+    return screen;
+}
+int shim_texts(void) { return ntexts; }
+const char *shim_text(int i, int *r, unsigned *px, unsigned *color) {
+    memcpy(r, texts[i].r, sizeof texts[i].r); *px = texts[i].px; *color = texts[i].color; return texts[i].s;
+}
+int shim_backs(void) { return backs; }
+int shim_screen_off(void) { return screen_off; }
 unsigned shim_list_bg(void) { return (unsigned)w[2].bg; }
 """
 
@@ -449,8 +529,8 @@ def editor_check(lib, tmp):
         p = Preset(); lib.peq_default(C.byref(p)); p.bypass = 0
         for k, v in band.items(): setattr(p.bands[0], k, v)
         return p
-    def read():
-        p = Preset(); assert lib.peq_load(bytes(active), C.byref(p)); return p
+    def read():  # what plays: the PEQ, bypassed unless it is the mode
+        p = Preset(); assert lib.peq_load_active(C.byref(p)); return p
     def click(text): assert ui.shim_click(text.encode(), 1), (text, ui.shim_title())
     title = lambda: ui.shim_title().decode()
 
@@ -559,6 +639,198 @@ def editor_check(lib, tmp):
     ui.shim_return(); ui.shim_return(); click('Apply changes')
     r = read(); assert (r.bands[0].frequency, round(r.bands[0].q, 9)) == (1000.5, 0.7), (r.bands[0].frequency, r.bands[0].q)
     print('PEQ editor: bypass, apply, auto preamp, channels, balance, frequency and Q, load, failed saves, delete and close passed.')
+    eq3_editor_check(lib, ui, tmp)
+
+def eq3_check(lib, tmp):
+    """3EQ's filters on the shared engine, and the one state record PEQ and 3EQ share."""
+    def eq3(low, mid, high):
+        p = Preset(); lib.eq3_bands(C.byref(p), C.byref((C.c_double * 3)(low, mid, high))); return p
+    def db(p, f, rate=48000):
+        e = Engine(); assert lib.peq_compile(C.byref(p), rate, C.byref(e)); return 20*math.log10(response(e, rate, f))
+    p = eq3(6, -6, 6)
+    assert [(b.enabled, b.type, b.frequency, b.q) for b in p.bands[:3]] == [(1, 1, 155, .707), (1, 0, 900, .707), (1, 2, 5000, .707)]
+    assert p.count == 3 and p.bypass == 0 and p.preamp == 0 and lib.peq_valid(C.byref(p))
+    assert eq3(0, 6, 0).bands[1].frequency == eq3(0, 0, 0).bands[1].frequency == 1750  # Mid boosts higher than it cuts
+    # Shelves reach their gain at the ends and leave the other end alone; Mid peaks at its own frequency.
+    for g in (-6, -0.5, 0.5, 6):
+        assert abs(db(eq3(g, 0, 0), 20) - g) < .15 and abs(db(eq3(g, 0, 0), 20000)) < .01
+        assert abs(db(eq3(0, 0, g), 20000) - g) < .15 and abs(db(eq3(0, 0, g), 20)) < .01
+        f = 900 if g < 0 else 1750
+        assert abs(db(eq3(0, g, 0), f) - g) < 1e-7 and abs(db(eq3(0, g, 0), 20)) < .01
+        grid = [20 * 1000 ** (k / 400) for k in range(401)]
+        peak = max(grid, key=lambda x: g * db(eq3(0, g, 0), x))
+        assert abs(math.log2(peak / f)) < .05, (g, peak)
+    # Flat is identity: no band runs, and the PCM passes unchanged while 3EQ is on.
+    e = Engine(); assert lib.peq_compile(C.byref(eq3(0, 0, 0)), 48000, C.byref(e)) and e.used == 0 and not e.bypass
+    d = DSP(); lib.peq_reset(C.byref(d), 48000, 2, C.byref(eq3(0, 0, 0)))
+    signal = [0.7*math.sin(i*.031) for i in range(4000)]
+    assert process(lib, d, signal, 2) == list((C.c_float * len(signal))(*signal))
+    # Finite, stable coefficients at every supported rate; a shelf above Nyquist is skipped.
+    for rate in (8000, 11025, 22050, 44100, 48000, 88200, 96000, 176400, 192000, 352800, 384000):
+        for gains in ((6, -6, 6), (-6, 6, -6)):
+            e = Engine(); assert lib.peq_compile(C.byref(eq3(*gains)), rate, C.byref(e))
+            for c in e.c:
+                assert all(math.isfinite(getattr(c, k)) for k in ('b0', 'b1', 'b2', 'a1', 'a2'))
+                assert abs(c.a2) < 1 and 1+c.a1+c.a2 > 0 and 1-c.a1+c.a2 > 0
+        assert (e.c[2].b0, e.c[2].a1) == ((1, 0) if rate <= 10000 else (e.c[2].b0, e.c[2].a1))
+    # Mid crossing zero changes frequency through the engine's 20 ms crossfade: no step in the output.
+    d = DSP(); lib.peq_reset(C.byref(d), 48000, 1, C.byref(eq3(0, -6, 0)))
+    tone = [0.25*math.sin(2*math.pi*1300*i/48000) for i in range(9600)]
+    out = process(lib, d, tone[:4800])
+    assert lib.peq_update(C.byref(d), C.byref(eq3(0, 6, 0)))
+    out += process(lib, d, tone[4800:])
+    step = max(abs(a - b) for a, b in zip(out[1:], out))
+    assert step < 2.2 * 0.25 * 2 * math.pi * 1300 / 48000, step  # at most twice the tone's own slope
+    # The state: one Q2PEQ03 record. None yet: Off, PEQ's defaults, 3EQ flat.
+    active, s = tmp/'root/mnt/data/peq-active', State()
+    active.parent.mkdir(parents=True, exist_ok=True)
+    if active.exists(): active.unlink()
+    assert not lib.eq_load(C.byref(s)) and (s.mode, s.hold) == (EQ_OFF, 0) and s.peq.bypass == 1
+    assert bytes(s.eq3) == bytes(eq3(0, 0, 0))
+    # Upgrade: a Q2PEQ02 (or 01) preset keeps its bands, on unless it was bypassed; 3EQ starts flat and off.
+    q = parse(lib, 'Preamp: -3 dB\nFilter: ON PK Fc 1000 Hz Gain 3 dB Q 1')
+    for bypass, mode in ((0, EQ_PEQ), (1, EQ_OFF)):
+        q.bypass = bypass; assert lib.peq_save(bytes(active), C.byref(q), 1) == 1
+        assert lib.eq_load(C.byref(s)) and s.mode == mode and bytes(s.peq) == bytes(q) and bytes(s.eq3) == bytes(eq3(0, 0, 0))
+    active.write_bytes(b'Q2PEQ01\0' + bytes(q)[:8 + 10 * 32 + 8])
+    assert lib.eq_load(C.byref(s)) and s.mode == EQ_OFF and s.peq.count == 1
+    # Saved whole, read back as saved; the effective preset follows the mode.
+    s.eq3 = eq3(3, -2, 1); s.eq3.preamp = -3; s.mode = EQ_3
+    assert lib.eq_save(C.byref(s)) and active.read_bytes()[:8] == b'Q2PEQ03\0' and len(active.read_bytes()) == 8 + C.sizeof(State)
+    t, e = State(), Preset()
+    assert lib.eq_load(C.byref(t)) and bytes(t) == bytes(s)
+    assert lib.peq_load_active(C.byref(e)) and bytes(e) == bytes(s.eq3)
+    for mode, hold, want in ((EQ_PEQ, 0, s.peq), (EQ_OFF, 0, s.peq), (EQ_OFF, 1, None)):
+        t.mode, t.hold = mode, hold; lib.eq_effective(C.byref(t), C.byref(e))
+        if want is None:  # 3EQ's Off on its page: the preamp alone, no bands
+            assert (e.bypass, e.count, e.preamp, e.balance) == (0, 0, -3, 0)
+        else:
+            assert e.bypass == (mode == EQ_OFF) and bytes(e.bands) == bytes(want.bands) and e.preamp == want.preamp
+    # A corrupt, truncated or overlong record reads as no state; a failed write keeps the last one.
+    good = active.read_bytes()
+    for bad in (good[:-1], good + b'\0', b'Q2PEQ09' + good[7:], good[:8] + b'\7' + good[9:], b''):
+        active.write_bytes(bad); assert not lib.eq_load(C.byref(t)) and t.mode == EQ_OFF and t.peq.bypass == 1
+    active.write_bytes(good)
+    (active.parent/'peq-active.tmp').mkdir()
+    s.mode = EQ_PEQ; assert not lib.eq_save(C.byref(s)) and active.read_bytes() == good
+    (active.parent/'peq-active.tmp').rmdir()
+    s.mode = 3; assert not lib.eq_save(C.byref(s)) and active.read_bytes() == good  # never an invalid record
+    active.unlink()
+    print('3EQ: filters, asymmetric Mid, identity, rates, smooth updates, state upgrade, effective preset, corrupt and failed writes passed.')
+
+def eq3_captures(tmp, out, font):
+    """3EQ's page in the iPod build's two themes, as e3_paint draws it (rectangles exact, captions set in the
+    stock font at their sizes, centred in their boxes): illustrations for review, not AWTK captures."""
+    from ipod import imagemagick
+    (tmp/'shim.h').write_text(SHIM_H)
+    (tmp/'shim.c').write_text('#include "peq.h"\n' + SHIM)
+    ui = compile_host(tmp, 'peq_ui_ipod.so', ROOT/'patch/peq_ui.c', ROOT/'patch/peq.c', tmp/'shim.c',
+                      '-I', ROOT/'patch', '-include', tmp/'shim.h', '-DIPOD=1')
+    ui.shim_e3_paint.restype = C.POINTER(C.c_uint32 * (290 * 375))
+    ui.shim_text.restype = C.c_char_p
+    (tmp/'root/mnt/data').mkdir(parents=True)
+    def shot(name):
+        rgba = bytes(ui.shim_e3_paint().contents)
+        args = ['-size', '375x290', '-depth', '8', 'rgba:-', '(', '-size', '375x48', 'xc:none', '-font', str(font),
+                '-pointsize', '20', '-fill', 'white', '-gravity', 'center', '-annotate', '+0+0', '3EQ', ')',
+                '-gravity', 'NorthWest', '-geometry', '+0+0', '-composite']  # the title label
+        for i in range(ui.shim_texts()):
+            r, px, color = (C.c_int * 4)(), C.c_uint(), C.c_uint()
+            text, c = ui.shim_text(i, r, C.byref(px), C.byref(color)).decode(), color.value
+            args += ['(', '-size', f'{r[2]}x{r[3]}', 'xc:none', '-font', str(font), '-pointsize', str(px.value),
+                     '-fill', f'#{c & 255:02x}{c >> 8 & 255:02x}{c >> 16 & 255:02x}', '-gravity', 'center',
+                     '-annotate', '+0+0', text, ')', '-gravity', 'NorthWest', '-geometry', f'+{r[0]}+{r[1]}', '-composite']
+        (out/f'3eq-{name}.png').write_bytes(imagemagick(*args, '-alpha', 'off', 'png:-', data=rgba))
+    PREV, NEXT, CENTRE = range(3)
+    for classic, theme in ((1, 'classic'), (0, 'minimal')):
+        ui.shim_classic(classic)
+        (tmp/'root/mnt/data/peq-active').unlink(missing_ok=True)
+        ui.peq_attach()  # EQ off, the flag clear, 3EQ flat
+        ui.shim_e3_open()
+        keys = lambda *k: [ui.shim_e3_key(x) for x in k]
+        keys(CENTRE, *[NEXT] * 6, CENTRE, NEXT, CENTRE, *[PREV] * 4, CENTRE, NEXT, CENTRE, *[NEXT] * 8, CENTRE, PREV, PREV)
+        shot(f'{theme}-off')  # Low +3, Mid -2, High +4; Low selected; 3EQ off
+        keys(PREV, CENTRE, NEXT, NEXT, CENTRE, PREV)
+        shot(f'{theme}-on-adjusting')  # 3EQ on, Mid being turned to -2.5 dB
+        keys(CENTRE, NEXT, NEXT)
+        shot(f'{theme}-on-reset-selected')
+        ui.shim_e3_close()
+
+def eq3_editor_check(lib, ui, tmp):
+    """3EQ's page through its real keys, touch and timers, against the state PEQ shares."""
+    active = tmp/'root/mnt/data/peq-active'
+    ui.shim_e3_title.restype = C.c_char_p
+    title = lambda: ui.shim_e3_title().decode()
+    PREV, NEXT, CENTRE = range(3)
+    def state():
+        s = State(); assert lib.eq_load(C.byref(s)); return s
+    def gains(s=None): return [b.gain for b in (s or state()).eq3.bands[:3]]
+    def keys(*k):
+        for x in k: assert ui.shim_e3_key(x)
+    # PEQ playing; opening 3EQ changes nothing.
+    ui.shim_close(); ui.shim_open()
+    if ui.shim_flag() == 0: assert ui.shim_click(b'PEQ Off', 1)
+    ui.shim_close()
+    before = active.read_bytes(); peq = bytes(state().peq)
+    assert state().mode == EQ_PEQ and ui.shim_flag() == 1
+    assert ui.shim_e3_open() == 0 and title() == '3EQ' and active.read_bytes() == before
+    # The wheel picks Mid (from Low), Centre takes it, the wheel turns it in 0.5 dB steps: one save
+    # timer for the run, and nothing written until it fires. 3EQ stays off; PEQ keeps playing.
+    timers = ui.shim_timers()
+    keys(NEXT, CENTRE, NEXT, NEXT, NEXT, NEXT)
+    assert ui.shim_timers() == timers + 1 and active.read_bytes() == before and ui.shim_pending()
+    ui.shim_run(); s = state()
+    assert gains(s) == [0, 2, 0] and s.eq3.bands[1].frequency == 1750 and s.mode == EQ_PEQ and bytes(s.peq) == peq
+    assert abs(s.eq3.preamp + 2) < .05 and ui.shim_flag() == 1  # headroom for the boost
+    # Below zero Mid moves to 900 Hz; Centre ends the adjustment and saves at once.
+    keys(*[PREV] * 7); assert gains() == [0, 2, 0]
+    keys(CENTRE); s = state(); assert not ui.shim_pending() and gains(s) == [0, -1.5, 0] and s.eq3.bands[1].frequency == 900
+    assert s.eq3.preamp == 0  # cuts need no headroom
+    keys(NEXT); assert gains() == [0, -1.5, 0]  # the wheel moves the selection again: High
+    # Return ends the adjustment without leaving; the limits hold.
+    backs = ui.shim_backs(); keys(CENTRE, *[NEXT] * 20); ui.shim_e3_return()
+    assert gains() == [0, -1.5, 6] and ui.shim_backs() == backs and title() == '3EQ'
+    # The switch: 3EQ on turns PEQ off and keeps it; the indicator stays on.
+    keys(PREV, PREV, PREV, PREV, PREV, CENTRE)
+    s = state(); assert s.mode == EQ_3 and bytes(s.peq) == peq and ui.shim_flag() == 1 and title() == '3EQ'
+    e = Preset(); assert lib.peq_load_active(C.byref(e)) and bytes(e) == bytes(s.eq3) and e.bypass == 0
+    # While on, adjustments are heard as they are saved (here at the Centre that ends one).
+    keys(NEXT, CENTRE, NEXT, CENTRE); assert gains() == [0.5, -1.5, 6] and state().mode == EQ_3
+    # Off from here keeps the 3EQ's preamp playing until the page closes; the indicator goes off.
+    keys(PREV, CENTRE); s = state()
+    assert (s.mode, s.hold) == (EQ_OFF, 1) and ui.shim_flag() == 0 and ui.shim_eqflag() == 0
+    assert lib.peq_load_active(C.byref(e)) and (e.bypass, e.count) == (0, 0) and e.preamp == s.eq3.preamp < 0
+    keys(CENTRE); s = state(); assert (s.mode, s.hold) == (EQ_3, 0) and ui.shim_flag() == 1 and ui.shim_eqflag() == 1
+    # Reset zeroes the gains and keeps the mode.
+    keys(*[NEXT] * 4, CENTRE); s = state(); assert gains(s) == [0, 0, 0] and s.mode == EQ_3 and s.eq3.preamp == 0
+    # Touch: a press on a slider takes it and sets the gain under the finger; the drag follows in
+    # 0.5 dB steps; lifting saves. The page is 290 high: travel 138..230, 0 dB at 184.
+    assert ui.shim_e3_touch(0x100, 62, 138) == 0 and ui.shim_e3_touch(0x102, 62, 100) == 0
+    assert gains() == [0, 0, 0] and ui.shim_pending()
+    ui.shim_e3_touch(0x102, 187, 176); ui.shim_e3_touch(0x104, 187, 176)  # the press chose Low; x no longer matters
+    assert gains() == [1, 0, 0] and not ui.shim_pending()
+    ui.shim_e3_touch(0x100, 312, 230); ui.shim_e3_touch(0x104, 312, 230); assert gains() == [1, 0, -6]
+    ui.shim_e3_touch(0x102, 312, 138); assert gains() == [1, 0, -6]  # no drag after the lift
+    ui.shim_e3_touch(0x100, 300, 70); assert gains() == [0, 0, 0]  # Reset
+    ui.shim_e3_touch(0x100, 50, 70); assert state().mode == EQ_OFF  # the switch
+    ui.shim_e3_touch(0x100, 50, 70); assert state().mode == EQ_3
+    # A failed save says so and keeps the last good record; the next one writes the pending gains.
+    good = active.read_bytes(); (active.parent/'peq-active.tmp').mkdir()
+    keys(NEXT, CENTRE, NEXT, CENTRE)
+    assert title() == 'Save failed; 3EQ unchanged' and active.read_bytes() == good
+    (active.parent/'peq-active.tmp').rmdir()
+    keys(CENTRE, CENTRE); assert gains() == [0.5, 0, 0] and title() == '3EQ'
+    # Return leaves; leaving with Off held lets the preamp go.
+    keys(PREV, CENTRE); assert state().hold == 1
+    backs = ui.shim_backs(); ui.shim_e3_return(); assert ui.shim_backs() == backs + 1
+    ui.shim_e3_close(); s = state(); assert (s.mode, s.hold) == (EQ_OFF, 0)
+    assert lib.peq_load_active(C.byref(e)) and e.bypass == 1 and ui.shim_flag() == 0
+    # PEQ's switch selects PEQ again; the 3EQ settings stay.
+    ui.shim_open(); assert ui.shim_click(b'PEQ Off', 1); s = state()
+    assert s.mode == EQ_PEQ and bytes(s.peq) == peq and gains(s) == [0.5, 0, 0] and ui.shim_flag() == 1
+    ui.shim_e3_open(); assert ui.shim_e3_touch(0x100, 50, 70) == 0 and state().mode == EQ_3  # and back
+    ui.shim_e3_close(); assert state().mode == EQ_3 and ui.shim_flag() == 1
+    print('3EQ editor: entry without change, wheel and touch adjustment, coalesced saves, switch, held Off, reset, failed save and indicator passed.')
 
 # Drives patch/peq_player.c the way hciplayer's af chain does. Built 32-bit like the device,
 # so the file's ABI asserts hold; checked against the shared DSP driven directly.
@@ -838,6 +1110,19 @@ int main(void) {
     memcpy(a, keep, sizeof(a));
     af_data old = {a, 256, 48000, 2, 0x1d, 4};
     assert(af.play(&af, &old) == &old && !memcmp(a, keep, sizeof(a)));
+    /* A 3EQ state record: the live update plays the 3EQ, then Off's held preamp alone, then nothing. */
+    eq_state st;
+    double g[3] = {3, -2, 1};
+    assert(eq_load(&st) && st.mode == EQ_PEQ);
+    eq3_bands(&st.eq3, g);
+    st.eq3.preamp = -3, st.mode = EQ_3;
+    ext.gain = gains;
+    assert(eq_save(&st) && af.control(&af, 0x40001d00, &ext) == 1 && !memcmp(&s->preset, &st.eq3, sizeof(st.eq3)));
+    st.mode = EQ_OFF, st.hold = 1;
+    assert(eq_save(&st) && af.control(&af, 0x40001d00, &ext) == 1);
+    assert(!s->preset.bypass && !s->preset.count && s->preset.preamp == -3);
+    st.hold = 0;
+    assert(eq_save(&st) && af.control(&af, 0x40001d00, &ext) == 1 && s->preset.bypass);
     /* Without an active file a track starts on the defaults. */
     assert(!unlink(PEQ_ACTIVE));
     in.rate = 44100;
@@ -1422,10 +1707,16 @@ def tidal_check(tmp):
     print('Tidal cache: stream file extensions passed.')
 
 if __name__ == '__main__':
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--captures', type=pathlib.Path, help="also draw 3EQ's page in both iPod themes as PNGs here")
+    ap.add_argument('--font', type=pathlib.Path, help='the stock font for the captures (a build directory\'s default.ttf)')
+    args = ap.parse_args()
     with tempfile.TemporaryDirectory(prefix='q2-peq-check-') as directory:
         tmp = pathlib.Path(directory); lib = library(tmp)
         parser_check(lib, tmp)
         dsp_check(lib)
+        eq3_check(lib, tmp)
         editor_check(lib, tmp)
         player_check(tmp)
         visualizer_check(tmp)
@@ -1435,3 +1726,7 @@ if __name__ == '__main__':
         audio_writer_check(tmp)
         radio_check(tmp)
         tidal_check(tmp)
+        if args.captures:
+            args.captures.mkdir(parents=True, exist_ok=True)
+            (tmp/'captures').mkdir()
+            eq3_captures(tmp/'captures', args.captures, args.font or 'DejaVu-Sans')

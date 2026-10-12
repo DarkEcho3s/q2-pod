@@ -38,6 +38,11 @@ typedef struct {
     double z[PEQ_CHANNELS][PEQ_BANDS][2], gain[PEQ_CHANNELS];
     int bypass, used, only[PEQ_BANDS]; /* used: bands past it are identity with zero memory; only: 0 every channel, else channel only-1 */
 } peq_engine;
+/* The EQ state (docs/internals.md#3eq), PEQ_ACTIVE's Q2PEQ03 record, replaced whole: which EQ plays
+ * (mode, EQ_*), the last applied PEQ and the 3EQ, its three fixed bands (eq3_bands) and their
+ * headroom preamp. hold: Off, but the 3EQ's preamp kept while its page compares against bypass. */
+enum { EQ_OFF, EQ_3, EQ_PEQ };
+typedef struct { int mode, hold; peq_preset peq, eq3; } eq_state;
 typedef struct {
     peq_engine current, next, pending;
     int rate, channels, ramp, ramp_length, waiting;
@@ -49,8 +54,12 @@ int peq_parse(const char *text, unsigned size, peq_preset *out, peq_error *error
 int peq_number(const char *s, double *out);
 int peq_import_file(const char *path, peq_preset *out, peq_error *error);
 int peq_load(const char *path, peq_preset *out);
-void peq_load_active(peq_preset *p);
+int peq_load_active(peq_preset *p); /* the effective preset (eq_effective); 0 if none was read */
 int peq_save(const char *path, const peq_preset *p, int replace);
+void eq3_bands(peq_preset *p, const double gain[3]);
+int eq_load(eq_state *s); /* 0: no readable state, s holds the defaults */
+int eq_save(const eq_state *s);
+void eq_effective(const eq_state *s, peq_preset *out);
 int peq_compile(const peq_preset *p, int rate, peq_engine *out);
 void peq_reset(peq_dsp *d, int rate, int channels, const peq_preset *p);
 int peq_update(peq_dsp *d, const peq_preset *p);

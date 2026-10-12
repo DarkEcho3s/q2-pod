@@ -2,24 +2,36 @@
 #include "offsets.inc"
 
 extern int stock_eq_trampoline(int mode);
+extern int center_press(unsigned *timer, unsigned *at, int (*single)(const void *), int scrubbing);
 /* All calls, including restored playback, instantiate the replacement even in bypass.
- * Afterwards the flag only drives the status-bar EQ icon (systembar_showface @0x52f8b0). */
+ * Afterwards the flag only drives the status-bar EQ icon (systembar_showface @0x52f8b0): on
+ * while 3EQ or PEQ is. */
 int peq_stock_eq(int mode) {
     (void)mode;
     g_equalizer_flag = 1;
     int result = stock_eq_trampoline(1);
-    peq_preset active;
-    peq_load_active(&active);
-    g_equalizer_flag = !active.bypass;
+    eq_state s;
+    eq_load(&s);
+    g_equalizer_flag = s.mode != EQ_OFF;
     return result;
 }
 
-/* PEQ off but its filter in the chain, for the visualizer's tap (visualizer.c): the switch's Off, so a
- * preset saved On while the stock flag is clear stays silent; nothing if that cannot be saved. */
+/* Every EQ change goes through here: s saved, the stock switch's config key (boot instantiates
+ * the filter only when it is set) written when on/off changes, and the player told. */
+static int eq_commit(eq_state *s) {
+    if (!eq_save(s)) return 0;
+    int on = s->mode != EQ_OFF;
+    if (on != g_equalizer_flag) write_int_config(on, "PLAYSET", "EQFLAG");
+    peq_stock_eq(1);
+    return 1;
+}
+
+/* EQ off but its filter in the chain, for the visualizer's tap (visualizer.c): the switch's Off, so a
+ * mode saved on while the stock flag is clear stays silent; nothing if that cannot be saved. */
 void peq_attach(void) {
-    peq_preset active;
-    peq_load_active(&active);
-    if (active.bypass || (active.bypass = 1, peq_save(PEQ_ACTIVE, &active, 1) == 1)) peq_stock_eq(1);
+    eq_state s;
+    eq_load(&s);
+    if (s.mode == EQ_OFF || (s.mode = EQ_OFF, s.hold = 0, eq_save(&s))) peq_stock_eq(1);
 }
 
 enum { HOME, BAND, PRESETS, IMPORTS, SAVES, CONFIRM, DELETES, PICK, ADJUST, STOCKS };
@@ -49,6 +61,25 @@ static struct {
 static const int steps[] = {1, 10, 100, 1000};
 /* Wheel pickers in 0.5 dB rows: row i is first + step * i. Preamp's row 0 is Auto (first is unused there). */
 static const struct { double first, step; int rows; } picks[] = {{-12, 0.5, 49}, {12.5, -0.5, 74}, {24, -0.5, 97}};
+/* 3EQ (docs/internals.md#3eq): Low, Mid and High, -6 to +6 dB in 0.5 dB steps, on one page that
+ * e3_paint draws: the switch and Reset under the title, then a slider per band over a 0 dB line.
+ * The wheel moves between the five; Centre flips the switch, resets, or takes a slider, whose gain
+ * the wheel then turns until Centre or Return. A touch on a slider drags it. Edits are saved at
+ * most every E3_SAVE_MS, and at once when an adjustment ends; the player hears them only while
+ * 3EQ is on, which turns PEQ off. */
+#define E3_MAX 6
+#define E3_BUTTONS 52 /* the switch and Reset, 40px high */
+#define E3_SLIDERS 104
+#define E3_SAVE_MS 250
+enum { E3_SWITCH, E3_LOW, E3_HIGH = 3, E3_RESET };
+static struct {
+    void *page, *view, *title;
+    unsigned save, press, press_at;
+    int focus, adjusting, dragging, dirty, on, h;
+    double gain[3];
+    const char *status;
+} e3 __attribute__((section(".scratch")));
+
 static int action(void *ctx, void *event);
 static int render(const void *unused);
 
@@ -248,16 +279,13 @@ static int action(void *ctx, void *event) {
     else if (id == FREQUENCY || id == QUALITY) { ui.adjust = id; ui.screen = ADJUST; }
     else if (id == SAVE) ui.screen = SAVES;
     else if (id == BYPASS) {
-        /* Takes effect at once and keeps unapplied band edits out of the active preset. */
-        peq_preset active;
-        peq_load_active(&active);
-        active.bypass = !ui.draft.bypass;
-        if (peq_save(PEQ_ACTIVE, &active, 1) == 1) {
-            ui.draft.bypass = active.bypass;
-            /* The stock switch's config key: boot instantiates the filter only when it is set. */
-            write_int_config(!active.bypass, "PLAYSET", "EQFLAG");
-            peq_stock_eq(1);
-        } else snprintf(ui.status, sizeof(ui.status), "Switch failed; PEQ unchanged");
+        /* Takes effect at once and keeps unapplied band edits out of the active preset. On turns 3EQ off. */
+        eq_state s;
+        eq_load(&s);
+        s.mode = ui.draft.bypass ? EQ_PEQ : EQ_OFF;
+        s.hold = 0;
+        if (eq_commit(&s)) ui.draft.bypass = s.mode != EQ_PEQ;
+        else snprintf(ui.status, sizeof(ui.status), "Switch failed; PEQ unchanged");
     }
     else if (id == ENABLE) b->enabled = !b->enabled;
     else if (id == TYPE) b->type = (b->type + 1) % 3;
@@ -270,8 +298,11 @@ static int action(void *ctx, void *event) {
         if (*value < (k ? 0.1 : 20)) *value = k ? 0.1 : 20;
         if (*value > (k ? 10 : 20000)) *value = k ? 10 : 20000;
     } else if (id == APPLY) {
-        if (peq_save(PEQ_ACTIVE, &ui.draft, 1) == 1) {
-            peq_stock_eq(1);
+        eq_state s;
+        eq_load(&s);
+        s.peq = ui.draft;
+        if (!ui.draft.bypass) s.mode = EQ_PEQ; /* the draft shows On only while PEQ plays */
+        if (eq_commit(&s)) {
             ui.dirty = 0;
             memcpy(ui.applied, ui.name, sizeof(ui.name));
             ui.named = ui.draft;
@@ -503,7 +534,9 @@ static void path(void *vg, const float *y) {
  * and 10 kHz, labelled in grey; the response as a 2px line in the accent's light tone (white in
  * Stock), fading to clear toward 0 dB, the other channel's dimmer when the two differ; a ring on each
  * band in use, the edited band's larger and filled. Off: the line alone, grey. */
+static void e3_paint(void *canvas);
 void peq_paint(void *w, void *canvas) {
+    if (w && w == e3.view && P(canvas, CANVAS_LCD)) e3_paint(canvas);
     if (!w || w != ui.graph || !P(canvas, CANVAS_LCD)) return;
     static const int lines[] = {0, 6, -6, 12, -12}, ticks[] = {100, 1000, 10000};
     static const char *const labels[] = {"100", "1k", "10k"};
@@ -584,14 +617,231 @@ int peq_page_init(void *page, void *context) {
     ui.screen = HOME;
     ui.status[0] = 0;
     ui.dirty = 0;
-    peq_load_active(&ui.draft);
+    eq_state s;
+    eq_load(&s);
+    ui.draft = s.peq;
     /* Boot instantiates the filter only when the switch left PLAYSET/EQFLAG set; the flag
-     * then follows the active preset's bypass (peq_stock_eq). */
-    ui.draft.bypass = ui.named.bypass = !g_equalizer_flag;
+     * then follows the mode (peq_stock_eq). */
+    ui.draft.bypass = ui.named.bypass = !g_equalizer_flag || s.mode != EQ_PEQ;
     if (memcmp(&ui.draft, &ui.named, sizeof(ui.named))) ui.applied[0] = 0; /* replaced since */
     memcpy(ui.name, ui.applied, sizeof(ui.name));
     widget_on(page, EVT_DESTROY, closed, 0);
     widget_on(page, EVT_KEY_UP, keyup, 0);
     render(0);
+    return 0;
+}
+
+/* The sliders' travel, under their names and over their values, which stay clear of the iPod
+ * glass's lower corners. */
+static int e3_top(void) { return E3_SLIDERS + 34; }
+static int e3_bottom(void) { return e3.h - 60; }
+static int e3_y(double gain) {
+    return (e3_top() + e3_bottom()) / 2 - (int)(gain * (e3_bottom() - e3_top()) / (2 * E3_MAX));
+}
+
+static void e3_preset(peq_preset *p) {
+    eq3_bands(p, e3.gain);
+    p->preamp = headroom(p);
+}
+
+static void e3_show(void) {
+    if (e3.title) widget_set_text_utf8(e3.title, e3.status ? e3.status : "3EQ");
+    if (e3.page) widget_invalidate_force(e3.page, 0);
+}
+
+/* The gains into the saved state, the mode as it is; the player told while it hears them. */
+static int e3_flush(void) {
+    stop_timer(&e3.save);
+    if (!e3.dirty) return 1;
+    eq_state s;
+    eq_load(&s);
+    e3_preset(&s.eq3);
+    if (!eq_save(&s)) {
+        e3.status = "Save failed; 3EQ unchanged"; /* kept dirty: the next edit tries again */
+        return 0;
+    }
+    e3.dirty = 0;
+    if (s.mode == EQ_3 || s.hold) peq_stock_eq(1);
+    return 1;
+}
+
+static int e3_tick(const void *unused) {
+    (void)unused;
+    e3.save = 0;
+    e3_flush();
+    e3_show();
+    return 7; /* RET_REMOVE */
+}
+
+static void e3_set(int band, double gain) {
+    gain = gain > E3_MAX ? E3_MAX : gain < -E3_MAX ? -E3_MAX : gain;
+    if (gain == e3.gain[band]) return;
+    e3.gain[band] = gain;
+    e3.dirty = 1;
+    if (!e3.save) e3.save = timer_add(e3_tick, 0, E3_SAVE_MS);
+}
+
+static void e3_done(void) {
+    e3.adjusting = e3.dragging = 0;
+    e3_flush();
+}
+
+/* On selects 3EQ (PEQ goes off); Off holds the 3EQ's preamp while the page is open, so comparing
+ * against bypass is not suddenly louder. */
+static void e3_switch(void) {
+    eq_state s;
+    eq_load(&s);
+    e3_preset(&s.eq3);
+    s.mode = e3.on ? EQ_OFF : EQ_3;
+    s.hold = e3.on;
+    if (!eq_commit(&s)) {
+        e3.status = "Switch failed; EQ unchanged";
+        return;
+    }
+    e3.on = !e3.on;
+    e3.dirty = 0;
+}
+
+static void e3_activate(void) {
+    e3.status = 0;
+    if (e3.focus == E3_SWITCH) e3_switch();
+    else if (e3.focus == E3_RESET) {
+        for (int i = 0; i < 3; ++i) e3_set(i, 0);
+        e3_flush();
+    } else e3.adjusting = 1;
+    e3_show();
+}
+
+static int e3_single(const void *unused) {
+    (void)unused;
+    e3.press = 0;
+    e3_activate();
+    return 7;
+}
+
+/* ringnav(), the page on top: the wheel and Centre. */
+int eq3_key(void *top, unsigned key) {
+    static const unsigned release[EVENT_KEY / 4 + 1] = { [EVENT_KEY / 4] = KEY_CENTER };
+    if (!e3.page || top != e3.page) return 0;
+    if (key == KEY_CENTER && e3.adjusting) {
+        e3_done();
+        e3_show();
+        return 1;
+    }
+    if (key == KEY_CENTER) {
+        int press = center_press(&e3.press, &e3.press_at, e3_single, 0);
+        if (press == 2 && g_backlight_status) on_wm_keyup_fun(0, (void *)release);
+        return press;
+    }
+    if (key != KEY_NEXT && key != KEY_PREV) return 0;
+    int dir = key == KEY_NEXT ? 1 : -1;
+    if (e3.adjusting) e3_set(e3.focus - E3_LOW, e3.gain[e3.focus - E3_LOW] + 0.5 * dir);
+    else e3.focus = e3.focus + dir < E3_SWITCH ? E3_SWITCH : e3.focus + dir > E3_RESET ? E3_RESET : e3.focus + dir;
+    e3_show();
+    return 1;
+}
+
+/* A touch: the switch or Reset on the press; a slider's gain follows the finger, in 0.5 dB steps,
+ * until it lifts. */
+static int e3_touch(void *ctx, void *event) {
+    (void)ctx;
+    int type = I(event, EVENT_TYPE), xy[2] = { I(event, EVENT_X), I(event, EVENT_Y) };
+    if (!e3.view || (type != EVT_POINTER_DOWN && !e3.dragging)) return 0;
+    widget_to_local(e3.view, xy);
+    if (type == EVT_POINTER_DOWN) {
+        if (xy[1] < E3_BUTTONS) return 0;
+        e3.status = 0;
+        if (xy[1] < E3_SLIDERS) {
+            e3.focus = xy[0] < 187 ? E3_SWITCH : E3_RESET;
+            e3_activate();
+            return 0;
+        }
+        e3.focus = E3_LOW + (xy[0] < 125 ? 0 : xy[0] < 250 ? 1 : 2);
+        e3.adjusting = e3.dragging = 1;
+    }
+    if (type == EVT_POINTER_UP_BEFORE) e3_done();
+    else {
+        double half = (e3_bottom() - e3_top()) / 2.0, g = ((e3_top() + e3_bottom()) / 2 - xy[1]) * E3_MAX / half;
+        e3_set(e3.focus - E3_LOW, (int)(g * 2 + (g < 0 ? -0.5 : 0.5)) / 2.0);
+    }
+    e3_show();
+    return 0;
+}
+
+static void e3_box(void *canvas, int x, int y, int w, int h, unsigned rgb) {
+    canvas_set_fill_color(canvas, rgba(rgb, 255));
+    canvas_fill_rect(canvas, x, y, w, h);
+}
+
+/* The switch's bar and the gains' bars in the accent's light tone (white in Stock and Minimal), grey
+ * while 3EQ is off; the selected control on a lighter card; the slider being adjusted with a white
+ * handle and value, the others grey. */
+static void e3_paint(void *canvas) {
+    unsigned fill = (unsigned)I(P(canvas, CANVAS_LCD), LCD_FILL_COLOR), tone = e3.on ? TONE : 0x666666;
+    int zero = e3_y(0);
+    char text[16];
+    for (int i = 0; i < 2; ++i) {
+        int focus = e3.focus == (i ? E3_RESET : E3_SWITCH);
+        e3_box(canvas, i ? 192 : 12, E3_BUTTONS, 171, 40, focus ? 0x333333 : 0x1a1a1a);
+        if (!i) e3_box(canvas, 12, E3_BUTTONS + 36, 171, 4, tone);
+        caption(canvas, i ? "Reset" : e3.on ? "3EQ On" : "3EQ Off", i ? 192 : 12, E3_BUTTONS, 171, 40, 20, 0xffffffffu);
+    }
+    for (int i = 0; i < 3; ++i) {
+        static const char *const names[] = { "Low", "Mid", "High" };
+        int x = 62 + 125 * i, y = e3_y(e3.gain[i]), focus = e3.focus == E3_LOW + i;
+        if (focus) e3_box(canvas, x - 56, E3_SLIDERS, 112, e3_bottom() + 36 - E3_SLIDERS, 0x1a1a1a);
+        caption(canvas, names[i], x - 56, E3_SLIDERS, 112, 28, 20, 0xffffffffu);
+        e3_box(canvas, x - 2, e3_top(), 4, e3_bottom() - e3_top(), 0x333333);
+        e3_box(canvas, x - 3, y < zero ? y : zero, 6, y < zero ? zero - y : y - zero + 1, tone);
+        e3_box(canvas, x - 20, y - 5, 40, 10, focus && e3.adjusting ? 0xffffff : 0x8a8a8a);
+        snprintf(text, sizeof text, e3.gain[i] ? "%+.1f dB" : "0 dB", e3.gain[i]);
+        caption(canvas, text, x - 56, e3_bottom() + 8, 112, 24, 18, focus && e3.adjusting ? 0xffffffffu : CF_GREY);
+    }
+    e3_box(canvas, 12, zero, 351, 1, 0x8a8a8a); /* 0 dB */
+    canvas_set_fill_color(canvas, fill);
+}
+
+/* Return ends an adjustment, else leaves. */
+static int e3_keyup(void *ctx, void *event) {
+    (void)ctx;
+    if (I(event, EVENT_KEY) != KEY_RETURN) return 0;
+    if (e3.adjusting) {
+        e3_done();
+        e3_show();
+    } else navigator_back();
+    return 11; /* RET_STOP */
+}
+
+/* Leaving saves what is unsaved and lets go of the Off comparison's held preamp. */
+static int e3_closed(void *ctx, void *event) {
+    (void)ctx, (void)event;
+    stop_timer(&e3.press);
+    e3_flush();
+    eq_state s;
+    if (eq_load(&s) && s.hold && (s.hold = 0, eq_save(&s))) peq_stock_eq(1);
+    memset(&e3, 0, sizeof e3);
+    return 0;
+}
+
+/* Audio settings' 3EQ row (navigation.c ringnav_audioset). Opening changes nothing. */
+int eq3_open(void *ctx, void *event) {
+    (void)ctx, (void)event;
+    if (e3.page) return 0;
+    void *page = page_open("eq3_page", e3_closed, e3_keyup);
+    if (!page) return 0;
+    eq_state s;
+    eq_load(&s);
+    e3.page = page;
+    e3.on = g_equalizer_flag && s.mode == EQ_3; /* as PEQ: a mode saved on with the stock flag clear is not playing */
+    for (int i = 0; i < 3; ++i) e3.gain[i] = s.eq3.bands[i].gain;
+    e3.focus = E3_LOW;
+    e3.h = widget_get_prop_int(page, "h", 290);
+    e3.view = widget_factory_create_widget(widget_factory(), "view", page, 0, 0, 375, e3.h);
+    e3.title = label_create(page, 8, 0, 359, 48);
+    widget_use_style(e3.title, "s_label_white20c");
+    widget_on(e3.view, EVT_POINTER_DOWN, e3_touch, 0);
+    widget_on(page, EVT_POINTER_MOVE_BEFORE, e3_touch, 0);
+    widget_on(page, EVT_POINTER_UP_BEFORE, e3_touch, 0);
+    e3_show();
     return 0;
 }

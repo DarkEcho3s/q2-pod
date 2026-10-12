@@ -35,7 +35,7 @@ enum { ARTIST_ALBUMS = 1, RATED_ALBUMS }; /* cf.scoped */
 extern int stock_home_trampoline(void *win, void *ctx), stock_scan_all_trampoline(void *, void *),
     stock_scan_folder_trampoline(void *, void *), stock_delete_song_trampoline(void *, void *);
 
-enum { PREPARING, COVERS, TRACKS };
+enum { PREPARING, COVERS, TRACKS, OPENING, CLOSING }; /* OPENING, CLOSING: the sleeve moving */
 typedef struct {
     char *track; /* the album's first track, copied so the thread never reads stock deques */
     unsigned key;
@@ -61,6 +61,8 @@ static struct {
     int scoped, all_sort;
     void *all_albums, *all_stock;
     int (*hearts)(void *);
+    unsigned anim, sleeve_at; /* the sleeve's frame timer, and when its move began */
+    int sleeve, sleeve_from;  /* how far open, of SLEEVE_ONE, and where the move began */
 } cf __attribute__((section(".scratch")));
 
 static int pick(void *ctx, void *event);
@@ -214,6 +216,7 @@ static void fx_close(void);
 
 static void drop(void) {
     stop();
+    stop_timer(&cf.anim);
     fx_close();
     if (cf.tracks) deque_destroy(cf.tracks);
     cf.tracks = 0;
@@ -1279,11 +1282,63 @@ int visual(void *s, int n, int *c, int *frac) { /* shared with photos.c */
  * would otherwise repeat round the shelf. */
 int coverflow_bounded(void *w) { return w && w == cf.slide && cf.scoped == ARTIST_ALBUMS; }
 
+/* The album sleeve (docs/internals.md#coverflow-sleeve): the track list is the inside of the
+ * centre album's sleeve. Opening, the cover moves to the list's thumbnail while a plain inner card
+ * slides out from behind it into the list's place and the shelf fades; closing runs it back. Both
+ * draw from the shelf's last frame, so they need the depth renderer; the flat covers open at once. */
+#define SLEEVE_MS 220
+#define SLEEVE_FRAME_MS 33 /* 30 frames a second, only while it moves */
+#define SLEEVE_ONE 1024
+#define SLEEVE_EDGE 6 /* the card's left edge, kept beside the list */
+#define THUMB 40      /* the list's thumbnail, in its title bar */
+static int lerp(int a, int b, int e) { return a + (b - a) * e / SLEEVE_ONE; }
+static void box(void *canvas, const int *r, unsigned color) {
+    canvas_set_fill_color(canvas, color);
+    canvas_fill_rect(canvas, r[0], r[1], r[2], r[3]);
+}
+
+/* The card's edge and a line over the list, as the open sleeve keeps them (cf.body's paint). */
+static void sleeve_edge(void *canvas, const int *card) {
+    int edge[4] = { card[0], card[1], SLEEVE_EDGE, card[3] }, line[4] = { card[0], card[1], card[2], 1 };
+    box(canvas, edge, rgba(0x333333, 255));
+    box(canvas, line, rgba(0x4a4a4a, 255));
+}
+
+/* Over the covers' view, cf.sleeve of the way open, eased: the frame without the cover, black over it as far, the card
+ * from the cover's square to the list (its right side first, so it slides out), the cover from its
+ * place on the shelf to the thumbnail's. */
+static void sleeve_paint(void *canvas) {
+    int p = cf.sleeve, e = p * p / SLEEVE_ONE * (3 * SLEEVE_ONE - 2 * p) / SLEEVE_ONE, h = widget_get_prop_int(cf.page, "h", 290);
+    int out = e * 2 > SLEEVE_ONE ? SLEEVE_ONE : e * 2;
+    int all[4] = { 0, 0, 375, h }, shelf[4] = { 0, 0, CF_VIEW_W, CF_VIEW_H };
+    int cover[4] = { CF_CX - ART_SIZE / 2, CF_TOP, ART_SIZE, ART_SIZE }, x = lerp(cover[0], 0, e);
+    int card[4] = { x, lerp(CF_TOP, 48, e), lerp(cover[0] + ART_SIZE, 375, out) - x, lerp(ART_SIZE, h - 48, e) };
+    int thumb[4] = { lerp(cover[0], CF_X, e), lerp(CF_TOP, 4, e), lerp(ART_SIZE, THUMB, e), lerp(ART_SIZE, THUMB, e) };
+    unsigned fill = (unsigned)I(P(canvas, CANVAS_LCD), LCD_FILL_COLOR);
+    int slot[4] = { cover[0], CF_TOP, ART_SIZE, ART_SIZE + CF_REFLECT }; /* the cover has left it */
+    canvas_draw_image(canvas, fx.frame, shelf, shelf);
+    box(canvas, slot, 0xff000000u);
+    box(canvas, all, (unsigned)(e * 255 / SLEEVE_ONE) << 24);
+    box(canvas, card, 0xff000000u);
+    sleeve_edge(canvas, card);
+    canvas_draw_image(canvas, fx.frame, cover, thumb);
+    canvas_set_fill_color(canvas, fill);
+}
+
 /* ringnav_paint (the border hook, after stock painted the slide_menu's empty children) calls this
  * for every widget: over Coverflow's slide_menu it draws the frame, rendered again only when the
- * position or a texture has changed. */
+ * position or a texture has changed; over the covers' view the moving sleeve, over the list the open
+ * one's edge. */
 void coverflow_paint(void *w, void *canvas) {
     int c, frac, n;
+    if (w && w == cf.covers && fx.frame && (cf.screen == OPENING || cf.screen == CLOSING) && P(canvas, CANVAS_LCD))
+        sleeve_paint(canvas);
+    if (w && w == cf.body && cf.screen == TRACKS && P(canvas, CANVAS_LCD)) {
+        unsigned fill = (unsigned)I(P(canvas, CANVAS_LCD), LCD_FILL_COLOR);
+        int card[4] = { 0, 48, 375, widget_get_prop_int(cf.page, "h", 290) - 48 };
+        sleeve_edge(canvas, card);
+        canvas_set_fill_color(canvas, fill);
+    }
     if (!w || w != cf.slide || !fx.frame || cf.screen != COVERS ||
         !visual(w, n = (int)widget_count_children(w), &c, &frac))
         return;
@@ -1310,6 +1365,23 @@ static void cover(void *img, unsigned i, int near) {
     if (tk_strcmp(widget_get_prop_str(img, "image", ""), near ? url : PLACEHOLDER) &&
         (!near || !art_exists(url) || !image_show(img, url, 0)))
         image_base_set_image(img, PLACEHOLDER);
+}
+
+/* A press on the centre cover's square, the shelf at rest, opens it as Centre does (the covers
+ * take no swipe, so a press is a tap). */
+static int tapped(void *ctx, void *event) {
+    (void)ctx;
+    int xy[2] = { I(event, EVENT_X), I(event, EVENT_Y) }, top = fx.frame ? CF_TOP : 24;
+    widget_to_local(cf.covers, xy);
+    if (cf.screen == COVERS && !I(cf.slide, SLIDE_OFFSET) && xy[0] >= CF_CX - ART_SIZE / 2 &&
+        xy[0] < CF_CX + ART_SIZE / 2 && xy[1] >= top && xy[1] < top + ART_SIZE)
+        pick((void *)(long)I(cf.slide, SLIDE_INDEX), 0);
+    return 0;
+}
+
+static void shelf_visible(int v) {
+    for (unsigned i = 0; i < widget_count_children(cf.covers); ++i)
+        widget_set_visible(widget_get_child(cf.covers, i), v, 0);
 }
 
 static int changed(void *ctx, void *event) {
@@ -1343,6 +1415,7 @@ static void covers(void) {
                                                 depth ? CF_VIEW_H : ART_SIZE);
         if (depth) slide_menu_set_spacer(cf.slide, CF_STRIDE - CF_VIEW_H);
         widget_set_sensitive(cf.slide, 0);
+        widget_on(cf.covers, EVT_POINTER_DOWN, tapped, 0);
         for (unsigned i = 0, n = deque_size(cf.albums); i < n + CARDS; ++i) {
             void *img = image_create(cf.slide, 0, 0, 0, 0);
             image_set_draw_type(img, 4); /* scale_auto, as the stock cover rows */
@@ -1361,6 +1434,7 @@ static void covers(void) {
         widget_on(cf.slide, EVT_VALUE_CHANGED, changed, 0);
         changed(0, 0);
     }
+    shelf_visible(1); /* hidden while the sleeve moved */
     widget_set_visible(cf.covers, 1, 0);
     widget_invalidate_force(cf.page, 0);
 }
@@ -1371,6 +1445,38 @@ static int to_covers(const void *unused) {
     stop();
     covers();
     return 0;
+}
+
+/* Each frame of the sleeve's move, until it settles: the list, or the covers. The shelf's own
+ * widgets are hidden meanwhile, so the wheel waits for the list (ringnav's held ticks) rather than
+ * turning the shelf, and Centre finds no album to open again. */
+static int sleeve_tick(const void *unused) {
+    (void)unused;
+    cf.anim = 0;
+    int t = (int)(time_now_ms() - cf.sleeve_at) * SLEEVE_ONE / SLEEVE_MS;
+    cf.sleeve = cf.screen == OPENING ? (cf.sleeve_from + t > SLEEVE_ONE ? SLEEVE_ONE : cf.sleeve_from + t)
+                                     : (cf.sleeve_from - t < 0 ? 0 : cf.sleeve_from - t);
+    widget_invalidate_force(cf.page, 0);
+    if (cf.screen == OPENING && cf.sleeve == SLEEVE_ONE) {
+        cf.screen = TRACKS;
+        widget_set_visible(cf.covers, 0, 0);
+        widget_set_visible(cf.body, 1, 0);
+    } else if (cf.screen == CLOSING && !cf.sleeve)
+        covers();
+    else
+        cf.anim = timer_add(sleeve_tick, 0, SLEEVE_FRAME_MS);
+    return 0;
+}
+
+static void sleeve_move(int screen) {
+    cf.screen = screen;
+    cf.sleeve_from = cf.sleeve;
+    cf.sleeve_at = time_now_ms();
+    widget_set_visible(cf.body, 0, 0);
+    widget_set_visible(cf.covers, 1, 0);
+    shelf_visible(0);
+    rearm(&cf.anim, sleeve_tick, SLEEVE_FRAME_MS);
+    widget_invalidate_force(cf.page, 0);
 }
 
 static int cancel_row(void *ctx, void *event) {
@@ -1556,11 +1662,18 @@ static int to_tracks(const void *unused) {
     cf.tracks = coverflow_album_tracks(r);
     n = (int)deque_size(cf.tracks);
     cf.screen = TRACKS;
-    widget_set_visible(cf.covers, 0, 0);
     void *view = list(P(r, REC_ALBUM), n);
     for (int i = 0; i < n; ++i)
         page_row_detail(view, i, track_name(name, sizeof name, deque_at(cf.tracks, (unsigned)i)), 0,
                         play);
+    /* The sleeve's title bar: the cover small, then the album. */
+    void *thumb = image_create(cf.body, CF_X, 4, THUMB, THUMB);
+    image_set_draw_type(thumb, 4);
+    cover(thumb, (unsigned)cf.album, 1);
+    widget_move_resize(cf.title, CF_X + THUMB + 8, 0, CF_W - THUMB - 8, 48);
+    cf.sleeve = 0;
+    if (fx.frame) sleeve_move(OPENING);
+    else widget_set_visible(cf.covers, 0, 0);
     return 0;
 }
 
@@ -1598,6 +1711,8 @@ static int resort(const void *unused) {
 static int pick(void *ctx, void *event) {
     (void)event;
     int i = (int)(long)ctx, n = (int)deque_size(cf.albums);
+    if (cf.screen != COVERS) /* the sleeve on its way */
+        return 0;
     if (i == n + 1)
         rearm(&cf.timer, refresh, 0);
     else if (i == n)
@@ -1609,12 +1724,16 @@ static int pick(void *ctx, void *event) {
     return 0;
 }
 
-/* Return: tracks -> covers (the slide_menu kept its album), preparing -> cancel and covers,
- * covers or the message -> Home, or back out of a scoped page. */
+/* Return: tracks -> covers (the slide_menu kept its album; the sleeve closes, an opening one turns
+ * back), preparing -> cancel and covers, covers or the message -> Home, or back out of a scoped page. */
 static int keyup(void *ctx, void *event) {
     (void)ctx;
     if (I(event, EVENT_KEY) != KEY_RETURN) return 0;
-    if (cf.screen == TRACKS || cf.screen == PREPARING)
+    if (cf.screen == CLOSING)
+        return 11;
+    if (cf.screen == OPENING || (cf.screen == TRACKS && fx.frame))
+        sleeve_move(CLOSING);
+    else if (cf.screen == TRACKS || cf.screen == PREPARING)
         rearm(&cf.timer, to_covers, 0);
     else if (cf.scoped) {
         /* An artist's covers: the unseen artist page under them closes first, unanimated (its
