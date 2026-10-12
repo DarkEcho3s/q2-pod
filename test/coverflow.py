@@ -2,7 +2,10 @@
 """Run patch/coverflow.c's art cache on the host: the library query, the modal art build on a real
 pthread, the stock art calls and their locks. Built 32-bit (-m32, like test/peq.py's player) so the
 stSongInfo pointer offsets hold. The stock calls are stubbed; UI widgets are plain records."""
+import ast
 import pathlib
+import re
+import sqlite3
 import subprocess
 import tempfile
 import sys; sys.path.insert(0, sys.path[0] + '/../tools')  # tools/ first
@@ -1246,7 +1249,6 @@ def main():
     ap.add_argument('--captures', type=pathlib.Path,
                     help='write the renderer\'s frames (rest, quarter, half, three-quarter turns, one album) as PNGs here')
     a = ap.parse_args()
-    import ast, re, sqlite3
     source = (ROOT/'patch/coverflow.c').read_text().replace('\\\n', '')
     def macro(name):
         line = re.search(r'^#define ' + name + r' (.*)$', source, re.M)[1]

@@ -736,8 +736,8 @@ static int split_row(void *a, int n, char **v, char **c) {
 }
 static int rank_query(void *sql) { return toolsQueryDbTable("/mnt/data/database.db", sql, split_row, 0); }
 
-/* Keep only albums with music, using a music track for their art even when tags are shared
- * with an audiobook. The library's own lists and the card's files stay untouched. */
+/* list's albums with music, in a new deque (list goes), using a music track for their art even when
+ * tags are shared with an audiobook. The library's own lists and the card's files stay untouched. */
 static void *music_albums(void *list) {
     int n;
     void *rows = staged(rank_query, MUSIC_ALBUM_SQL, &n), *out = _create_deque("stSongInfo");
@@ -752,6 +752,7 @@ static void *music_albums(void *list) {
         }
     }
     deque_destroy(rows);
+    deque_destroy(list);
     return out;
 }
 
@@ -1436,11 +1437,7 @@ static void load(void) {
         n = (int)deque_size(cf.stock);
     else if (!*(volatile int *)SCAN_THREAD || *(volatile int *)SCAN_DONE) {
         cf.stock = staged(albums, 0, &n);
-        if (n > 0) {
-            void *all = split(cf.stock);
-            cf.stock = music_albums(all);
-            deque_destroy(all);
-        }
+        if (n > 0) cf.stock = music_albums(split(cf.stock));
         cf.albums_gen = gen;
         drop_unknown();
         n = (int)deque_size(cf.stock);
@@ -1689,7 +1686,9 @@ static int coverflow_open(void *ctx, void *event) {
  * covers, which the page owns; 0 when Coverflow is open already, and albums is the caller's. */
 int coverflow_artist(void *albums) {
     if (cf.page || !deque_size(albums)) return 0;
-    void *music = music_albums(albums);
+    void *music = _create_deque("stSongInfo");
+    deque_init_copy(music, albums);
+    music = music_albums(music);
     if (!deque_size(music) || !(cf.page = page_open("coverflow_page", closed, keyup))) {
         deque_destroy(music);
         return 0;
@@ -1710,9 +1709,7 @@ int coverflow_rated(int (*hearts)(void *)) {
     if (cf.page) return 0;
     void *all = staged(albums, 0, &n), *rated = _create_deque("stSongInfo");
     if (n > 0) all = split(all);
-    void *music = music_albums(all);
-    deque_destroy(all);
-    all = music;
+    all = music_albums(all);
     deque_init(rated);
     for (unsigned i = 0; i < deque_size(all); ++i)
         if (hearts(deque_at(all, i))) _deque_push_back(rated, deque_at(all, i));
