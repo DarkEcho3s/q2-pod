@@ -6,7 +6,8 @@
  * and "h" before it marks a USB DAC that applies the volume itself) and puts each frame on
  * /dev/fb0 when the sound reaches it, dropping late ones. demo sends keys as datagrams to
  * Q2VIDEO_SOCK: p pause, f and b seek SEEK_S, s seek mode, v and a byte the volume set, q quit;
- * the last four show a bar along the bottom for OVERLAY_MS, the position or the volume.
+ * the last four show a bar along the bottom for OVERLAY_MS, the position or the volume. It starts
+ * at Q2VIDEO_PLACE's second, demo's, and leaves there resume_at's for a quit (0 for an end).
  * q2video -r DEVICE URL [VOLUME] plays Internet Radio (radio.c): the stream's sound alone, ffmpeg
  * restarted when it drops, and its report's ICY tags in RADIO_STATE; keys come on RADIO_SOCK, v
  * and q as above. q2video -s DEVICE VOLUME is librespot's sink on Bluetooth or a USB DAC
@@ -21,10 +22,12 @@
 #define SEEK_S 10
 #define SEEK_WAIT_MS 400 /* a run of wheel ticks restarts ffmpeg once */
 #define OVERLAY_MS 1500
+#define EDGE_S 30 /* a stop this near either end restarts at 0, as navigation.c's RESUME_EDGE_S */
 #define BAR_X 40 /* the bar's ends from the picture's sides, clear of the 80 px glass corners */
 #define BAR_Y 22 /* its bottom from the picture's */
 #define BAR_H 8
 #define Q2VIDEO_SOCK "/tmp/q2video.sock"
+#define Q2VIDEO_PLACE "/tmp/q2video.place" /* an int, the second: books.c VIDEO_PLACE */
 #define RADIO_SOCK "/tmp/q2radio.sock"
 #define SINK_SOCK "/tmp/q2sink.sock" /* spotify.c SPOT_SINK */
 #define RADIO_STATE "/tmp/q2radio.state" /* key=value lines, as spotify.c reads librespot's */
@@ -78,6 +81,9 @@ int duration(const char *s) {
     s = strstr(s, "Duration: ");
     return s && sscanf(s + 10, "%d:%d:%d", &h, &m, &sec) == 3 ? h * 3600 + m * 60 + sec : 0;
 }
+
+/* The second to start at after a quit at pos of len (0 unknown): 0 within EDGE_S of either end. */
+int resume_at(int pos, int len) { return pos < EDGE_S || (len && pos > len - EDGE_S) ? 0 : pos; }
 
 /* The overlay on framebuffer page f, line bytes a row: a bar along the picture's bottom, white for
  * n of total, black for the rest. The picture is turned clockwise (picture x is panel y), so the
@@ -416,6 +422,8 @@ int main(int argc, char **argv) {
         _exit(127);
     }
     close(pp[1]);
+    int fd = open(Q2VIDEO_PLACE, O_CLOEXEC), place = 0;
+    if (fd >= 0) read(fd, &at, sizeof at), close(fd);
     while (!quit) {
         int vp[2], ap[2] = { -1, -1 };
         if (pipe2(vp, O_CLOEXEC) || (audio && pipe2(ap, O_CLOEXEC))) break;
@@ -501,6 +509,7 @@ int main(int argc, char **argv) {
         if (thread) pthread_join(thread, 0);
         close(vp[0]);
         if (audio) close(ap[0]), snd_pcm_drop(au.pcm), snd_pcm_prepare(au.pcm);
+        place = quit ? resume_at(at + seek + n / FPS, len) : 0; /* a pending seek too */
         if (seek) {
             at += n / FPS + seek;
             at = at < 0 ? 0 : at;
@@ -513,6 +522,8 @@ int main(int argc, char **argv) {
     if (au.pcm) snd_pcm_close(au.pcm);
     if (dac >= 0) ioctl(dac, DAC_MUTE, &on); /* as hciplayer leaves it stopped */
     if (var[5] != y0) var[5] = y0, ioctl(fb, FBIOPAN_DISPLAY, var);
+    fd = open(Q2VIDEO_PLACE, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+    if (fd >= 0) write(fd, &place, sizeof place), close(fd);
     unlink(Q2VIDEO_SOCK);
     return 0;
 }

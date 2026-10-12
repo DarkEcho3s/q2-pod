@@ -1292,6 +1292,9 @@ def video_check(tmp):
     # The length from ffmpeg -i's report, for the position bar.
     assert lib.duration(b'Input #0, mov\n  Duration: 01:02:03.45, start: 0.0\n') == 3723
     assert lib.duration(b'  Duration: N/A, bitrate: N/A') == 0 and lib.duration(b'') == 0
+    # A quit's place, kept for next time, but 0 within 30 s of either end; an unknown length keeps it.
+    assert [lib.resume_at(p, 600) for p in (0, 29, 30, 300, 570, 571, 600)] == [0, 0, 30, 300, 570, 0, 0]
+    assert lib.resume_at(5000, 0) == 5000
     # The bar: along the bottom of the picture as seen, 40 px in from its ends and 23-30 px up, white
     # for the share given and black after; the picture is turned clockwise, so the bar runs down
     # columns 22-29 (picture x = panel y), from the top. Nothing else changes.

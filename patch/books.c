@@ -539,13 +539,17 @@ static void info(void) {
     widget_set_visible(bk.info, bk.info_on || bk.state, 0);
 }
 
-static void marks_save(void) {
-    if (bk.screen != READER || bk.state) return;
+/* key's place first in BOOK_MARKS: a book's byte offset, or a video's second. */
+static void mark(unsigned key, unsigned pos) {
     int k = 0;
-    while (k < MARKS_N - 1 && bk.marks[k].key != bk.key) ++k;
+    while (k < MARKS_N - 1 && bk.marks[k].key != key) ++k;
     for (; k; --k) bk.marks[k] = bk.marks[k - 1];
-    bk.marks[0].key = bk.key, bk.marks[0].pos = bk.pos;
+    bk.marks[0].key = key, bk.marks[0].pos = pos;
     BLOB_IO(BOOK_MARKS, bk.marks, 1);
+}
+
+static void marks_save(void) {
+    if (bk.screen == READER && !bk.state) mark(bk.key, bk.pos);
 }
 
 /* The text file is ready: open it at the page last read. */
@@ -709,9 +713,10 @@ void books_paint(void *w, void *canvas) {
  * reaches it as a datagram on its socket. */
 #define VIDEO_BIN "/usr/bin/q2video"
 #define VIDEO_SOCK "/tmp/q2video.sock" /* video.c Q2VIDEO_SOCK */
+#define VIDEO_PLACE "/tmp/q2video.place" /* video.c Q2VIDEO_PLACE: the second to start at, then left */
 static struct {
     int pid, sock, seek; /* seek: the wheel seeks, since seek_at (time_now_ms) */
-    unsigned seek_at;
+    unsigned seek_at, key, at; /* key: the video's in BOOK_MARKS, at its second there */
 } vid __attribute__((section(".scratch")));
 
 int video_on(void) { return vid.pid; }
@@ -768,7 +773,14 @@ static int play_video(void *ctx, void *event) {
     (void)event;
     if (vid.pid) return 0;
     radio_stop(); /* it holds the PCM too */
-    vid.pid = video_start(bk.path[(int)(long)ctx], 0);
+    const char *path = bk.path[(int)(long)ctx];
+    vid.key = fnv(FNV_SEED, (const unsigned char *)path);
+    vid.key |= !vid.key;
+    vid.at = 0;
+    for (int k = 0; k < MARKS_N; ++k)
+        if (bk.marks[k].key == vid.key) vid.at = bk.marks[k].pos;
+    BLOB_IO(VIDEO_PLACE, vid.at, 1);
+    vid.pid = video_start(path, 0);
     vid.seek = 0;
     vid.sock = socket(1, 1, 0); /* AF_UNIX, SOCK_DGRAM (MIPS numbering) */
     return 0;
@@ -787,6 +799,9 @@ void video_poll(void) {
     }
     close(vid.sock);
     vid.pid = 0;
+    unsigned at;
+    /* where it stopped; a video never resumed takes no slot from the books */
+    if (bk.page && BLOB_IO(VIDEO_PLACE, at, 0) && (at || vid.at)) mark(vid.key, at);
     widget_invalidate_force(window_manager(), 0);
 }
 
