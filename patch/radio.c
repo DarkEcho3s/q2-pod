@@ -67,7 +67,7 @@ int playlist(char *buf, unsigned *name, unsigned *url, int max) {
             char *f = buf + url[i];
             while (f > buf && f[-1]) --f;
             while (*f == ' ' || *f == '\t') ++f;
-            if (!strncasecmp(f, "File", 4) && !strncmp(f + 4, s + 5, (size_t)(v - s - 4)))
+            if (!strncasecmp(f, "File", 4) && !strncasecmp(f + 4, s + 5, (unsigned)(v - s - 4)))
                 name[i] = (unsigned)(v + 1 - buf); /* through the '=': FileN= for TitleN= */
         }
     }
