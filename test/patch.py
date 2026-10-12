@@ -6343,7 +6343,8 @@ class PhotosMachine(DepthMachine):
     def hook(self,u,address,size,unused):
         name=self.handlers.get(address,'')
         a,b,c,d=[u.reg_read(r) for r in REGS]
-        if name=='c:calloc@GLIBC_2.0' and a*b<=0x10000: ret=self.alloc((a*b+7)&~3)  # word-aligned, unlike Coverflow's mock
+        if name=='c:calloc@GLIBC_2.0' and a*b<=0x10000:
+            ret=0 if getattr(self,'fail_size',0)==a*b else self.alloc((a*b+7)&~3)
         elif name=='widget_load_image' and '/mnt/mmc/.photos/' in self.text(b):
             url=self.text(b); self.loads.append(url)
             if url[7:] not in self.cache: ret=1
@@ -6453,6 +6454,16 @@ assert m.nodes[tiles_view]['_ringnav_index']==2 and m.nodes[tiles_view]['_ringna
 assert m.key()==11 and m.nodes[albums]['visible'] and not m.nodes[grid]['visible']
 assert m.key()==11 and [c[0] for c in m.calls].count('navigator_back')==1
 m.close(); assert sorted(m.destroyed)==sorted(m.frames) and m.frames; passed()
+# Failed key/state allocation releases the scanned paths too, so reopening Photos can recover.
+for fail_size in (5, 20):
+    m=PhotosMachine(tree,data); m.fail_size=fail_size
+    m.call(address=payload_syms['photos_open'],args=(m.string(R),0,0,0),gap=0,count=5_000_000)
+    m.page=m.top
+    rows=m.find('scroll_view'); first=m.nodes[rows]['children'][0]
+    f,ctx=m.handler(first,O['EVT_CLICK']); m.call(address=f,args=(ctx,m.event,0,0),gap=0)
+    m.advance(0); assert m.freed==4 and not m.threads
+    m.close(); assert m.freed==8
+passed()
 
 class BooksMachine(DepthMachine):
     """The card as a tree of {path: [(name, d_type)]} and files as {path: bytearray}, with stdio
@@ -6862,7 +6873,7 @@ class RadioMachine(SpotMachine):
         for n in ('curl_easy_init','curl_easy_setopt','curl_easy_perform','curl_easy_getinfo','curl_easy_cleanup','get_wifisignal',
                   'mkdir@GLIBC_2.0'):
             self.handlers[syms[n]]='r:'+n
-        self.mock('fflush@GLIBC_2.0','fsync@GLIBC_2.0','fileno@GLIBC_2.0')
+        self.mock('fflush@GLIBC_2.0','fsync@GLIBC_2.0','fileno@GLIBC_2.0','ferror@GLIBC_2.0')
         self.wifi=3; self.reply=b''; self.code=200; self.opts={}
     def hook(self,u,address,size,unused):
         name=self.handlers.get(address,'')
@@ -7018,6 +7029,20 @@ assert m.files[RDIR+'/favourites.m3u']==b'#EXTM3U\n#EXTINF:-1,http://two/b\nhttp
 m.nodes[m.find('scroll_view')]['_ringnav_index']=1; assert m.hold()==11 and m.toasts[-1][3]=='Added to Favourites'
 assert m.files[RDIR+'/favourites.m3u'].endswith(b'#EXTINF:-1,Three\nhttps://three/c?x=1\n')
 assert m.call(O['KEY_PLAY'],gap=0)==11 and not m.sent; passed()
+# Editing a capped or partially read list must never discard unseen favourites. Exactly 200
+# stations still supports removal; adding to a full list keeps the existing limit.
+for count, padding, saved in ((200, b'', True), (201, b'', False),
+                              (1, b'#' + b'x' * (256 << 10), False), (1, b'\0http://hidden\n', False)):
+    original = b'#EXTM3U\n' + b''.join(f'http://station/{i}\n'.encode() for i in range(count)) + padding
+    large = RadioMachine({RDIR+'/favourites.m3u': bytearray(original)})
+    large.budget = 5_000_000
+    radio_open(large); large.row(0)
+    large.nodes[large.find('scroll_view')]['_ringnav_index'] = 0
+    large.status = large.alloc(0x200); large.press(77); assert large.hold() == 11
+    assert large.toasts[-1][3] == ('Removed from Favourites' if saved else 'Could not save Favourites')
+    assert bytes(large.files[RDIR+'/favourites.m3u']) == (b'#EXTM3U\n' + b''.join(
+        f'#EXTINF:-1,http://station/{i}\nhttp://station/{i}\n'.encode() for i in range(1, count)) if saved else original)
+passed()
 # Top Stations: the directory's m3u, fetched on the worker over verified TLS, "Loading…" meanwhile.
 # Return goes up a level at a time, then back to Streaming. Without Wi-Fi it says so.
 m.back(); assert m.labels()[0]=='Internet Radio' and m.labels()[1]=='Now Playing'

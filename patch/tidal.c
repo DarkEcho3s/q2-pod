@@ -50,7 +50,7 @@ static void trim(void) {
         }
         if (d) closedir(d);
         if (total <= (unsigned long long)TIDAL_CAP_MB << 20 || !*victim) return;
-        unlink(victim);
+        if (unlink(victim)) return; /* a read-only card must not trap the download worker */
     }
 }
 

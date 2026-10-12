@@ -28,8 +28,8 @@
 typedef struct {
     char *buf;
     unsigned len;
-    int n;
-    unsigned name[RADIO_MAX], url[RADIO_MAX];
+    int n, truncated;
+    unsigned name[RADIO_MAX + 1], url[RADIO_MAX + 1];
 } list_t;
 
 /* The line at s cut off; returns the next one's start. */
@@ -40,23 +40,37 @@ static char *line(char *s) {
 }
 
 /* An .m3u's or .pls's stations in buf, at most max: #EXTINF names the next URL, a .pls's FileN= is
- * a URL and TitleN= names the one before. A line without "://" is no station. */
+ * a URL and TitleN= names FileN regardless of their order. A line without "://" is no station. */
 int playlist(char *buf, unsigned *name, unsigned *url, int max) {
     int n = 0;
+    char *end = buf + strlen(buf);
     unsigned named = 0; /* 1 + the pending #EXTINF name's offset */
-    for (char *s = buf, *next; *s && n < max; s = next) {
+    for (char *s = buf, *next; *s; s = next) {
         next = line(s);
         while (*s == ' ' || *s == '\t') ++s;
         char *v = strstr(s, "="), *comma = strstr(s, ",");
         int file = v && !strncasecmp(s, "File", 4);
         if (!strncasecmp(s, "#EXTINF:", 8))
             named = comma && comma[1] ? (unsigned)(comma + 1 - buf) + 1 : 0;
-        else if (v && !strncasecmp(s, "Title", 5) && n && v[1])
-            name[n - 1] = (unsigned)(v + 1 - buf);
-        else if (*s != '#' && strstr(file ? v : s, "://")) {
+        else if (n < max && *s != '#' && !(v && !strncasecmp(s, "Title", 5)) &&
+                 strstr(file ? v : s, "://")) {
             url[n] = (unsigned)((file ? v + 1 : s) - buf);
             name[n] = named ? named - 1 : url[n];
             named = 0, ++n;
+        }
+    }
+    for (char *s = buf; s < end; s += strlen(s) + 1) {
+        while (*s == ' ' || *s == '\t') ++s;
+        char *v = strstr(s, "=");
+        if (!v || strncasecmp(s, "Title", 5) || v <= s + 5 || !v[1]) continue;
+        for (int i = 0; i < n; ++i) {
+            char *f = buf + url[i];
+            while (f > buf && f[-1]) --f;
+            while (*f == ' ' || *f == '\t') ++f;
+            unsigned len = (unsigned)(v - s - 5);
+            if (!strncasecmp(f, "File", 4) && strlen(f) > 4 + len &&
+                !memcmp(f + 4, s + 5, len) && f[4 + len] == '=')
+                name[i] = (unsigned)(v + 1 - buf);
         }
     }
     return n;
@@ -158,7 +172,9 @@ static void list_set(list_t *l, const char *text, unsigned len, int pick, int co
     memcpy(l->buf, text, len);
     l->len = len;
     l->n = pick ? choices(l->buf, l->name, l->url, RADIO_MAX, coded)
-                : playlist(l->buf, l->name, l->url, RADIO_MAX);
+                : playlist(l->buf, l->name, l->url, RADIO_MAX + 1);
+    l->truncated = l->n > RADIO_MAX;
+    if (l->truncated) l->n = RADIO_MAX;
 }
 
 static void list_copy(list_t *to, const list_t *from) {
@@ -174,12 +190,15 @@ static const char *name_of(const list_t *l, int i) { return l->buf + l->name[i];
 static const char *url_of(const list_t *l, int i) { return l->buf + l->url[i]; }
 
 /* path's bytes appended to buf at *n, below cap, then a newline. */
-static void slurp(const char *path, char *buf, unsigned *n, unsigned cap) {
+static int slurp(const char *path, char *buf, unsigned *n, unsigned cap) {
     void *f = *n + 2 <= cap ? fopen(path, "rb") : 0; /* full: cap - *n - 2 would wrap */
-    if (!f) return;
+    if (!f) return access(path, 0) != 0;
     *n += fread(buf + *n, 1, cap - *n - 2, f);
+    char extra;
+    int ok = !fread(&extra, 1, 1, f) && !ferror(f);
     buf[(*n)++] = '\n';
     fclose(f);
+    return ok;
 }
 
 /* Favourites into l: favourites.m3u, then (all) every other .m3u and .pls in RADIO_DIR; 0 when
@@ -189,7 +208,7 @@ static int favs_read(list_t *l, int all) {
     unsigned n = 0;
     list_free(l);
     if (!buf) return 0;
-    slurp(RADIO_FAVS, buf, &n, FETCH_MAX);
+    int ok = slurp(RADIO_FAVS, buf, &n, FETCH_MAX);
     void *dir = all ? opendir(RADIO_DIR) : (void *)0;
     for (struct dirent *e; dir && (e = readdir(dir));) {
         const char *dot = strrchr(e->d_name, '.');
@@ -200,9 +219,10 @@ static int favs_read(list_t *l, int all) {
         slurp(path, buf, &n, FETCH_MAX);
     }
     if (dir) closedir(dir);
+    ok = ok && strlen(buf) == n; /* an embedded NUL would hide the remaining favourites */
     list_set(l, buf, n, 0, 0);
     free(buf);
-    return l->buf != 0;
+    return l->buf != 0 && ok;
 }
 
 /* An .m3u at path, written aside and renamed: l's stations but skip, then more's station at. */
@@ -330,7 +350,7 @@ static int fav_index(const list_t *favs, const char *url) {
 static const char *fav_toggle(const list_t *l, int i) {
     list_t favs = { 0 };
     int ok = favs_read(&favs, 0), found = fav_index(&favs, url_of(l, i));
-    if (found < 0 && favs.n == RADIO_MAX) ok = 0; /* a longer file is never rewritten short */
+    if (favs.truncated || (found < 0 && favs.n == RADIO_MAX)) ok = 0;
     ok = ok && m3u_write(RADIO_FAVS, &favs, found, found < 0 ? l : 0, i);
     list_free(&favs);
     ++rd.serial;

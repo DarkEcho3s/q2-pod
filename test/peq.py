@@ -1709,6 +1709,10 @@ def radio_check(tmp):
     assert playlist(b'[playlist]\nFile1=http://p/1\nTitle1=One\nLength1=-1\nfile2=http://p/2\nNumberOfEntries=2\n') == \
         [('One', 'http://p/1'), ('http://p/2', 'http://p/2')]
     assert playlist(b'http://a\nhttp://b\nhttp://c\n', 2) == [('http://a',) * 2, ('http://b',) * 2] and playlist(b'') == []
+    assert playlist(b'[playlist]\nTitle2=Two\nFile1=http://p/1\nFile2=http://p/2\nTitle1=One\n', 2) == \
+        [('One', 'http://p/1'), ('Two', 'http://p/2')]
+    assert playlist(b'File1=http://p/1\nTitle1=One\nFile2=http://p/2\nTitle2=Two\n', 1) == \
+        [('One', 'http://p/1')]
     # The CSV after its header: a country's code, or the tag itself; a quoted name keeps its commas.
     countries = b'name,iso_3166_1,stationcount\n"Taiwan, Republic Of China",TW,214\r\nGermany,DE,6496\n,XX,1\nbad\n'
     assert parse(lib.choices, countries, 8, 1) == [('Taiwan, Republic Of China', 'TW'), ('Germany', 'DE')]
@@ -1728,7 +1732,39 @@ def tidal_check(tmp):
     assert ext(b'https://x/a/b.mp4') == b'.mp4'
     assert ext(b'https://x.y/a/b?f=c.flac') is None and ext(b'https://x/a.') is None  # no extension in the path
     assert ext(b'https://x/a.longextension') is None and ext(b'https://x/a.flac', 5) is None  # too long for out
-    print('Tidal cache: stream file extensions passed.')
+    # Run the actual eviction loop with a synthetic directory, including a failed unlink.
+    trim = (ROOT/'patch/tidal.c').read_text().split('static void trim(void) {', 1)[1].split('static unsigned save', 1)[0]
+    source = tmp/'tidal_trim.c'
+    source.write_text(r'''#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+#define TIDAL_DIR "/cache"
+#define TIDAL_CAP_MB 2048
+#define tk_snprintf snprintf
+struct dirent { char d_name[16]; };
+static int fail, left, cursor, attempts;
+static void *opendir(const char *p) { (void)p; cursor=0; return (void *)1; }
+static struct dirent *readdir(void *d) {
+    static struct dirent e; (void)d;
+    if (cursor == left) return 0;
+    snprintf(e.d_name, sizeof e.d_name, "%d.flac", cursor++); return &e;
+}
+static int closedir(void *d) { (void)d; return 0; }
+static int __xstat(int v, const char *p, unsigned *s) {
+    (void)v; (void)p; s[12]=1200u<<20; s[16]=1; return 0;
+}
+static int unlink(const char *p) { (void)p; ++attempts; if (fail) return -1; --left; return 0; }
+static void trim(void) {''' + trim + r'''
+int main(void) {
+    left=3; trim(); assert(left==1 && attempts==2);
+    fail=1; left=3; attempts=0; trim(); assert(left==3 && attempts==1);
+    return 0;
+}
+''')
+    binary = tmp/'tidal_trim'
+    subprocess.run(['cc', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)], check=True)
+    subprocess.run([str(binary)], check=True, timeout=5)
+    print('Tidal cache: stream file extensions, eviction and failed deletion passed.')
 
 if __name__ == '__main__':
     import argparse

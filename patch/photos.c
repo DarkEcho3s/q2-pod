@@ -242,7 +242,10 @@ static int to_grid(const void *unused) {
     ph.n = n;
     ph.key = calloc(n + 1, sizeof *ph.key);
     ph.state = calloc(n + 1, 1);
-    if (!ph.key || !ph.state) n = ph.n = 0;
+    if (!ph.key || !ph.state) {
+        for (int i = 0; i < n; ++i) free(ph.path[i]);
+        n = ph.n = 0;
+    }
     for (int i = 0; i < n; ++i) ph.key[i] = fnv(FNV_SEED, (const unsigned char *)ph.path[i]);
     ph.screen = GRID;
     widget_set_visible(ph.albums, 0, 0);
