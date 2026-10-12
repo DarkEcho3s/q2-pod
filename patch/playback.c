@@ -128,18 +128,15 @@ static unsigned speed_read(int at) {
                : 0;
 }
 
-/* Stock sends speed to hciplayer only on connect or a user change, never per track: send it here. */
-int playback_speed_start(void) {
-    g_playspeed_mode = (unsigned char)speed_read(M(MCL_POS));
-    return stock_speed_trampoline(g_playspeed_mode);
-}
+void playback_speed_start(void) { g_playspeed_mode = speed_read(M(MCL_POS)); }
 
 int ringnav_speed(int mode) {
     folder_speed saved = { { 0 }, 0 };
     char path[80], tmp[84];
     /* player_initconfig re-applies speed when the decoder connects; that is not a user edit. */
     if (__builtin_return_address(0) == (void *)0x51339c || (unsigned)mode >= 4) {
-        return playback_speed_start();
+        playback_speed_start();
+        return stock_speed_trampoline(g_playspeed_mode);
     }
     if (!speed_folder(M(MCL_POS), saved.folder)) { /* no folder (a Tidal stream): this track only */
         g_playspeed_mode = (unsigned char)mode;
@@ -150,8 +147,9 @@ int ringnav_speed(int mode) {
     speed_file(path, saved.folder);
     tk_snprintf(tmp, sizeof tmp, "%s.tmp", path);
     if (!blob_io(path, tmp, &saved, sizeof saved, 1)) {
+        playback_speed_start();
         toast("Could not save folder speed");
-        return playback_speed_start();
+        return stock_speed_trampoline(g_playspeed_mode);
     }
     g_playspeed_mode = (unsigned char)mode;
     close_preload(); /* an already-open decoder still has the previous speed */

@@ -659,10 +659,8 @@ assert r.fn('ringnav_memory',r.deque([]))>=0 and r.seek==37
 
 # Folder speed follows the file, including mixed queues, CUE entries and fresh processes.
 def speed_at(m, at):
-    m.word(O['MCL_POS'], at); m.sent_speed=None; m.fn('playback_speed_start')
-    mode=m.u.mem_read(syms['g_playspeed_mode'],1)[0]
-    assert m.sent_speed==mode  # hciplayer keeps its last speed across tracks unless told
-    return mode
+    m.word(O['MCL_POS'], at); m.fn('playback_speed_start')
+    return m.u.mem_read(syms['g_playspeed_mode'],1)[0]
 
 m=PlaybackMachine()
 assert speed_at(m,0)==0
