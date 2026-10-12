@@ -72,17 +72,6 @@ void media_key(unsigned key) {
         player_prev_music();
 }
 
-#define HS_LOG "/mnt/mmc/q2pod-headset.log" /* present: logs AirPods link, ear and key events */
-static void hs_log(const char *what, int a, int b) {
-    if (access(HS_LOG, 0)) return;
-    char line[64];
-    int n = snprintf(line, sizeof line, "%u %s %d %d\n", time_now_ms(), what, a, b);
-    void *f = fopen(HS_LOG, "a");
-    if (!f) return;
-    fwrite(line, 1, (unsigned)n, f);
-    fclose(f);
-}
-
 /* Only complete, valid ear packets are published, in one word. No battery state. */
 int ringnav_aap_parse(const unsigned char *p, int n) {
     if (!p || n != 8 || p[0] != 4 || p[1] || p[2] != 4 || p[3] || p[4] != 6 || p[5] || p[6] > 2 ||
@@ -138,7 +127,6 @@ static int aap_open(const unsigned char *address, unsigned generation) {
                 send(aap, notify, sizeof notify, 0x40) != sizeof notify)
                 close(aap), aap = -1;
         }
-        hs_log("aap", aap, 0);
     }
     return aap;
 }
@@ -219,7 +207,6 @@ static void headset_start(void) {
             if (hi < 0 || lo < 0 || (i < 5 && mac[3 * i + 2] != ':')) hs.airpods = 0;
             hs.address[9 - i] = (unsigned char)(hi * 16 + lo);
         }
-    hs_log("link", hs.airpods, n);
     hs.report = hs.head = hs.tail = 0;
     hs.known = hs.paused = 0;
     unsigned long tid;
@@ -257,8 +244,6 @@ void headset_ears(unsigned report) {
             media_set_playing(1);
             hs.paused = 0;
         }
-        if (!hs.known || ears != hs.ears)
-            hs_log(hs.paused ? "ears paused" : "ears", ears, media_playing());
         hs.known = 1;
         hs.ears = ears;
     }
@@ -280,7 +265,6 @@ void headset_command(int code) {
     if (hs.last_key == code && now - hs.last_at < 150) return;
     hs.last_key = code;
     hs.last_at = now;
-    hs_log("key", code, media_playing());
     if (code == 163 || code == 165)
         media_key(code == 163 ? KEY_FWD_BTN : KEY_BACK_BTN);
     else if (code == 164) {

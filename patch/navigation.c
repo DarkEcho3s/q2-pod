@@ -1763,15 +1763,16 @@ static void *list_button(void *view) {
     return button;
 }
 
-/* A stock settings-style row (0x4c19bc): a list_button with a 52px icon and a 24px label at x 72,
- * into adding stock's list_into trailing image with the label narrowed clear of it, as the stock
- * Local Music categories place it. Returns the label. */
+/* A stock settings-style row (0x4c19bc): a list_button with a 52px icon and a 24px label at x 72
+ * (no icon: at x 10, as the Bluetooth page's rows), into adding stock's list_into trailing image
+ * with the label narrowed clear of it, as the stock Local Music categories place it. Returns the
+ * label. */
 static void *list_row_core(void *view, const char *icon, int (*click)(void *, void *), void *ctx,
                            int w, int into) {
     void *button = list_button(view);
     if (click) widget_on(button, EVT_CLICK, click, ctx);
-    image_base_set_image(image_create(button, 10, 0, SET_STOCK_ICON, 70), icon);
-    void *label = hscroll_label_create(button, 72, 0, w, 70);
+    if (icon) image_base_set_image(image_create(button, 10, 0, SET_STOCK_ICON, 70), icon);
+    void *label = hscroll_label_create(button, icon ? 72 : 10, 0, w, 70);
     widget_use_style(label, "s_scrlabel_white24l");
     set_hscroll_label_attribute(label);
     if (into) image_base_set_image(image_create(button, 282, 0, 50, 70), "list_into");
@@ -1875,14 +1876,19 @@ int ringnav_powermanager(void *win, void *ctx) {
 }
 /* The Bluetooth page's list (stock's local builder, btmenu_rows), rebuilt whole on every search and
  * link change: its rows, five with Bluetooth on (one, the switch, off), then the device lists.
- * Resume on connect follows its rows each time. */
+ * With Bluetooth on, Resume on connect follows the fourth, Bluetooth Headset Volume Control
+ * (bt_adjvol), each time, iconless and 78 high as stock's rows. */
 int ringnav_btrows(void *win, void *ctx) {
-    static const char *const icons[] = { "wifiset_bt" };
+    static const char *const icons[] = { 0 };
     int result = stock_btrows_trampoline(win, ctx);
+    if (!g_bluetoothflag) return result;
     pod_rows(win, "scroll_view_bluetooth", POD_RESUME, 1, icons);
     void *view = win ? widget_lookup(win, "scroll_view_bluetooth", 1) : (void *)0;
     unsigned n = view ? widget_count_children(view) : 0;
-    if (n) widget_restack(widget_get_child(view, n - 1), g_bluetoothflag ? 5 : 1);
+    if (!n) return result;
+    void *row = widget_get_child(view, n - 1);
+    widget_resize(row, I(row, W_W), 78);
+    widget_restack(row, 4);
     return result;
 }
 /* A settings list's rows, stock's (ids 0.. in its table order, each button named by its id, which
