@@ -5421,12 +5421,12 @@ static void bt_volume_poll(void) {
 }
 
 /* main_loop_sleep_default paces the UI loop at 8 ms (125 Hz), screen on or off. With the backlight
- * off it first idles SCREEN_OFF_SLEEP_MS (Low power: LOW_OFF_SLEEP_MS; DARK_IDLE_SLEEP_MS once nothing
- * plays and the DAC is off, unless Wake's second press may be coming); stock then finds its 8 ms
- * gone, sleeps 0 and keeps its own bookkeeping. The first pass with it back on repaints every
- * window once, so nothing drawn while dark, or only partly, stays on screen until the next input.
- * With Low power and the screen on, a pass idles LOW_IDLE_SLEEP_MS once input and window
- * animations have been still for LOW_IDLE_MS, except while Now Playing animates. */
+ * off it first idles SCREEN_OFF_SLEEP_MS (DARK_IDLE_SLEEP_MS once nothing plays and the DAC is
+ * off, unless Wake's second press may be coming); stock then finds its 8 ms gone, sleeps 0 and
+ * keeps its own bookkeeping. The first pass with it back on repaints every window once, so nothing
+ * drawn while dark, or only partly, stays on screen until the next input. With the screen on, a
+ * pass idles IDLE_SLEEP_MS once input and window animations have been still for IDLE_MS, except
+ * while Now Playing animates. */
 int ringnav_sleep(void *loop) {
     headset_poll();
     bt_volume_poll();
@@ -5441,15 +5441,13 @@ int ringnav_sleep(void *loop) {
         int quiet = I(g_dacoff_time, 0) < 0 && !media_playing() && !video_on() &&
                     airplayGetFlag() != 2 && (signed char)bt__recv_pageflag != 2 &&
                     time_now_ms() - st.wake_at >= WAKE_MS;
-        sleep_ms(quiet          ? DARK_IDLE_SLEEP_MS
-                 : st.low_power ? LOW_OFF_SLEEP_MS
-                                : SCREEN_OFF_SLEEP_MS);
+        sleep_ms(quiet ? DARK_IDLE_SLEEP_MS : SCREEN_OFF_SLEEP_MS);
     } else if (st.dark) {
         st.dark = 0;
         widget_invalidate_force(window_manager(), (void *)0);
-    } else if (st.low_power && time_now_ms() - st.last_input >= LOW_IDLE_MS &&
+    } else if (time_now_ms() - st.last_input >= IDLE_MS &&
                !window_manager_is_animating(window_manager()) && !np_animating())
-        sleep_ms(LOW_IDLE_SLEEP_MS);
+        sleep_ms(IDLE_SLEEP_MS);
     return stock_sleep_trampoline(loop);
 }
 
@@ -5481,7 +5479,7 @@ static int wake_gate(void *e) {
 }
 
 /* window_manager_dispatch_input_event: while q2video plays (books.c) no key or touch reaches the
- * UI; a key's release goes to the player instead. Every event times Low power's idle. */
+ * UI; a key's release goes to the player instead. Every event times ringnav_sleep's idle. */
 int ringnav_input(void *wm, void *e) {
     if (e && wake_gate(e)) return 0;
     st.last_input = time_now_ms();

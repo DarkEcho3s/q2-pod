@@ -6678,6 +6678,7 @@ class SpotMachine(BooksMachine):
         self.play=1; self.systems=[]; self.thumbs=[]; self.on_sleep=None
         self.handlers.pop(syms['mclStartPlayer'])  # its hook runs, down to the trampoline
         self.handlers[HOOKS['main_loop_sleep_default'][0]+12]='stock_sleep'
+        self.handlers[HOOKS['window_manager_dispatch_input_event'][0]+12]='stock_input'
     def hook(self,u,address,size,unused):
         name=self.handlers.get(address,'')
         if not name.startswith('s:'): return super().hook(u,address,size,unused)
@@ -6697,8 +6698,9 @@ class SpotMachine(BooksMachine):
     def state(self,state,position=0,at=None,cover=0,track='t1',title='Song',artist='A, B',album='LP',duration=200000):
         self.files[STATE]=bytearray((f'state={state}\ntrack={track}\ntitle={title}\nartist={artist}\nalbum={album}\n'
             f'duration={duration}\nposition={position}\nat={self.now if at is None else at}\ncover={cover}\n').encode())
-    def poll(self,ms=500):
-        self.now+=ms; self.calls=[]; self.sent=[]
+    def poll(self,ms=500):  # the page in use: input each pass, so no screen-on idle pass moves the clock
+        self.now+=ms; self.call(address=HOOKS['window_manager_dispatch_input_event'][0],args=(self.wm,self.event,0,0),gap=0)
+        self.calls=[]; self.sent=[]
         self.call(address=HOOKS['main_loop_sleep_default'][0],args=(0x1234,0,0,0),gap=0,clear=False)
         return [c[0] for c in self.calls]
     def key(self,k):
@@ -7273,17 +7275,17 @@ level(m,90); assert m.pass_(O['CHARGE_POLL_MS']-1)[0]==[] and m.pass_(1)[0]==[0]
 m.open_pages=['usbmode_page']; m.byte(syms['g_usbdac_chargeflag'],0); level(m,70); assert m.pass_()[0]==[0]; passed()
 m=PowerMachine(); level(m,95,2); assert m.pass_()[0]==[]; passed()  # the limit off: stock charges
 # Low power: CPU1 offline while the screen is off (the first time bracketed by a synced marker),
-# back with the screen; the screen-off pass idles LOW_OFF_SLEEP_MS, and a screen-on pass with no input
-# or animation for LOW_IDLE_MS idles LOW_IDLE_SLEEP_MS. Off, no file is touched.
+# back with the screen. Off, no file is touched. Either way the screen-off pass idles
+# SCREEN_OFF_SLEEP_MS, and a screen-on pass with no input or animation for IDLE_MS idles IDLE_SLEEP_MS.
 CPU1,MARK='/sys/devices/system/cpu/cpu1/online','/mnt/data/q2pod-cpu1'
 inp_hook=HOOKS['window_manager_dispatch_input_event'][0]
 m=PowerMachine()
 m.byte(syms['g_backlight_status'],0); assert m.pass_(1)[1]==[O['SCREEN_OFF_SLEEP_MS']] and not m.writes and not m.opens; passed()
 # Dark with nothing playing and the DAC off (check_dacoff_state's -1), a pass idles DARK_IDLE_SLEEP_MS,
-# Low power or not; playing, a DAC still counting, or a Wake press that may get its second, stock pace.
+# Low power or not; playing, a DAC still counting, or a Wake press that may get its second, SCREEN_OFF_SLEEP_MS.
 for config in ({},{'LOWPOWER':'1'}):
     m=PowerMachine(config); m.handlers.pop(syms['mclGetPlayStatus'],None); m.byte(syms['g_backlight_status'],0)
-    off=O['LOW_OFF_SLEEP_MS'] if config else O['SCREEN_OFF_SLEEP_MS']
+    off=O['SCREEN_OFF_SLEEP_MS']
     for play,dac,want in ((3,-1,O['DARK_IDLE_SLEEP_MS']),(2,-1,off),(3,5,off),(1,-1,O['DARK_IDLE_SLEEP_MS'])):
         m.word(0xa3beac,play); m.word(syms['g_dacoff_time'],dac&0xffffffff)
         assert m.pass_(1)[1]==[want],(config,play,dac); passed()
@@ -7293,13 +7295,13 @@ assert m.pass_(1)[1]==[O['DARK_IDLE_SLEEP_MS']]  # reads Wake
 m.call(O['KEY_CENTER'],address=inp_hook,args=(m.wm,m.event,0,0),event_type=O['EVT_KEY_DOWN'],gap=0,clear=False)
 assert m.pass_(1)[1]==[O['SCREEN_OFF_SLEEP_MS']] and m.pass_(O['WAKE_MS'])[1]==[O['DARK_IDLE_SLEEP_MS']]; passed()
 m=PowerMachine({'LOWPOWER':'1'}); m.byte(syms['g_backlight_status'],0)
-assert m.pass_(1)[1]==[O['LOW_OFF_SLEEP_MS']] and m.writes==[(MARK,b''),(CPU1,b'0')] and MARK not in m.files
+assert m.pass_(1)[1]==[O['SCREEN_OFF_SLEEP_MS']] and m.writes==[(MARK,b''),(CPU1,b'0')] and MARK not in m.files
 assert [c[0] for c in m.calls if c[0] in ('fsync','unlink')]==['fsync','fsync','unlink','fsync']; passed()  # the marker, then its removal, on flash
 m.writes=[]; m.byte(syms['g_backlight_status'],1); m.pass_(1); assert m.writes==[(CPU1,b'1')]; passed()
 m.writes=[]; m.byte(syms['g_backlight_status'],0); m.pass_(1); assert m.writes==[(CPU1,b'0')]; passed()  # marked once a boot
-m.byte(syms['g_backlight_status'],1); m.animating=1; m.pass_(1)
-assert m.pass_(O['LOW_IDLE_MS'])[1]==[]; m.animating=0
-assert m.pass_(1)[1]==[O['LOW_IDLE_SLEEP_MS']]; passed()
+m=PowerMachine(); m.animating=1; m.pass_(1)  # idle pacing without Low power
+assert m.pass_(O['IDLE_MS'])[1]==[]; m.animating=0
+assert m.pass_(1)[1]==[O['IDLE_SLEEP_MS']] and not m.writes; passed()
 inp=HOOKS['window_manager_dispatch_input_event'][0]; m.handlers[inp+12]='stock_input'
 m.call(address=inp,args=(m.wm,m.event,0,0),gap=0); assert m.pass_(1)[1]==[]; passed()  # input: full speed again
 # A refused online is retried once a second, not every pass.
@@ -7326,12 +7328,12 @@ if variant=='ipod':  # stock has no visualizer: np_animating() is 0 there
             if self.handlers.get(address)=='v:live':
                 u.reg_write(UC_MIPS_REG_V0,self.live); u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA)); return
             return super().hook(u,address,size,unused)
-    m=Live({'LOWPOWER':'1'}); m.handlers[payload_syms['visualizer_live']]='v:live'; m.live=1
+    m=Live(); m.handlers[payload_syms['visualizer_live']]='v:live'; m.live=1
     m.top=m.node('window','playing_page'); m.pass_(1)
-    assert m.pass_(O['LOW_IDLE_MS'])[1]==[]; m.live=0; assert m.pass_(1)[1]==[O['LOW_IDLE_SLEEP_MS']]; passed()
+    assert m.pass_(O['IDLE_MS'])[1]==[]; m.live=0; assert m.pass_(1)[1]==[O['IDLE_SLEEP_MS']]; passed()
 else:
-    m=PowerMachine({'LOWPOWER':'1'}); m.top=m.node('window','playing_page'); m.pass_(1)
-    assert m.pass_(O['LOW_IDLE_MS'])[1]==[O['LOW_IDLE_SLEEP_MS']]; passed()
+    m=PowerMachine(); m.top=m.node('window','playing_page'); m.pass_(1)
+    assert m.pass_(O['IDLE_MS'])[1]==[O['IDLE_SLEEP_MS']]; passed()
 # A boot that stalled offlining CPU1 left the marker: the next one renames it and never tries.
 m=PowerMachine({'LOWPOWER':'1'},files={MARK:b''}); m.byte(syms['g_backlight_status'],0); m.pass_(1)
 assert not m.writes and '/mnt/data/q2pod-cpu1.bad' in m.files and MARK not in m.files; passed()

@@ -255,21 +255,18 @@
 #define WAKE_MS 500 /* Wake: Double press, the screen-off double press; looser, done blind in a hand */
 #define SCRUB_MS 3000
 #define LYRIC_STEP 25 /* px per wheel tick on the lyrics page: one stock lyric row */
-/* With the screen off the UI loop idles this long a turn instead of stock's 8 ms; screen-off keys
- * (volume, play/pause, wake) wait at most this much longer. */
-#define SCREEN_OFF_SLEEP_MS 40
+/* With the screen off the UI loop idles this long a turn instead of stock's 8 ms, about 10 turns a
+ * second; screen-off keys (volume, play/pause, wake) wait at most this much longer. */
+#define SCREEN_OFF_SLEEP_MS 100
 /* Screen off, nothing playing (media_playing) and the DAC already off (check_dacoff_state, about 31
  * s after playback stops; g_dacoff_time -1): the turn idles DARK_IDLE_SLEEP_MS, about 4 turns a
- * second instead of 25, so a Q2 left dark without Standby stops waking the CPU for nothing. The
- * first key waits at most that; Wake's second press is timed at stock pace. */
+ * second, so a Q2 left dark without Standby stops waking the CPU for nothing. The first key waits
+ * at most that; Wake's second press is timed at the screen-off pace. */
 #define DARK_IDLE_SLEEP_MS 250
-/* Low power (docs/internals.md#low-power): the screen-off turn idles LOW_OFF_SLEEP_MS instead, and
- * with the screen on, once LOW_IDLE_MS pass without input or a window animation, each turn idles
- * LOW_IDLE_SLEEP_MS (about 30 passes a second; the first input after waits at most that). CPU1
- * goes offline while the screen is off and no video plays. */
-#define LOW_OFF_SLEEP_MS 100
-#define LOW_IDLE_MS 2000
-#define LOW_IDLE_SLEEP_MS 25
+/* Screen on, once IDLE_MS pass without input or a window animation, each turn idles IDLE_SLEEP_MS
+ * (about 30 passes a second; the first input after waits at most that). */
+#define IDLE_MS 2000
+#define IDLE_SLEEP_MS 25
 /* Charge limit: the charger stops at CHARGE_STOP percent and starts again at CHARGE_RESUME,
  * checked every CHARGE_POLL_MS. */
 #define CHARGE_STOP 80
