@@ -11,11 +11,11 @@
 #define HISTORY_LIMIT 4096
 extern int stock_load_trampoline(void *, int, int), stock_next_trampoline(int),
     stock_prev_trampoline(void), stock_mode_trampoline(int), stock_preload_trampoline(void),
-    stock_memory_trampoline(void *), stock_savequeue_trampoline(void),
-    stock_change_trampoline(int);
+    stock_memory_trampoline(void *), stock_savequeue_trampoline(void), stock_change_trampoline(int),
+    stock_speed_trampoline(int), stock_open_preload_trampoline(void);
 extern void *staged(int (*)(void *), void *, int *);
-extern int album_before(const void *, const void *), album_cmp(void *, void *), folder_cmp(void *, void *),
-    album_only(void *, void *, int);
+extern int album_before(const void *, const void *), album_cmp(void *, void *),
+    folder_cmp(void *, void *), album_only(void *, void *, int);
 
 typedef struct {
     unsigned index, group, rank;
@@ -90,6 +90,77 @@ static void close_preload(void) {
     if (M(MCL_PRELOAD) == 1 && M(MCL_FD) != -1) send(M(MCL_FD), "{mcl-closegapless\\null}", 23, 0);
     M(MCL_PRELOAD) = 0;
     M(MCL_PREPOS) = -1;
+}
+
+/* Full parent paths, not album tags or browsing context: a mixed queue keeps each book's speed.
+ * The path stored beside the value also rejects a hash collision or a damaged preference. */
+typedef struct {
+    char folder[1024];
+    unsigned mode;
+} folder_speed;
+
+static int speed_folder(int at, char folder[1024]) {
+    void *q = queue();
+    if (!q || at < 0 || (unsigned)at >= deque_size(q)) return 0;
+    void *r = deque_at(q, (unsigned)at);
+    const char *p = r ? P(r, REC_PATH) : (void *)0;
+    if (!p || I(r, REC_TYPE) != 8 || *p != '/') return 0;
+    const char *end = strrchr(p, '/');
+    unsigned n = (unsigned)(end - p) + 1;
+    if (n >= 1024 || !end[1]) return 0;
+    memcpy(folder, p, n);
+    folder[n] = 0;
+    return 1;
+}
+
+static void speed_file(char path[80], const char *folder) {
+    tk_snprintf(path, 80, "/mnt/data/ringnav-speed-%08x-%08x",
+                fnv(FNV_SEED, (const unsigned char *)folder),
+                fnv(0x9e3779b9u, (const unsigned char *)folder));
+}
+
+static unsigned speed_read(int at) {
+    char folder[1024], path[80];
+    folder_speed saved;
+    if (!speed_folder(at, folder)) return 0;
+    speed_file(path, folder);
+    return blob_io(path, path, &saved, sizeof saved, 0) && saved.folder[1023] == 0 &&
+                   !strcmp(saved.folder, folder) && saved.mode < 4
+               ? saved.mode
+               : 0;
+}
+
+void playback_speed_start(void) { g_playspeed_mode = speed_read(M(MCL_POS)); }
+
+int ringnav_speed(int mode) {
+    /* player_initconfig re-applies speed when the decoder connects; that is not a user edit. */
+    if (__builtin_return_address(0) == (void *)0x51339c) {
+        playback_speed_start();
+        return stock_speed_trampoline(g_playspeed_mode);
+    }
+    folder_speed saved = { { 0 }, 0 };
+    char path[80], tmp[84];
+    if ((unsigned)mode >= 4 || !speed_folder(M(MCL_POS), saved.folder)) {
+        playback_speed_start();
+        return stock_speed_trampoline(g_playspeed_mode);
+    }
+    saved.mode = (unsigned)mode;
+    speed_file(path, saved.folder);
+    tk_snprintf(tmp, sizeof tmp, "%s.tmp", path);
+    if (!blob_io(path, tmp, &saved, sizeof saved, 1)) {
+        playback_speed_start();
+        toast("Could not save folder speed");
+        return stock_speed_trampoline(g_playspeed_mode);
+    }
+    g_playspeed_mode = (unsigned char)mode;
+    close_preload(); /* an already-open decoder still has the previous speed */
+    return stock_speed_trampoline(mode);
+}
+
+int ringnav_open_preload(void) {
+    /* A gapless handoff does not run player_initconfig: reopen at a speed boundary. */
+    if (speed_read(M(MCL_PREPOS)) != g_playspeed_mode) return 1;
+    return stock_open_preload_trampoline();
 }
 static void release(void) {
     s.next_valid = 0;

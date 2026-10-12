@@ -22,6 +22,10 @@ class PlaybackMachine(QueueMachine):
         self.handlers.pop(syms['mclLoadPlayList'], None)
         self.handlers[ps['stock_memory_trampoline']] = 'p:fallback'
         self.handlers[ps['stock_savequeue_trampoline']] = 'p:saved'
+        self.handlers[ps['stock_speed_trampoline']] = 'p:speed'
+        self.handlers[ps['stock_open_preload_trampoline']] = 'p:mcl_open_preload'
+        self.handlers[ps['toast']] = 'p:toast'
+        self.sent_speed = None; self.toasts = []
         for name in ('calloc@GLIBC_2.0','qsort@GLIBC_2.0','memcmp@GLIBC_2.0','strcmp@GLIBC_2.0',
                      'fopen@GLIBC_2.2','fread@GLIBC_2.0','fwrite@GLIBC_2.0','fclose@GLIBC_2.2',
                      'rename@GLIBC_2.0','unlink@GLIBC_2.0','access@GLIBC_2.0','mclGetPlayTime',
@@ -89,6 +93,8 @@ class PlaybackMachine(QueueMachine):
             else: self.files[self.text(b)]=self.files.pop(self.text(a))
         elif name=='unlink': self.files.pop(self.text(a),None)
         elif name=='access': ret=-1 if self.text(a) in self.missing else 0
+        elif name=='speed': self.sent_speed=a; ret=1
+        elif name=='toast': self.toasts.append(self.text(a))
         elif name=='mclGetPlayTime': self.word(a,self.elapsed); self.word(b,300)
         elif name=='mclStartPlayer': self.starts.append(self.mcl('MCL_POS')); ret=1
         elif name=='mclStop': self.stops+=1; ret=1
@@ -650,3 +656,57 @@ assert m.files['/mnt/data/ringnav-queue-elapsed']!=old_checkpoint
 r=PlaybackMachine({'/mnt/data/ringnav-queue':full,'/mnt/data/ringnav-queue-elapsed.tmp':checkpoint})
 r.byte(syms['g_memory_play'],2)
 assert r.fn('ringnav_memory',r.deque([]))>=0 and r.seek==37
+
+# Folder speed follows the file, including mixed queues, CUE entries and fresh processes.
+def speed_at(m, at):
+    m.word(O['MCL_POS'], at); m.fn('playback_speed_start')
+    return m.u.mem_read(syms['g_playspeed_mode'],1)[0]
+
+m=PlaybackMachine()
+assert speed_at(m,0)==0
+assert m.fn('ringnav_speed',2)==1 and m.sent_speed==2
+assert speed_at(m,2)==2 and speed_at(m,6)==2  # same parent, different/duplicate tracks
+assert speed_at(m,1)==0 and speed_at(m,3)==0
+m.fn('ringnav_speed',3)
+assert speed_at(m,4)==3  # both CUE chapters share their file's folder
+fresh=PlaybackMachine(m.files)
+assert speed_at(fresh,0)==2 and speed_at(fresh,1)==0 and speed_at(fresh,4)==3
+# Returning to normal clears the effective preference, including after restart.
+m.fn('ringnav_speed',0)
+assert speed_at(PlaybackMachine(m.files),3)==0
+# Only the exact parent matches: neither a sibling prefix nor a subfolder inherits it.
+m.install([('nested','/A/sub/01.flac','',0,0,0,0),('prefix','/AB/01.flac','',0,0,0,0)])
+assert speed_at(m,0)==0 and speed_at(m,1)==0
+# A decoder reconnect reads the folder preference rather than persisting the stale global value.
+m=PlaybackMachine(fresh.files); m.word(O['MCL_POS'],0)
+m.u.mem_write(syms['g_playspeed_mode'],b'\x03')
+# A MIPS jal to the hook gives it player_initconfig's audited return address.
+pc=0x513394
+m.u.mem_write(pc,struct.pack('<II',0x0c000000 | (ps['ringnav_speed']>>2),0))
+m.u.mem_write(pc+8,struct.pack('<II',0x08000000 | (0x1000000>>2),0))
+before=dict(m.files)
+m.call(address=pc,args=(3,0,0,0),gap=0)
+assert m.sent_speed==2 and m.files==before
+# Speed boundaries cannot inherit the old gapless decoder; equal speeds still preload.
+for next_at,want in ((1,0),(2,1)):
+    m.word(O['MCL_PREPOS'],next_at); m.word(O['MCL_PRELOAD'],0)
+    m.fn('ringnav_open_preload'); assert m.mcl('MCL_PRELOAD')==want
+# Changing speed closes an existing preload.
+m.word(O['MCL_PRELOAD'],1); m.word(O['MCL_FD'],-1)
+m.fn('ringnav_speed',1); assert m.mcl('MCL_PRELOAD')==0
+# A failed atomic save preserves the old preference and reports the failure.
+for failure in ('write','close','rename'):
+    m=PlaybackMachine(fresh.files); speed_at(m,0); before=dict(m.files); m.fail=failure
+    m.fn('ringnav_speed',1)
+    assert m.sent_speed==(0 if failure=='close' else 2) and m.toasts==['Could not save folder speed']
+    assert not [k for k,v in before.items() if m.files[k]!=v]
+# Truncated, invalid and wrong-folder records cannot change a track's speed.
+path=next(k for k,v in fresh.files.items() if v.startswith(b'/A/\0'))
+for data in (b'broken',b'/B/\0'+bytes(1020)+struct.pack('<I',2),fresh.files[path][:-4]+struct.pack('<I',99)):
+    bad=dict(fresh.files); bad[path]=data
+    assert speed_at(PlaybackMachine(bad),0)==0
+for badpath in ('https://host/book.mp3','/A/','/'+'x'*1024+'/a.mp3'):
+    m=PlaybackMachine(); m.install([('invalid',badpath,'',0,0,0,0)])
+    assert speed_at(m,0)==0
+    m.fn('ringnav_speed',2); assert not m.files
+print('Folder speed: persistence, exact parents, reconnect, gapless and failed saves passed')

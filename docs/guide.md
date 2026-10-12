@@ -2,6 +2,10 @@
 
 Controls, settings and media setup. For installation, see the [README](../README.md#install).
 
+## Playback speed
+
+Changing speed in Now Playing applies to every track in that file’s folder and is remembered after restarting. Other folders play at normal speed unless you set their speed too. Subfolders have separate settings, and the choice follows the file even in a mixed playlist or shuffled library. Select normal speed in the same control to reset a folder.
+
 ## Tips
 
 Things people often don't know are already there:

@@ -314,6 +314,7 @@ def status_bar(root):
     check([left[2].get('name'), right[2].get('name')] == ['view_left', 'view_right'], 'Unexpected status bar')
     widgets = {n[2]['name']: n for n in left[3] + right[3]}
     check(sorted([*widgets, 'view_battery']) == sorted(STATUS_LEFT + STATUS_RIGHT + STATUS_HIDDEN), 'Unexpected status bar widgets')
+    widgets['img_wifi'][1][2] = 14
     pct = widgets['label_battery']
     pct[1][2] = BATT_PCT_W
     for s in ('normal', 'disable', 'focused'):
@@ -326,13 +327,13 @@ def status_bar(root):
     for view in (left, right):
         layout = view[2]['children_layout']
         check('xm=50,s=5)' in layout, 'Unexpected status bar layout')
-        view[2]['children_layout'] = layout.replace('xm=50', f'xm={STATUS_MARGIN}')
+        view[2]['children_layout'] = layout.replace('xm=50,s=5', f'xm={STATUS_MARGIN},s={inc("STATUS_GAP")}')
     shown = [[n for n in v[3] if n[2]['name'] not in BATT_MODES] for v in (left, right)]
-    extent = max(STATUS_MARGIN + sum(n[1][2] for n in v) + 5 * (len(v) - 1) for v in shown)
+    extent = max(STATUS_MARGIN + sum(n[1][2] for n in v) + inc('STATUS_GAP') * (len(v) - 1) for v in shown)
     width = 375 - 2 * extent
     check(width >= CLOCK_MIN and right[1][0] + right[1][2] == 375, f'Status bar clock {width}px, too narrow')
     room = int(375 - STATUS_MARGIN - (375 / 2 + CLOCK_TEXT / 2 + CLOCK_GAP))
-    reach = BT_REACH + 5 + widgets['img_wifi'][1][2] + 5 + max(BATT_PCT_W, BATT_H_W, inc('BATT_INSIDE_W') + inc('BATT_NUB_W'))
+    reach = BT_REACH + 2 * inc('STATUS_GAP') + widgets['img_wifi'][1][2] + max(BATT_PCT_W, BATT_H_W, inc('BATT_INSIDE_W') + inc('BATT_NUB_W'))
     check(BATT_ROOM == room and reach <= room, f'Status bar battery needs {reach}px of {room}px')
     for name in STATUS_HIDDEN:
         g = widgets[name][1]
@@ -559,6 +560,31 @@ def imagemagick(*args, data):
 # Output PNGs: no metadata, always 8-bit RGBA.
 PNG_OUT = ['-strip', '-define', 'png:exclude-chunks=date,time', '-define', 'png:color-type=6',
            '-define', 'png:bit-depth=8', 'png:-']
+
+STATUS_ICONS = AUDIT['status_icons']
+
+
+def status_icon(name, data):
+    """One optical weight, rendered at 4x for smooth edges on the native-size panel."""
+    check(hashlib.sha256(data).hexdigest() == STATUS_ICONS.get(name), f'{name}: unaudited status icon')
+    width = 14 if name.startswith('bar_wifi') else 42 if name.startswith('bar_bt') else 12
+    if name.startswith('bar_wifi'):
+        level = int(name[-5])
+        paths = ('M1,5 Q7,-0.5 13,5', 'M3,8 Q7,4.5 11,8', 'M5,11 Q7,9.5 9,11')
+        shapes = ' '.join(f"stroke '{'white' if level >= 4-i else '#666666'}' path '{p}'"
+                          for i, p in enumerate(paths))
+        shapes += f" stroke none fill '{'white' if level else '#666666'}' circle 7,13.5 8,13.5"
+    elif name.startswith('bar_bt'):
+        color = 'white' if name == 'bar_btcon.png' else '#666666'
+        shapes = f"stroke '{color}' path 'M33,4 L40,11 L36,14 L36,2 L40,5 L33,12'"
+    elif name == 'bar_play.png':
+        shapes = "fill white stroke white stroke-width 1 path 'M2,2.5 L10,8 L2,13.5 Z'"
+    else:
+        shapes = "stroke white stroke-width 2.5 path 'M3,3 L3,13 M9,3 L9,13'"
+    draw = 'scale 4,4 fill none stroke-width 1.6 stroke-linecap round stroke-linejoin round '+shapes
+    return imagemagick('-size', f'{width*4}x64', 'xc:none', '-draw', draw,
+                      '-filter', 'Lanczos', '-resize', f'{width}x16!', *PNG_OUT, data=b'')
+
 
 
 def settings_icon(name, data):

@@ -1972,10 +1972,11 @@ static void bar_sync(void *bar) {
         int reach = mode == 1   ? BATT_PCT_W
                     : mode == 3 ? BATT_INSIDE_W + BATT_NUB_W
                                 : BATT_BODY_W + BATT_NUB_W + BATT_GAP + BATT_PCT_W;
-        if (widget_get_visible(st.bar_wifi)) reach += I(st.bar_wifi, W_W) + 5;
+        if (widget_get_visible(st.bar_wifi)) reach += I(st.bar_wifi, W_W) + STATUS_GAP;
         if (shown)
-            reach += 5 + (st.codec && st.codec_step < CODEC_STEPS ? codec_reach[st.codec - 1]
-                                                                  : BT_REACH);
+            reach +=
+                STATUS_GAP +
+                (st.codec && st.codec_step < CODEC_STEPS ? codec_reach[st.codec - 1] : BT_REACH);
         if (reach > BATT_ROOM) mode = 0;
     }
     widget_set_visible(st.bar_icon, 0, 0);
@@ -2033,12 +2034,18 @@ static void paint_battery(void *w, void *canvas) {
         canvas_set_fill_color(canvas, fill);
         return;
     }
-    canvas_fill_rect(canvas, 1, y, bw - 2, 1);
-    canvas_fill_rect(canvas, 1, y + bh - 1, bw - 2, 1);
-    canvas_fill_rect(canvas, 0, y + 1, 1, bh - 2);
-    canvas_fill_rect(canvas, bw - 1, y + 1, 1, bh - 2);
+    unsigned bg = RGBA(ipod_classic() ? BAR_CLASSIC : BAR_COLOR);
+    rect_t body = { 0, y, bw, bh }, hole = { 1, y + 1, bw - 2, bh - 2 };
+    fill_box(canvas, &body, color, 3);
+    fill_box(canvas, &hole, bg, 2);
+    canvas_set_fill_color(canvas, color);
     canvas_fill_rect(canvas, bw, y + (bh - nh) / 2, BATT_NUB_W, nh);
-    canvas_fill_rect(canvas, 2, y + 2, (bw - 4) * (key & 2 ? 100 : level) / 100, bh - 4);
+    int width = (bw - 4) * level / 100;
+    if (level && !width) width = 1;
+    if (width) {
+        rect_t charge = { 2, y + 2, width, bh - 4 };
+        fill_box(canvas, &charge, color, 1);
+    }
     if (st.batt_mode == 2) {
         rect_t r = { bw + BATT_NUB_W + BATT_GAP, 0, BATT_PCT_W, I(w, W_H) };
         draw_centred(canvas, s, n, &r, BATT_PX, color);
@@ -4588,6 +4595,7 @@ int ringnav_start_player(void) {
     headset_manual();
     spot_yield();
     radio_stop();
+    playback_speed_start();
     return stock_start_player_trampoline();
 }
 

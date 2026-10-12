@@ -301,50 +301,55 @@ with tempfile.TemporaryDirectory(prefix='q2-ui-preview-') as tmp:
             assert render(a,row)==(750,238)
             frames.append(row)
         render(frames+['-append'],out/'coverflow-renderer.png')
-    # Native-size battery review with packaged font and connectivity assets.
+    # Native-size status review: all four modes, both themes, crowded and critical states.
     battery_rows=[]
     for theme in themes:
-        for state,color in (('normal','#ffffff'),('charging',f'#{inc("BATT_CHARGE_RGB"):06x}'),('low',f'#{inc("BATT_LOW_RGB"):06x}')):
-            for level in (0,1,9,10,99,100,'LDAC fallback'):
+        bg=f'#{inc("BAR_CLASSIC") if theme=="classic" else inc("BAR_COLOR"):06x}'
+        for state,level in [('normal',n) for n in (0,1,9,50,99,100)]+[('charging',50),('low',5),('codec',100)]:
+            columns=[]
+            for mode in range(4):
+                color=f'#{inc("BATT_CHARGE_RGB") if state=="charging" else inc("BATT_LOW_RGB") if state=="low" else 0xffffff:06x}'
                 a=['-size','375x50','xc:black']
-                rect(a,0,0,375,30,f'#{inc("BAR_CLASSIC") if theme=="classic" else inc("BAR_COLOR"):06x}')
-                text(a,f'{theme} / {state} / {level}'+('%' if isinstance(level,int) else ''),5,30,360,20,12)
-                # Match the packaged idle label and clock, without inherited image geometry.
-                for value,px,width,x0 in (('Q2',18,28,STATUS_MARGIN),('12:59 PM',16,90,142)):
-                    glyph=tmp/f'bar-text-{px}.png'
-                    render(['-background','none','-fill','white','-font',font,'-pointsize',px,
-                            'label:'+value,'-gravity','Center','-extent',f'{width}x30'],glyph)
-                    a += [glyph,'-gravity','NorthWest','-geometry',f'+{x0}+0','-composite']
-                bw,bh,nh=inc('BATT_INSIDE_W'),inc('BATT_INSIDE_H'),inc('BATT_INSIDE_NUB_H')
-                fallback=isinstance(level,str)
-                if fallback: bw,bh,nh=inc('BATT_BODY_W'),inc('BATT_BODY_H'),inc('BATT_NUB_H')
-                x=375-STATUS_MARGIN-bw-inc('BATT_NUB_W'); y=(30+1-bh)//2
-                if fallback:
-                    for dx,dy,w,h in ((1,0,bw-2,1),(1,bh-1,bw-2,1),(0,1,1,bh-2),(bw-1,1,1,bh-2)):
-                        rect(a,x+dx,y+dy,w,h,color)
-                    rect(a,x+2,y+2,bw-4,bh-4,color)
-                else:
+                rect(a,0,0,375,30,bg)
+                text(a,f'{theme} / {state} / {level}% / '+('Icon','Percent','Icon + Percent','Inside')[mode],5,30,365,20,11)
+                # Materialize each glyph separately: ImageMagick reads inputs when render runs.
+                def label(value,px,x,y,w,h,ink='white'):
+                    glyph=tmp/f'status-{theme}-{state}-{level}-{mode}-{x}.png'
+                    render(['-background','none','-fill',ink,'-font',font,'-pointsize',px,
+                            'label:'+value,'-gravity','Center','-extent',f'{w}x{h}'],glyph)
+                    a.extend([glyph,'-gravity','NorthWest','-geometry',f'+{x}+{y}','-composite'])
+                    return imagemagick(glyph,'-format','%@','info:',data=b'').decode().strip()
+                label('12:59 PM',16,142,0,90,30)
+                image(a,asset(after,'images/xx/bar_play.png'),STATUS_MARGIN,7,12,16)
+                effective=0 if state=='codec' else mode
+                inside=effective==3
+                bw,bh,nh=(inc(n) for n in (('BATT_INSIDE_W','BATT_INSIDE_H','BATT_INSIDE_NUB_H') if inside else ('BATT_BODY_W','BATT_BODY_H','BATT_NUB_H')))
+                width=inc('BATT_PCT_W') if effective==1 else bw+inc('BATT_NUB_W')+(inc('BATT_GAP')+inc('BATT_PCT_W') if effective==2 else 0)
+                x=375-STATUS_MARGIN-width; y=(31-bh)//2
+                if effective!=1:
                     a += ['-fill',color,'-draw',f'roundrectangle {x},{y} {x+bw-1},{y+bh-1} 3,3']
-                    glyph=tmp/f'battery-text-{state}-{level}.png'
-                    render(['-background','none','-fill','black','-font',font,'-pointsize',inc('BATT_INSIDE_PX'),
-                            'label:'+str(level),'-gravity','Center','-extent',f'{bw-4}x{bh}'],glyph)
-                    bounds=imagemagick(glyph,'-format','%@','info:',data=b'').decode().strip()
+                    if not inside:
+                        a += ['-fill',bg,'-draw',f'roundrectangle {x+1},{y+1} {x+bw-2},{y+bh-2} 2,2']
+                        fill=max(1,(bw-4)*level//100) if level else 0
+                        if fill: rect(a,x+2,y+2,fill,bh-4,color)
+                    rect(a,x+bw,y+(bh-nh)//2,inc('BATT_NUB_W'),nh,color)
+                if inside:
+                    bounds=label(str(level),inc('BATT_INSIDE_PX'),x+2,y+inc('BATT_INSIDE_TEXT_DY'),bw-4,bh,'black')
                     gw,gh,gx,gy=map(int,re.fullmatch(r'(\d+)x(\d+)\+(\d+)\+(\d+)',bounds).groups())
-                    # Visible glyph ink must leave at least three pixels of padding inside the body.
-                    dx=2; dy=inc('BATT_INSIDE_TEXT_DY')
-                    assert dx+gx>=3 and dx+gx+gw<=bw-3 and gy+dy>=3 and gy+dy+gh<=bh-3, bounds
-                    a += [glyph,'-gravity','NorthWest','-geometry',f'+{x+dx}+{y+dy}','-composite']
-                rect(a,x+bw,y+(bh-nh)//2,inc('BATT_NUB_W'),nh,color)
-                # Ordinary Bluetooth and Wi-Fi fit alongside every percentage.
-                wifi=asset(after,'images/xx/bar_wifi4.png')
-                ww,wh=png_header(wifi.read_bytes())[:2]
-                image(a,wifi,x-5-ww,(30-wh)//2,ww,wh)
-                bt=asset(after,'images/xx/'+('bar_ldac' if fallback else 'bar_btcon')+'.png'); tw,th=png_header(bt.read_bytes())[:2]
-                image(a,bt,x-5-ww-5-tw,(30-th)//2,tw,th)
-                frame=tmp/f'battery-{theme}-{state}-{level}.png'
+                    assert 2+gx>=3 and 2+gx+gw<=bw-3 and gy+inc('BATT_INSIDE_TEXT_DY')>=3 and gy+inc('BATT_INSIDE_TEXT_DY')+gh<=bh-3, bounds
+                elif effective in (1,2):
+                    label(str(level)+'%',inc('BATT_PCT_PX'),375-STATUS_MARGIN-inc('BATT_PCT_W'),0,inc('BATT_PCT_W'),30,color)
+                wifi=asset(after,'images/xx/bar_wifi4.png'); ww,wh=png_header(wifi.read_bytes())[:2]
+                gap=inc('STATUS_GAP')
+                image(a,wifi,x-gap-ww,(30-wh)//2,ww,wh)
+                bt=asset(after,'images/xx/'+('bar_aptxhd' if state=='codec' else 'bar_btcon')+'.png'); tw,th=png_header(bt.read_bytes())[:2]
+                image(a,bt,x-2*gap-ww-tw,(30-th)//2,tw,th)
+                frame=tmp/f'status-{theme}-{state}-{level}-{mode}.png'
                 assert render(a,frame)==(375,50)
-                battery_rows.append(frame)
-    assert render(battery_rows+['-append'],out/'battery-inside.png')==(375,50*len(battery_rows))
+                columns.append(frame)
+            row=tmp/f'status-{theme}-{state}-{level}.png'
+            render(columns+['+append'],row); battery_rows.append(row)
+    assert render(battery_rows+['-append'],out/'status-bar.png')==(1500,50*len(battery_rows))
     (out/'provenance.json').write_text(json.dumps({
         'font_sha256':hashlib.sha256(font.read_bytes()).hexdigest(),
         'before_source_sha256':json.loads((before/'manifest.json').read_text())['source_sha256'],

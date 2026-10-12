@@ -62,6 +62,8 @@ HOOKS = {
     'mclNextSong': (0x5adbbc, 'ringnav_next'),
     'mclPrevSong': (0x5ada98, 'ringnav_prev'),
     'mclSetPlayMode': (0x5ab25c, 'ringnav_mode'),
+    'mclSetPlaySpeed': (0x5ab2ec, 'ringnav_speed'),
+    'mcl_open_preload': (0x5a8948, 'ringnav_open_preload'),
     # Manual Next/Prev: at the queue ends stock wraps or loads the next folder without mclNextSong
     'player_change_music': (0x51503c, 'ringnav_change'),
     'mcl_preload': (0x5a8c1c, 'ringnav_preload'),
@@ -97,7 +99,8 @@ TRAMPOLINES = {'pause': 'player_play_pause', 'btvol': 'mclSetBtVol', 'savequeue'
                'power': 'systemset_powermanager_page_init', 'audioset': 'playset_playset_page_init',
                'change': 'player_change_music', 'detail': 'load_album_detaillist',
                'artist': 'load_localartist_list', 'stream': 'stream_page_init', 'start_player': 'mclStartPlayer',
-               'tidal': 'mcl_tidalStartPlayer', 'bigcover': 'bigcover_page_init'}
+               'tidal': 'mcl_tidalStartPlayer', 'bigcover': 'bigcover_page_init',
+               'speed': 'mclSetPlaySpeed', 'open_preload': 'mcl_open_preload'}
 # Every audited stock PIC prologue resolves this GOT base.
 GP = 0xa26cc0
 # iPod: style_get_gradient has no PIC prologue. It is a leaf that null-checks the style and its
@@ -547,7 +550,7 @@ PRIVATE_FUNCTIONS = {
     "folder_refresh": 0x52176c,  # folder_page's navbar and table from p_deque_showlist (its init, back)
     "class_icon": 0x4afc14,  # a category row's picture: the head for Artists, a genre icon, else .downpic
 }
-GLOBALS = ['g_time24h_flag', 'g_backlight_status', 'g_lockscreen_pageflag', 'g_testmode_flag',
+GLOBALS = ['g_playspeed_mode', 'g_time24h_flag', 'g_backlight_status', 'g_lockscreen_pageflag', 'g_testmode_flag',
            'g_bluetoothflag', 'bt_linkstatus', 'g_guideflag', 'g_poweroff_state', 'g_usblink_status', 'bt__recv_pageflag',
            'g_power_longkey', 'g_ingore_bootkey_flag', 'g_equalizer_flag', 'g_navbar_status', 'g_playcover_type',
            'g_keytone_flag', 'g_folder_layer', 'g_delete_flag', 'g_volume', 'g_maxvolume',
@@ -706,7 +709,8 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     # property of the UI asset, not the asset path, so check the stock rootfs assets directly:
     # a prefix-trimmed typo cannot silently disable a screen this way.
     from ipod import (AUDIT, ARTIST_ALBUMS, ARTIST_PAGE, HOME_PAGE, SETTINGS_ICONS, inc, UI_ASSETS, patch_asset,
-                      QUIET_ICONS, quiet_icon, imagemagick, patch_code, patch_style, patch_word, settings_icon)
+                      QUIET_ICONS, quiet_icon, imagemagick, patch_code, patch_style, patch_word, settings_icon,
+                      STATUS_ICONS, status_icon)
     contexts = re.findall(r'"([^"]+)"', (ROOT/'patch/contexts.inc').read_text())
     check(contexts, 'No navigation contexts audited')
     windows = set()
@@ -920,14 +924,14 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     if ipod:
         assets += ['styles/'+rel for rel in AUDIT['styles']]
         # settings icons pre-sized to the rows' SET_ICON, in place, so each keeps its inode metadata
-        assets += ['images/'+name for name in SETTINGS_ICONS | QUIET_ICONS]
+        assets += ['images/'+name for name in SETTINGS_ICONS | QUIET_ICONS | STATUS_ICONS]
     for rel in assets:
         kind, name = rel.split('/', 1)
         path = 'release/assets/default/raw/' + ('images/xx/'+name if kind == 'images' else rel)
         original = cat(path)
         data = (relabel(original) if kind == 'strings' else
                 patch_style(original, AUDIT['styles'][name]) if kind == 'styles' else
-                (quiet_icon(name, original) if name in QUIET_ICONS else settings_icon(name, original)) if kind == 'images' else patch_asset(name, original, ipod))
+                (status_icon(name, original) if name in STATUS_ICONS else quiet_icon(name, original) if name in QUIET_ICONS else settings_icon(name, original)) if kind == 'images' else patch_asset(name, original, ipod))
         target = out/rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)

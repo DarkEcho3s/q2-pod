@@ -312,5 +312,16 @@
     "play_order.png": "508038ef8c00cc7014147bb0eb547c1b813f2308fd7d8b329b9894bbc513a5e0",
     "play_random.png": "d81c704f4d9a48f5e846cf65562b9e23a444d235693a42b333af218355ccaae6",
     "play_unfav.png": "04d0c4d00711d1164999e9342bc58f2fe1c94ae0e0c739489f6c9e9e6cb880ad"
+  },
+  "status_icons": {
+    "bar_bt.png": "1539bde8279c7dd458ea3c6e486d82d03a0f5f7523e538c5e92bd02282f73514",
+    "bar_btcon.png": "2cb29f09130c5ed818b279eb72cc21e69e8412fd0b0192389ca91130c6cda042",
+    "bar_play.png": "e762c7c01c74e82276c9eb19f4a59dc2ac5f03597011ea429b680804b5003e5a",
+    "bar_pause.png": "7d297e4cc60a92bc10ff3f589e9cfe61f9b58d283a76e60acda4266b3d101ff7",
+    "bar_wifi0.png": "44a5e6e4e7b3e5dbe7c69de0ded63768fb97ef893f439635ae5d7096e15228a4",
+    "bar_wifi1.png": "1f95a57f2282c971b376f374a5efccd1a688fe742c8f0e93dd6dd6c48995e900",
+    "bar_wifi2.png": "1331c949b5e1c2cdf21821e3af00a35f4fa45db32950f927cf4c591111f05dda",
+    "bar_wifi3.png": "64d3803551bcfd792adc642ecc1feee6a4d234247f128988c6af8110cad6a231",
+    "bar_wifi4.png": "db931f0f03a87929b60b3e459a877adb0a4d3ca9f97c80a1f70b88981b872208"
   }
 }

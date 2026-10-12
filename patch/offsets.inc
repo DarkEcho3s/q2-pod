@@ -134,24 +134,25 @@
 #define VOL_PANEL_TRACK 0x5a5a5a
 /* The centred 16px clock and battery clear the rounded glass; widths are checked with the stock font. */
 #define CLOCK_EDGE 57
-#define BATT_PCT_W 36
-#define BATT_PCT_PX 14
+#define STATUS_GAP 4
+#define BATT_PCT_W 42
+#define BATT_PCT_PX 16
 #define BATT_BODY_W 16
-#define BATT_BODY_H 11
+#define BATT_BODY_H 12
 #define BATT_INSIDE_W 32
 #define BATT_INSIDE_H 16
 #define BATT_INSIDE_NUB_H 6
 #define BATT_INSIDE_TEXT_DY 1
-#define BATT_INSIDE_PX 12
+#define BATT_INSIDE_PX 13
 #define BATT_NUB_W 2
 #define BATT_NUB_H 5
-#define BATT_PX 14
+#define BATT_PX 16
 #define BATT_GAP 2
 #define BATT_CHARGE_RGB 0x34c759
 #define BATT_LOW_RGB 0xff1448
 #define BATT_ROOM 94
 /* Plain Bluetooth ink and codec reaches from the right edge of their stock canvases. */
-#define BT_REACH 12
+#define BT_REACH 10
 #define BT_CODECS { "bar_sbc", "bar_aac", "bar_aptx", "bar_aptxhd", "bar_ldac" }
 #define BT_CODEC_REACH { 22, 12, 27, 41, 36 }
 #define BT_GLYPH "bar_btcon" /* the white Bluetooth glyph; stock's bar_bt is the grey one */

@@ -769,7 +769,7 @@ else:
                 ('img_bt','image',(),1,dict(image='bar_ldac')),('img_wifi','image',(),1,{}),
                 ('label_battery','label',(),0,{}),('view_battery','view',(),0,{}),
                 ('img_battery','image',(level,),1,dict(image='bar_battery')))}
-            b.word(w['img_wifi']+O['W_W'],16); b.word(w['view_battery']+O['W_H'],30)
+            b.word(w['img_wifi']+O['W_W'],14); b.word(w['view_battery']+O['W_H'],30)
             bar=b.node('system_bar','system_bar',[b.node('view','view_right',list(w.values()))])
             w['progress_battery']=level
             b.word(bar+O['W_PARENT'],b.wm); b.word(syms['system_bar'],bar)
@@ -812,11 +812,11 @@ else:
             b.calls=[]; paint(); assert ('widget_invalidate_force',w['view_battery']) in [c[:2] for c in b.calls]
             b.calls=[]; paint(); assert ('widget_invalidate_force',w['view_battery']) not in [c[:2] for c in b.calls]
             bands,letters=slot()
-            fill=bw-4 if image=='bar_charge' else (bw-4)*value//100
-            expected=[(1,y,bw-2,1,color_t(rgb)),(1,y+bh-1,bw-2,1,color_t(rgb)),(0,y+1,1,bh-2,color_t(rgb)),
-                      (bw-1,y+1,1,bh-2,color_t(rgb)),(bw,y+(bh-O['BATT_NUB_H'])//2,O['BATT_NUB_W'],O['BATT_NUB_H'],color_t(rgb)),
-                      (2,y+2,fill,bh-4,color_t(rgb))]
-            assert [x[:5] for x in bands]==expected
+            fill=max(1,(bw-4)*value//100) if value else 0
+            assert [x[:5] for x in bands]==[(bw,y+(bh-O['BATT_NUB_H'])//2,O['BATT_NUB_W'],O['BATT_NUB_H'],color_t(rgb))]
+            expected=[('fill',(0,y,bw,bh),color_t(rgb),3),('fill',(1,y+1,bw-2,bh-2),color_t(O['BAR_COLOR']),2)]
+            if fill: expected.append(('fill',(2,y+2,fill,bh-4),color_t(rgb),1))
+            assert [(r['kind'],r['rect'],r['color'],r['radius']) for r in b.rounded]==expected
             assert [(l['text'],l['rect'],l['color'],l['font'],l['align']) for l in letters]==[(text+'%',(bw+O['BATT_NUB_W']+O['BATT_GAP'],0,O['BATT_PCT_W'],30),color_t(rgb),('default',O['BATT_PX']),(1,1))]
 
         # Percent Inside: compact rounded body and dark digits, including 100, in every state.
@@ -835,6 +835,7 @@ else:
                     assert [(l['text'],l['rect'],l['color'],l['font'],l['align']) for l in letters]==[(str(value),(2,y+O['BATT_INSIDE_TEXT_DY'],bw-4,bh),color_t(0),('default',O['BATT_INSIDE_PX']),(1,1))]
         # A crowded codec temporarily uses the small icon and recovers without a level change.
         b,bar,w,paint=battery_bar(3); b.nodes[w['label_battery']]['text']='100%'
+        b.nodes[w['img_bt']]['image']='bar_aptxhd'
         paint(); assert b.get(w['view_battery']+O['W_W'])==O['BATT_BODY_W']+O['BATT_NUB_W']
         b.advance(O['CODEC_MS'])
         for _ in range(O['CODEC_STEPS']): b.advance(O['CODEC_STEP_MS'])
