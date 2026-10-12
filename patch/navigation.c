@@ -5337,6 +5337,10 @@ int rockbox_open(void *ctx, void *event) {
     radio_stop();
     if (st.charge_held) switch_charge_enable(1);
     if (st.cpu_off) cpu1_write(1);
+    /* Rockbox's volume is pcm-alsa's software mixer alone, so the headset's absolute volume, left
+     * at the Q2's, would cap it: open it to the maximum volume limit. Demo syncs it back on return. */
+    if (g_bluetoothflag && bt_linkstatus && (unsigned)btctl_transport_get_volume() <= 127)
+        btctl_transport_set_volume(((g_maxvolume < 100 ? g_maxvolume : 100) * 127 + 50) / 100);
     system("killall checkappprocess.sh; killall -9 hciplayer; " SPOT_KILL "; sync; kill -9 $PPID");
     return 0;
 }
