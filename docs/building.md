@@ -52,6 +52,7 @@ python3 test/build.py 'Q2 Firmware V1.32.zip'   # packaging checks (custom logo,
 python3 test/playback.py /tmp/q2-build     # grouped traversal, snapshots and the wheel's ticks
 python3 test/patch.py /tmp/q2-build        # the patched MIPS payload, wheel and UI scenarios
 python3 test/alsa.py BUILD QEMU_MIPSEL     # ALSA startup lock regression (see internals.md)
+python3 test/ui_preview.py BEFORE AFTER OUT.png  # not a test: side-by-side iPod layout review sheet of two builds (or one build's two themes; --themes, ImageMagick)
 ```
 
 - **MIPS suite:** `test/patch.py` executes the actual patched payload and the stock key and touch filters under Unicorn. UI services are mocked; the one other mocked boundary is the `system()` call that Key Tone uses to click the speaker. Case coverage lives in `test/patch.py`.

@@ -170,7 +170,6 @@ static struct {
     int video;             /* a failed write is dropped: the picture needs ffmpeg's sound read on */
 } au;
 
-static long long now_ms(void);
 static void *writer(void *unused) {
     (void)unused;
     short buf[2 * CHUNK];

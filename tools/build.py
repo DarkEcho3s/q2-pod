@@ -625,9 +625,6 @@ def compile_helper(out, cat, src, name, rels):
         *objs, *libs, '-o', out/name)
     return (out/name).read_bytes()
 
-def patch_s90play(raw):
-    return raw.replace(*BOOT_HOOK)
-
 def append_payload(image, payload, base, memsz, label):
     """Map payload at base through the image's final PT_NULL header, R/W/X: payloads keep static state."""
     nulls = [(o,p) for o,p in segments(image) if p[0] == 0]
@@ -674,9 +671,6 @@ def patch_bluealsa(raw):
     # Never flush the new track's FIFO from this asynchronously handled signal.
     struct.pack_into('<2I', image, fileoff(raw, BT_DROP_HANDLER), 0x08000000 | reset >> 2, 0)
     return bytes(image)
-
-def patch_watchdog(raw):
-    return raw.replace(*WATCHDOG_SLEEP)
 
 def build(zip_path, out, logo, ipod=False, dev=False):
     variant = 'ipod' if ipod else 'stock'
@@ -786,7 +780,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     audio = patch_player(raw_player, out/'peq')
     bluealsa = patch_bluealsa(cat(BLUEALSA))
     (out/'bluealsa').write_bytes(bluealsa)
-    (out/'watchdog').write_bytes(patch_watchdog(cat(WATCHDOG)))
+    (out/'watchdog').write_bytes(cat(WATCHDOG).replace(*WATCHDOG_SLEEP))
     for address, old, new in ARTIST_ALBUMS:
         patch_word(patched, address, old, new, 'artist detail opens on Albums')
     patch_word(patched, *SHUFFLE_CALL, 0x0c000000 | (ps['ringnav_shuffle'] >> 2),
@@ -860,7 +854,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         line = inode(p, path)
         check(line is not None, f'Missing {path.decode()} pseudo inode')
         return p[:line.start()]+path+b' F '+b' '.join(line.groups())+b' cat '+shlex.quote(str(src)).encode()+p[line.end():]
-    (out/'S90play').write_bytes(patch_s90play(cat(S90PLAY)))
+    (out/'S90play').write_bytes(cat(S90PLAY).replace(*BOOT_HOOK))
     logo_data = logo.read_bytes()
     check(jpeg_size(logo_data) == (320, 375), 'Logo must be 320x375 like the stock splash')
     # Package exactly the validated bytes, even if the input is edited during compression.

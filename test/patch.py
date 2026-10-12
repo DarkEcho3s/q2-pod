@@ -3382,13 +3382,13 @@ class SortMachine(Machine):
         else: x,y=(s(a,c),s(b,c)) if name=='strncmp' else (s(a),s(b)); x,y=(x.lower(),y.lower()) if name=='strcasecmp' else (x,y); ret=(x>y)-(x<y)
         u.reg_write(UC_MIPS_REG_V0,ret&0xffffffff); u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA))
 m=SortMachine()
-def rec(name):
+def sort_rec(name):
     r=m.alloc(0x60); m.word(r+0x10,m.string(name)); m.word(r+8,m.string(name+'.flac')); return r
 def ordered(names,cmp):
     out=m.alloc(4)
     def less(x,y):  # the comparator stores x < y
         m.call(address=cmp,args=(x,y,out,0),gap=0,count=2_000_000); return m.get(out)
-    rs={rec(n):n for n in names}
+    rs={sort_rec(n):n for n in names}
     return [rs[r] for r in sorted(rs,key=cmp_to_key(lambda x,y: -1 if less(x,y) else 1 if less(y,x) else 0))]
 names=['Daft Punk','The Cure','Coldplay','Them Crooked Vultures','A Tribe Called Quest','Anthrax','The','an Orchestra','Toto']
 for cmp in (0x5ba658,0x5b9d40):

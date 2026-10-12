@@ -221,7 +221,6 @@ static int scan(const char *dir, char **list, int *n, int cap, int albums) {
 }
 
 static int open_tile(void *ctx, void *event);
-static int open_album(void *ctx, void *event);
 static int toggle_info(void *ctx, void *event);
 
 /* The grid of album target - 1, or with -1 All Photos: the folder's own photos, then every
