@@ -30,7 +30,8 @@ playing(m,0,200,pos=0,n=110); assert not m.places(); passed()
 # Mock only player endpoints, exercising the actual routing and ear/AVRCP state machine.
 class HeadsetMachine(Machine):
     def __init__(self,owner=1):
-        super().__init__(); self.owner=owner; self.playing=True; self.session=42; self.actions=[]
+        super().__init__(); self.owner=owner; self.playing=True; self.session=42; self.actions=[]; self.saved=0
+        self.handlers[syms['mclGetSavePlayStatus']]='hs:saved'
         for name in ('spot_status','radio_status','video_status','spot_session','radio_session','video_session',
                      'spot_set_playing','radio_set_playing','video_set_playing','spot_media','radio_media','video_key'):
             self.handlers[payload_syms[name]]='hs:'+name
@@ -43,7 +44,8 @@ class HeadsetMachine(Machine):
         if not name.startswith('hs:'): return super().hook(u,address,size,unused)
         name=name[3:]; a=u.reg_read(REGS[0]); ret=0
         owner=4 if name.startswith('video') else 3 if name.startswith('radio') else 2 if name.startswith('spot') else 1
-        if name.endswith('_status'): ret=(2 if self.playing else 3) if self.owner==owner else 0
+        if name=='saved': ret=self.saved
+        elif name.endswith('_status'): ret=(2 if self.playing else 3) if self.owner==owner else 0
         elif name.endswith('_session'): ret=self.session
         elif name.endswith('_set_playing'): self.playing=bool(a); self.actions.append((owner,'play' if a else 'pause'))
         elif name=='local_toggle': self.playing=not self.playing; self.actions.append((1,'play' if self.playing else 'pause'))
@@ -75,6 +77,16 @@ for packet in (b'',good[:7],good+b'\0',bytes([4,0,4,0,6,0,3,0]),bytes([4,1,4,0,6
     p=m.alloc(max(1,len(packet))); m.u.mem_write(p,packet)
     assert m.call(address=payload_syms['ringnav_aap_parse'],args=(p,len(packet),0,0),gap=0)==0
 p=m.alloc(8); m.u.mem_write(p,good); assert m.call(address=payload_syms['ringnav_aap_parse'],args=(p,8,0,0),gap=0)==2; passed()
+# Ears are counted: the report's primary/secondary slots swap. One worn AirPod out pauses and back
+# (now the other slot) resumes; a swap alone does nothing; a manual command still cancels resume.
+for owner in (1,2,3,4):
+    m=HeadsetMachine(owner); m.ears(1); m.ears(2); assert m.playing and not m.actions
+    m.ears(0); assert not m.playing and m.actions==[(owner,'pause')]
+    m.ears(2); assert m.playing and m.actions[-1]==(owner,'play')
+    m.ears(1); m.ears(3); m.ears(2); assert not m.playing  # two worn: primary out, slots swapped
+    m.ears(3); assert m.playing
+    m.ears(1); m.fn('headset_manual'); m.ears(3); assert not m.playing
+    passed()
 
 for absolute,limit,want in ((127,40,40),(0,100,0),(64,100,50),(1,100,1),(126,100,99)):
     b=BtVolumeMachine(); b.poll(); b.byte(syms['g_maxvolume'],limit)
@@ -132,4 +144,24 @@ passed()
 # Stock Tidal shares the native queue controls and session cancellation.
 m=HeadsetMachine(); m.word(O['MCL_TYPE'],2); m.ears(3); m.ears(1); assert not m.playing
 m.ears(3); assert m.playing; m.command(163); assert m.actions[-1]==(1,'local_next'); passed()
+# Resume on connect (docs/internals.md#resume-on-connect), local music and Spotify. Off (default): a
+# headset's PLAY within CONNECT_HOLD_MS (5 s) of the link starts nothing, a later one plays. On: it plays.
+for owner in (1,2):
+    for off in (0,1):
+        m=HeadsetMachine(owner); m.playing=False
+        if not off: m.config['RESUME']='1'
+        for name in ('g_bluetoothflag','bt_linkstatus'): m.byte(syms[name],1)
+        m.fn('headset_poll',gap=200); m.command(200)
+        if not off: assert m.playing; passed(); continue
+        m.command(164); m.command(207); assert not m.playing and not m.actions
+        m.command(200,gap=5000); assert m.playing and m.actions==[(owner,'play')]; passed()
+# Stock's restart once A2DP comes up (BT_CONNECT_START): on, player_save_start(0) as stock. Off (default): a
+# playing queue goes on, a paused one comes back paused, a stopped one or a stream's turn starts nothing.
+from build import BT_CONNECT_START
+assert struct.unpack_from('<I',demo,fileoff(demo,BT_CONNECT_START[0]))[0]==0x0c000000|payload_syms['ringnav_bt_connect_start']>>2
+for off,owner,saved,want in ((0,1,3,[0]),(0,2,0,[0]),(1,1,2,[0]),(1,1,3,[1]),(1,1,0,[]),(1,2,3,[])):
+    m=HeadsetMachine(owner); m.saved=saved
+    if not off: m.config['RESUME']='1'
+    m.fn('ringnav_bt_connect_start')
+    assert [c[1] for c in m.calls if c[0]=='player_save_start']==want; passed()
 print('Real Spotify/radio/video play-state APIs, helper gain updates and stock Tidal routing passed.')

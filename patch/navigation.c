@@ -17,6 +17,7 @@ extern int stock_keyup_trampoline(void *, void *), stock_touch_trampoline(void *
     stock_localclass_trampoline(int), stock_detail_trampoline(int, void *),
     stock_artist_trampoline(int), stock_power_trampoline(void *, void *),
     stock_systemset_trampoline(void *, void *), stock_audioset_trampoline(void *, void *),
+    stock_btrows_trampoline(void *, void *),
     stock_playlist_trampoline(void *), stock_stream_trampoline(void *, void *),
     stock_start_player_trampoline(void);
 extern void *coverflow_tracks(void *page);
@@ -156,10 +157,11 @@ typedef struct {
      * labels of those rows and Artists, and the poll: charging is held off at the limit; CPU1 is
      * offline (cpu_off), this boot's first offline is done (cpu_marked), and cpu_bad is 0 before
      * the check, 1 usable, 2 refused by an earlier boot's stall, 3 refused by the kernel;
-     * last_input times the screen-on idle. year_old: Year order, oldest first. */
+     * last_input times the screen-on idle. year_old: Year order, oldest first. resume:
+     * Bluetooth's Resume on connect on. */
     int pod_read, charge_limit, low_power, wake_double, wake_pass, charge_held, cpu_off, cpu_bad,
-        cpu_marked, artist_cf, year_old;
-    void *pod_label[6];
+        cpu_marked, artist_cf, year_old, resume;
+    void *pod_label[7];
     void *art_cf_win, *art_cf_list; /* the artist page given its Coverflow, the albums pending */
     void *art_cf_veil;              /* the artist page unseen until they show, and its anim_hint */
     char art_cf_hint[64];
@@ -1782,14 +1784,15 @@ static void *list_row(void *view, const char *icon, int (*click)(void *, void *)
 
 /* Power's Charge limit, Low power and Wake (docs/internals.md#charge-limit, #low-power,
  * #wake), Q2POD CHARGELIMIT, LOWPOWER and WAKEDOUBLE in config.ini, Display's Artist albums
- * (ARTISTCF), and Audio settings' Year order (YEAROLD, coverflow.c's year ranks) and Artists, which
+ * (ARTISTCF), Audio settings' Year order (YEAROLD, coverflow.c's year ranks) and Artists, which
  * is stock's own PLAYSET ARTISTTYPE (artist_type, the artist page's switch;
- * docs/internals.md#album-artists). */
+ * docs/internals.md#album-artists), and Bluetooth's Resume on connect (RESUME, so a missing key
+ * holds playback; docs/internals.md#resume-on-connect). */
 #define STR_(x) #x
 #define STR(x) STR_(x)
-enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_ARTIST_CF, POD_YEAR_OLD, POD_ARTISTS };
+enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_ARTIST_CF, POD_YEAR_OLD, POD_ARTISTS, POD_RESUME };
 static int *const pod_values[] = { &st.charge_limit, &st.low_power, &st.wake_double, &st.artist_cf,
-                                   &st.year_old };
+                                   &st.year_old,     0,             &st.resume };
 static void pod_settings(void) {
     if (st.pod_read) return;
     st.charge_limit = config_value("Q2POD", "CHARGELIMIT", 2);
@@ -1797,11 +1800,26 @@ static void pod_settings(void) {
     st.wake_double = config_value("Q2POD", "WAKEDOUBLE", 2);
     st.artist_cf = config_value("Q2POD", "ARTISTCF", 2);
     st.year_old = config_value("Q2POD", "YEAROLD", 2);
+    st.resume = config_value("Q2POD", "RESUME", 2);
     st.pod_read = 1;
 }
 int ringnav_year_old(void) {
     pod_settings();
     return st.year_old;
+}
+int ringnav_bt_resume(void) {
+    pod_settings();
+    return st.resume;
+}
+/* checkBluetoothStatus' player_save_start(0) once a headset's A2DP comes up (tools/build.py
+ * BT_CONNECT_START): player_save_stop stopped the local or Tidal queue, and stock restarts it
+ * unpaused, so a paused queue plays, and a stopped one starts over whatever owns playback
+ * (mclStartPlayer's hook yields Spotify and Internet Radio). Resume on connect off (the default):
+ * a queue that was playing goes on, a paused one comes back paused, and nothing else starts. */
+int ringnav_bt_connect_start(int pause) {
+    if (ringnav_bt_resume()) return player_save_start(pause);
+    int saved = media_owner() == 1 ? mclGetSavePlayStatus() : 0; /* 2 playing, 3 paused */
+    return saved == 2 || saved == 3 ? player_save_start(saved == 3) : 0;
 }
 static void pod_text(int i) {
     static const char *const names[][2] = {
@@ -1811,8 +1829,9 @@ static void pod_text(int i) {
         { "Artist albums: Grid", "Artist albums: Coverflow" },
         { "Year order: Newest first", "Year order: Oldest first" },
         { "Artists: Artist", "Artists: Album Artist" },
+        { "Resume on connect: Off", "Resume on connect: On" },
     };
-    int v = i < POD_ARTISTS ? *pod_values[i] : I(artist_type, 0) == 1;
+    int v = i != POD_ARTISTS ? *pod_values[i] : I(artist_type, 0) == 1;
     widget_set_text_utf8(st.pod_label[i], names[i][v]);
 }
 /* Centre or tap toggles and saves. Charge limit and Low power take effect on the next UI loop pass
@@ -1827,7 +1846,7 @@ static int pod_click(void *ctx, void *event) {
         write_int_config(v, "PLAYSET", "ARTISTTYPE");
     } else {
         static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE", "ARTISTCF",
-                                            "YEAROLD" };
+                                            "YEAROLD",     0,          "RESUME" };
         int *value = pod_values[i];
         *value = !*value;
         write_int_config(*value, "Q2POD", keys[i]);
@@ -1852,6 +1871,18 @@ int ringnav_powermanager(void *win, void *ctx) {
                                          "system_keylock" };
     int result = stock_power_trampoline(win, ctx);
     pod_rows(win, "scroll_view_powermanager", POD_CHARGE, 3, icons);
+    return result;
+}
+/* The Bluetooth page's list (stock's local builder, btmenu_rows), rebuilt whole on every search and
+ * link change: its rows, five with Bluetooth on (one, the switch, off), then the device lists.
+ * Resume on connect follows its rows each time. */
+int ringnav_btrows(void *win, void *ctx) {
+    static const char *const icons[] = { "wifiset_bt" };
+    int result = stock_btrows_trampoline(win, ctx);
+    pod_rows(win, "scroll_view_bluetooth", POD_RESUME, 1, icons);
+    void *view = win ? widget_lookup(win, "scroll_view_bluetooth", 1) : (void *)0;
+    unsigned n = view ? widget_count_children(view) : 0;
+    if (n) widget_restack(widget_get_child(view, n - 1), g_bluetoothflag ? 5 : 1);
     return result;
 }
 /* A settings list's rows, stock's (ids 0.. in its table order, each button named by its id, which

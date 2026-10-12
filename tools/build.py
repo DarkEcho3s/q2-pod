@@ -70,6 +70,8 @@ HOOKS = {
     'memeory_startplayer': (0x5164e0, 'ringnav_memory'),
     'systemset_powermanager_page_init': (0x4c72d0, 'ringnav_powermanager'),
     'playset_playset_page_init': (0x4b98d8, 'ringnav_audioset'),
+    # Bluetooth's list, rebuilt on every search and link change, gains Resume on connect
+    'btmenu_rows': (0x4bee90, 'ringnav_btrows'),
     # Spotify (patch/spotify.c): Streaming's row, and local music letting librespot go first
     'stream_page_init': (0x52efdc, 'ringnav_stream'),
     'mclStartPlayer': (0x5ad6ac, 'ringnav_start_player'),
@@ -100,7 +102,7 @@ TRAMPOLINES = {'pause': 'player_play_pause', 'btvol': 'mclSetBtVol', 'savequeue'
                'change': 'player_change_music', 'detail': 'load_album_detaillist',
                'artist': 'load_localartist_list', 'stream': 'stream_page_init', 'start_player': 'mclStartPlayer',
                'tidal': 'mcl_tidalStartPlayer', 'bigcover': 'bigcover_page_init',
-               'speed': 'mclSetPlaySpeed', 'open_preload': 'mcl_open_preload'}
+               'speed': 'mclSetPlaySpeed', 'open_preload': 'mcl_open_preload', 'btrows': 'btmenu_rows'}
 # Every audited stock PIC prologue resolves this GOT base.
 GP = 0xa26cc0
 # iPod: style_get_gradient has no PIC prologue. It is a leaf that null-checks the style and its
@@ -175,6 +177,9 @@ SHUFFLE_CALL = (0x5addf0, 0x0411e8cb)  # bal mcl_shuffle_pick; its delay slot (a
 HOLD_RETURN = (0x4e8924, 0x04110fdf)
 # device_standby's bal awake_screen after the resume from Standby; skipped, so the screen stays dark.
 STANDBY_WAKE = (0x4f7d24, 0x0411ff26)
+# checkBluetoothStatus' jalr player_save_start once a headset's A2DP comes up (a0 0: the queue restarts
+# unpaused, whatever it was doing). It becomes jal ringnav_bt_connect_start (docs/internals.md#resume-on-connect).
+BT_CONNECT_START = (0x4f358c, 0x0320f809)
 # The bal toolsTrimLeft on each name copy in the two library name comparators (0x5b9d40, 0x5ba658, the
 # Chinese and other-language sorts); they become jal ringnav_sort_key, which also drops a leading article.
 AUDIO_EXTENSION_CALLS = (0x5c2054, 0x5c3da4)  # toolsLoadDirectory and recursive scan
@@ -519,6 +524,8 @@ FUNCTIONS = {
  'getBtLinkSize': ('int', 'void'), 'getBtLinkItem': ('int', 'int, int *, char *'),
  'mclGetPlayStatus': ('int', 'void'),  # 1 stopped, 2 playing, 3 paused (mclStop, mclSetResume, mclSetPause)
  'player_stop': ('int', 'void'),
+ 'player_save_start': ('int', 'int'),  # pause: mclStartPlayer at the saved seek, then paused if set
+ 'mclGetSavePlayStatus': ('int', 'void'),  # player_save_stop's mclGetPlayStatus, unless that was 1
  'save_memoryplay_info': ('int', 'void'),  # Memory playback's queue and position, as into_poweroff saves them
  'mclSetDacPwr': ('int', 'int'),
  'reset_poweroptions_timer': ('int', 'int, int, int'),
@@ -545,6 +552,7 @@ PRIVATE_FUNCTIONS = {
     "slide_menu_on_scroll_done": 0x5f3654,
     "mcl_preload": HOOKS['mcl_preload'][0],
     "mcl_open_preload": 0x5a8948,
+    "btmenu_rows": HOOKS['btmenu_rows'][0],  # systemset_bluetooth_page's list: rows, paired, found
     "mcl_shuffle_pick": 0x5a8120,
     "album_row": 0x4fc324,  # getAllAlbum's sqlite3_exec callback: id, album, songer, fileurl to a record
     "folder_refresh": 0x52176c,  # folder_page's navbar and table from p_deque_showlist (its init, back)
@@ -798,6 +806,8 @@ def build(zip_path, out, logo, ipod=False, dev=False):
                'long Return destination after stock input gates')
     patch_word(patched, *STANDBY_WAKE, 0x0c000000 | (ps['ringnav_standby_wake'] >> 2),
                'Wake: Double press after Standby')
+    patch_word(patched, *BT_CONNECT_START, 0x0c000000 | (ps['ringnav_bt_connect_start'] >> 2),
+               'Bluetooth: Resume on connect')
     scan, load, limit, count = SCAN_LIMIT
     patch_word(patched, scan, load, 0x0c000000 | (ps['ringnav_scan_room'] >> 2), 'scan up to 65,000 songs')
     patch_word(patched, scan + 4, limit, count, 'scan up to 65,000 songs')

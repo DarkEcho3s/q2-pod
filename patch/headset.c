@@ -4,12 +4,13 @@
 #include "stock.h"
 
 extern int stock_pause_trampoline(void);
+extern int ringnav_bt_resume(void);
 static struct {
     volatile unsigned generation, running, head, tail, report;
     volatile int keys[16];
     unsigned worker_generation, checked, epoch, paused_epoch, paused_at, recent_at,
         recent_owner, recent_session;
-    unsigned last_at, session;
+    unsigned last_at, session, linked_at;
     int linked, known, ears, want, paused, owner, automatic, last_key;
     unsigned char address[14];
     int airpods;
@@ -71,6 +72,17 @@ void media_key(unsigned key) {
         player_prev_music();
 }
 
+#define HS_LOG "/mnt/mmc/q2pod-headset.log" /* present: logs AirPods link, ear and key events */
+static void hs_log(const char *what, int a, int b) {
+    if (access(HS_LOG, 0)) return;
+    char line[64];
+    int n = snprintf(line, sizeof line, "%u %s %d %d\n", time_now_ms(), what, a, b);
+    void *f = fopen(HS_LOG, "a");
+    if (!f) return;
+    fwrite(line, 1, (unsigned)n, f);
+    fclose(f);
+}
+
 /* Only complete, valid ear packets are published, in one word. No battery state. */
 int ringnav_aap_parse(const unsigned char *p, int n) {
     if (!p || n != 8 || p[0] != 4 || p[1] || p[2] != 4 || p[3] || p[4] != 6 || p[5] || p[6] > 2 ||
@@ -126,6 +138,7 @@ static int aap_open(const unsigned char *address, unsigned generation) {
                 send(aap, notify, sizeof notify, 0x40) != sizeof notify)
                 close(aap), aap = -1;
         }
+        hs_log("aap", aap, 0);
     }
     return aap;
 }
@@ -143,10 +156,13 @@ static void *headset_worker(void *arg) {
         if (ready > 0) {
             unsigned char packet[256];
             int n = recv(aap, packet, sizeof packet, 0x40);
-            if (n <= 0)
-                close(aap), aap = -1;
-            else if (generation == hs.generation)
+            if (n <= 0) close(aap), aap = -1;
+            /* Drain the queue: AirPods stream other reports too, and one packet a pass (each
+             * pass also waits up to 200 ms on the input) fell behind, delaying ear reports. */
+            for (int i = 0; n > 0 && i < 64 && generation == hs.generation; ++i) {
                 ringnav_aap_parse(packet, n);
+                n = recv(aap, packet, sizeof packet, 0x40);
+            }
         }
         ready = input >= 0 ? wait_fd(input, 0) : 0;
         if (ready < 0) close(input), input = -1;
@@ -203,6 +219,7 @@ static void headset_start(void) {
             if (hi < 0 || lo < 0 || (i < 5 && mac[3 * i + 2] != ':')) hs.airpods = 0;
             hs.address[9 - i] = (unsigned char)(hi * 16 + lo);
         }
+    hs_log("link", hs.airpods, n);
     hs.report = hs.head = hs.tail = 0;
     hs.known = hs.paused = 0;
     unsigned long tid;
@@ -214,7 +231,9 @@ static void headset_start(void) {
         pthread_detach(tid);
 }
 
-/* A bud mask, rather than a count: resume only when the previously worn buds return. */
+/* Counts, not a bud mask: the report's bytes are the primary and secondary bud, which swap when
+ * the primary leaves an ear, so a mask can miss the returning bud (one worn AirPod) or see a swap
+ * as a removal. A worn bud coming out pauses, as on iOS; as many buds back as were worn resume. */
 void headset_ears(unsigned report) {
     unsigned now = time_now_ms();
     int owner = media_owner();
@@ -223,8 +242,8 @@ void headset_ears(unsigned report) {
                       (media_playing() && now - hs.paused_at > 1500)))
         hs.paused = 0;
     if (report & 4) {
-        int ears = report & 3, was = hs.ears;
-        if (hs.known && (was & ~ears) &&
+        int ears = report & 3, in = (ears & 1) + (ears >> 1), was = (hs.ears & 1) + (hs.ears >> 1);
+        if (hs.known && in < was &&
             (media_playing() || (hs.recent_owner == (unsigned)owner &&
                                  hs.recent_session == session && now - hs.recent_at < 1500))) {
             if (!hs.paused) hs.want = was;
@@ -234,10 +253,12 @@ void headset_ears(unsigned report) {
             hs.paused_epoch = hs.epoch;
             hs.paused_at = now;
             if (media_playing()) media_set_playing(0);
-        } else if (hs.known && hs.paused && (ears & hs.want) == hs.want) {
+        } else if (hs.known && hs.paused && in >= hs.want) {
             media_set_playing(1);
             hs.paused = 0;
         }
+        if (!hs.known || ears != hs.ears)
+            hs_log(hs.paused ? "ears paused" : "ears", ears, media_playing());
         hs.known = 1;
         hs.ears = ears;
     }
@@ -246,15 +267,25 @@ void headset_ears(unsigned report) {
         if (!hs.paused) hs.want = 0; /* first report never grants auto-resume */
     }
 }
+/* Resume on connect off (navigation.c, the default): AirPods send AVRCP PLAY as their link comes
+ * up. The worker finds the AVRCP input within about a second of the link (retried every fifth
+ * 200 ms pass), and the headset's PLAY follows A2DP setup by a second or two, so a start within
+ * CONNECT_HOLD_MS of the link is dropped; a deliberate press after that plays. */
+#define CONNECT_HOLD_MS 5000
+static int connect_hold(unsigned now) {
+    return hs.linked && now - hs.linked_at < CONNECT_HOLD_MS && !ringnav_bt_resume();
+}
 void headset_command(int code) {
     unsigned now = time_now_ms();
     if (hs.last_key == code && now - hs.last_at < 150) return;
     hs.last_key = code;
     hs.last_at = now;
+    hs_log("key", code, media_playing());
     if (code == 163 || code == 165)
         media_key(code == 163 ? KEY_FWD_BTN : KEY_BACK_BTN);
     else if (code == 164) {
         if (hs.paused && now - hs.paused_at < 1500) return;
+        if (connect_hold(now) && !media_playing()) return;
         media_key(KEY_PLAY);
     } else if (code == 119 || code == 201 || code == 166) {
         if (hs.paused && now - hs.paused_at < 1500) return;
@@ -266,7 +297,7 @@ void headset_command(int code) {
             media_set_playing(0);
         }
     } else if (code == 200 || code == 207) {
-        if (hs.paused) return; /* insertion is governed by the ear mask */
+        if (hs.paused || connect_hold(now)) return; /* insertion is governed by the ear count */
         headset_manual();
         if (!hs.known || hs.ears) media_set_playing(1);
     }
@@ -281,6 +312,7 @@ void headset_poll(void) {
         headset_volume_reset();
         hs.known = hs.paused = hs.recent_owner = 0;
         hs.linked = on;
+        hs.linked_at = now;
         if (!on && media_playing()) media_set_playing(0);
     }
     if (!on) return;

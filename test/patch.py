@@ -7165,7 +7165,7 @@ def settings_page(hook,view_name,config={},stock_rows=2):
     view=m.node('scroll_view',view_name,list(entries))
     for e in m.nodes[view]['children']: m.word(e+O['W_PARENT'],view)
     m.top=m.node('window','page',[m.node('list_view','list_view',[view])])
-    target={'power':'systemset_powermanager_page_init','audioset':'playset_playset_page_init'}[hook]
+    target={'power':'systemset_powermanager_page_init','audioset':'playset_playset_page_init','btrows':'btmenu_rows'}[hook]
     assert m.call(address=HOOKS[target][0],args=(m.top,5,0,0),gap=0)==0 and m.calls[0][:3]==('stock_'+hook,m.top,5)
     rows=sorted(set(m.nodes[view]['children'])-set(entries))  # ours, as made (the page may restack)
     buttons=[m.nodes[r]['children'][0] for r in rows]; labels=[m.nodes[b]['children'][1] for b in buttons]
@@ -7227,6 +7227,14 @@ for config,text in (({'XFADE':'1','XFADESEC':'7'},'Crossfade: 7 s'),({'XFADE':'1
     m,rows,texts,*_=settings_page('audioset','scroll_view_playset',config,stock_rows=15)
     assert texts()[2]==text and m.nodes[m.nodes[m.nodes[rows[2]]['children'][0]]['children'][1]].get('name')=='label_xfade'
 passed()
+# Bluetooth's list (btmenu_rows, rebuilt on every search) gains Resume on connect after its rows: off
+# unless Q2POD RESUME is 1 (docs/internals.md#resume-on-connect).
+m,rows,texts,icons,click=settings_page('btrows','scroll_view_bluetooth',stock_rows=1)
+assert len(rows)==1 and icons==['wifiset_bt'] and texts()==['Resume on connect: Off']
+assert click(0)==[(1,'Q2POD','RESUME')] and texts()==['Resume on connect: On']
+assert click(0)==[(0,'Q2POD','RESUME')] and texts()==['Resume on connect: Off']; passed()
+m,rows,texts,*_=settings_page('btrows','scroll_view_bluetooth',{'RESUME':'1'},stock_rows=1)
+assert texts()==['Resume on connect: On']; passed()
 
 # The power poll, on the UI loop. Charge limit: the charger stops (switch_charge_enable(0), the
 # active-low charge enable) at CHARGE_STOP, again whenever it charges meanwhile, and is handed

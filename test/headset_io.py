@@ -7,6 +7,7 @@ exec(compile(source[:source.index('checks=0')], 'test/patch.py', 'exec'))
 class KernelMachine(Machine):
     def __init__(self,stale=False):
         super().__init__(); self.stale=stale; self.hs=payload_syms['hs']; self.started=[]; self.sent=[]; self.closed=[]; self.reads=0; self.received=False; self.attempts=[]
+        self.queue=[bytes([4,0,4,0,0x17,0,1,2,3]),bytes([4,0,4,0,6,0,0,2])]  # another report, then ears
         self.mock('strstr@GLIBC_2.0')
         self.pair=self.alloc(128); self.mac='AA:BB:CC:DD:EE:FF'
         self.u.mem_write(self.pair+4,self.mac.encode()+b'\0'); self.u.mem_write(self.pair+0x24,b'AirPods Pro\0')
@@ -50,7 +51,8 @@ class KernelMachine(Machine):
         elif name=='recv':
             self.received=True
             if self.stale: self.word(self.hs,self.get(self.hs)+1)
-            self.u.mem_write(b,bytes([4,0,4,0,6,0,0,2])); ret=8
+            if self.queue: p=self.queue.pop(0); self.u.mem_write(b,p); ret=len(p)
+            else: ret=-1  # EAGAIN: drained
         elif name=='read':
             if not self.reads:
                 events=b''.join(struct.pack('<IIHHi',0,0,1,163,value) for value in (0,2,1))
@@ -65,7 +67,7 @@ for stale in (False,True):
     worker,generation=m.started[0]
     m.call(address=worker,args=(generation,0,0,0),gap=0,count=1_000_000)
     assert list(map(len,m.sent))==[16,14,10]
-    assert m.get(m.hs+16)==(0 if stale else 5)  # packed ear report; generation checked after recv
+    assert m.get(m.hs+16)==(0 if stale else 5)  # one select drains to the ear report; generation checked after recv
     assert m.get(m.hs+4)==0 and 10 in m.closed
     if not stale:
         assert m.now>=12000 and 11 in m.closed
