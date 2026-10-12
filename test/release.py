@@ -39,7 +39,9 @@ with tempfile.TemporaryDirectory() as tmp:
         data = release.archive_bytes(d)
         (out/name).write_bytes(data)
         assets[name] = release.sha(data)
-    record = dict(tag=release.VERSION, revision='revision', source_sha256=release.source_sha256(), assets=assets)
+    (out/release.GUIDE).write_bytes(b'%PDF')
+    record = dict(tag=release.VERSION, revision='revision', source_sha256=release.source_sha256(), assets=assets,
+                  guide_sha256=release.sha(b'%PDF'))
     (out/'release.json').write_text(json.dumps(record))
     (out/'release-notes.md').write_text(release.release_body(out, record))
     # The heading, then bullets, for this version only.
@@ -57,7 +59,7 @@ with tempfile.TemporaryDirectory() as tmp:
                 raise subprocess.CalledProcessError(1, args)
             if command == 'download':
                 target = pathlib.Path(args[-1])
-                for name in assets:
+                for name in [*assets, release.GUIDE]:
                     (target/name).write_bytes((out/name).read_bytes() if failure != 'corrupt' else b'bad')
             return ''
         with patch('release.run', side_effect=gh):

@@ -17,6 +17,8 @@ from build import ROOT, VERSION, VERSIONS, ZIP_SHA, DEMO_SHA, build, check, run,
 REPO = 'DiamondBond/q2-pod'
 # iPod is the main build; Stock keeps the stock UI.
 ASSETS = {'ipod': f'Q2.Firmware.{VERSION}.zip', 'stock': f'Q2.Firmware.{VERSION}-stock.zip'}
+# Rebuilt from docs/manual every release; the README links releases/latest/download/<GUIDE>.
+GUIDE = 'Q2-Pod-User-Guide.pdf'
 
 
 def notes():
@@ -89,9 +91,11 @@ def package(stock, out):
         check(data == archive_bytes(b), f'{variant}: non-reproducible ZIP')
         (out/asset).write_bytes(data)
         checksums[asset] = sha(data)
+    subprocess.run([sys.executable, str(ROOT/'docs/manual/build.py'), str(out/GUIDE)], check=True)
     check(source == source_sha256() and revision == run('git', '-C', ROOT, 'rev-parse', 'HEAD').strip(),
           'Source changed during release build')
-    record = dict(tag=VERSION, revision=revision, source_sha256=source, assets=checksums)
+    record = dict(tag=VERSION, revision=revision, source_sha256=source, assets=checksums,
+                  guide_sha256=sha((out/GUIDE).read_bytes()))
     (out/'SHA256SUMS').write_text(''.join(f'{digest}  {name}\n' for name, digest in checksums.items()))
     (out/'release-notes.md').write_text(release_body(out, record))
     (out/'release.json').write_text(json.dumps(record, indent=2)+'\n')
@@ -106,6 +110,7 @@ def upload(out, repo=REPO, publish=False):
     for variant, asset in ASSETS.items():
         data = (out/asset).read_bytes()
         check(sha(data) == record['assets'][asset] and data == archive_bytes(out/variant), 'Release ZIP mismatch')
+    check(sha((out/GUIDE).read_bytes()) == record['guide_sha256'], 'User guide mismatch')
     sums = ''.join(f'{record["assets"][name]}  {name}\n' for name in ASSETS.values())
     check((out/'SHA256SUMS').read_text() == sums, 'Release checksums mismatch')
     (out/'release-notes.md').write_text(release_body(out, record))
@@ -119,7 +124,7 @@ def upload(out, repo=REPO, publish=False):
     else:
         run(*gh, 'create', VERSION, '--draft', '--target', record['revision'], '--title', VERSION,
             '--notes-file', out/'release-notes.md')
-    files = list(ASSETS.values())
+    files = [*ASSETS.values(), GUIDE]
     run(*gh, 'upload', VERSION, *(out/name for name in files), '--clobber')
     with tempfile.TemporaryDirectory(prefix='q2-release-verify-') as tmp:
         run(*gh, 'download', VERSION, '--dir', tmp)
