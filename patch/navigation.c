@@ -57,7 +57,8 @@ extern const char *track_name(char *buf, unsigned size, void *t);
 #define HOME_FAST_WINDOW_MS 200
 #define HOME_SLIDE_MS 200
 #define HOME_FAST_SLIDE_MS 120
-#define CF_BOUNCE 5 /* an artist's last album: a step past kicks it 1/CF_BOUNCE of a stride, springing back */
+#define CF_BOUNCE                                                                                  \
+    5 /* an artist's last album: a step past kicks it 1/CF_BOUNCE of a stride, springing back */
 #define WHEEL_RUN_MS 140
 #define WHEEL_RAMP_MS 100 /* scrub, the pixel fallback and Stock: one step for this long, then */
 #define WHEEL_MAX_STEP 8  /* one more per this much spin, up to this many */
@@ -1779,13 +1780,14 @@ static void *list_row(void *view, const char *icon, int (*click)(void *, void *)
 
 /* Power's Charge limit, Low power and Wake (docs/internals.md#charge-limit, #low-power,
  * #wake), Q2POD CHARGELIMIT, LOWPOWER and WAKEDOUBLE in config.ini, Display's Artist albums
- * (ARTISTCF), and Audio settings' Year order (YEAROLD, coverflow.c's year ranks) and Artists, which is stock's own PLAYSET ARTISTTYPE (artist_type,
- * the artist page's switch; docs/internals.md#album-artists). */
+ * (ARTISTCF), and Audio settings' Year order (YEAROLD, coverflow.c's year ranks) and Artists, which
+ * is stock's own PLAYSET ARTISTTYPE (artist_type, the artist page's switch;
+ * docs/internals.md#album-artists). */
 #define STR_(x) #x
 #define STR(x) STR_(x)
 enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_ARTIST_CF, POD_YEAR_OLD, POD_ARTISTS };
-static int *const pod_values[] = { &st.charge_limit, &st.low_power, &st.wake_double,
-                                   &st.artist_cf, &st.year_old };
+static int *const pod_values[] = { &st.charge_limit, &st.low_power, &st.wake_double, &st.artist_cf,
+                                   &st.year_old };
 static void pod_settings(void) {
     if (st.pod_read) return;
     st.charge_limit = config_value("Q2POD", "CHARGELIMIT", 2);
@@ -1822,7 +1824,8 @@ static int pod_click(void *ctx, void *event) {
         I(artist_type, 0) = v;
         write_int_config(v, "PLAYSET", "ARTISTTYPE");
     } else {
-        static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE", "ARTISTCF", "YEAROLD" };
+        static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE", "ARTISTCF",
+                                            "YEAROLD" };
         int *value = pod_values[i];
         *value = !*value;
         write_int_config(*value, "Q2POD", keys[i]);
@@ -1861,10 +1864,10 @@ static void reorder(void *view, const unsigned char *order, unsigned n) {
 
 /* Playback Setting: what is changed while listening first, then library behaviour, then output. */
 static const unsigned char playset_order[] = {
-    3 /* Play Mode */,   2 /* EQ */,           0 /* Gain */,          10 /* ReplayGain */,
-    17 /* Crossfade */,  9 /* Gapless */,      4 /* Max Volume */,    5 /* Default Vol */,
-    11 /* Balance */,    1 /* Filters */,      8 /* Memory play */,   16 /* Artists */,
-    15 /* Year order */, 13 /* Folder art */,  14 /* Folder skip */,  12 /* Enlarged art */,
+    3 /* Play Mode */,   2 /* EQ */,          0 /* Gain */,         10 /* ReplayGain */,
+    17 /* Crossfade */,  9 /* Gapless */,     4 /* Max Volume */,   5 /* Default Vol */,
+    11 /* Balance */,    1 /* Filters */,     8 /* Memory play */,  16 /* Artists */,
+    15 /* Year order */, 13 /* Folder art */, 14 /* Folder skip */, 12 /* Enlarged art */,
     6 /* DSD Output */,  7 /* USB Audio */,
 };
 /* System Setting: connections and display first, boot/update/reset/about last. */
@@ -5279,7 +5282,8 @@ static int now_playing(void) {
  * run late on an idle pass. Its progress and lyrics tick every 250 ms and keep up. */
 static int np_animating(void) {
 #if IPOD
-    return now_playing() && (visualizer_live() || (st.np_marquee && st.np_off > 0 && st.np_off < st.np_over));
+    return now_playing() &&
+           (visualizer_live() || (st.np_marquee && st.np_off > 0 && st.np_off < st.np_over));
 #else
     return 0;
 #endif
