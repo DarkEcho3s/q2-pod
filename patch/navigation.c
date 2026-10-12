@@ -36,8 +36,9 @@ extern void spot_poll(void), spot_yield(void), spot_paint(void *w, void *canvas)
 extern int spot_media(unsigned key), spot_key(void *top, unsigned key),
     spot_open(void *ctx, void *event);
 extern void radio_poll(void);
-extern void xfade_row(void *label);
-extern int xfade_open(void *ctx, void *event), xfade_key(void *top, unsigned key);
+extern void xfade_row(void *label), wheel_row(void *label);
+extern int xfade_open(void *ctx, void *event), xfade_key(void *top, unsigned key),
+    wheel_open(void *ctx, void *event);
 extern int eq_key(void *top, unsigned key); /* peq_ui.c */
 extern int radio_media(unsigned key), radio_open(void *ctx, void *event);
 extern const char *radio_hold(void *top);
@@ -2791,13 +2792,14 @@ int ringnav_playing(void *win, void *ctx) {
  * holding a 335x70 s_btn_listitem button with a 52px icon, a 24px label at x 72 and list_into); the
  * Theme, Accent, Home and Battery rows follow with the same widgets and styles, borrowing the
  * Display (Theme and Accent), cover mode and power manager icons, the value in the label and no
- * chevron, since they change in place. */
+ * chevron, since they change in place. Wheel sensitivity ends the list in both builds and opens its
+ * slider page (crossfade.c). */
 int ringnav_display(void *win, void *ctx) {
     int result = stock_display_trampoline(win, ctx);
     /* Artist albums: Grid or Coverflow, a layout as Home's, so it sits after Home. */
     static const char *const cf_icon[] = { "playset_covermode" };
-#if IPOD
     void *view = win ? widget_lookup(win, "scroll_view_display", 1) : (void *)0;
+#if IPOD
     static const char *const icons[] = { "system_display", "playset_covermode",
                                          "system_powermanager", "system_display" };
     for (int k = 0; view && k < 4; ++k) {
@@ -2810,6 +2812,7 @@ int ringnav_display(void *win, void *ctx) {
 #else
     pod_rows(win, "scroll_view_display", POD_ARTIST_CF, 1, cf_icon);
 #endif
+    if (view) wheel_row(list_row(view, "system_display", wheel_open, (void *)0));
     return result;
 }
 

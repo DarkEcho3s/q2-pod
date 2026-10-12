@@ -42,6 +42,42 @@ static playback s __attribute__((section(".scratch")));
 static int wh_last __attribute__((section(".scratch")));
 static int wh_acc __attribute__((section(".scratch")));
 static int wh_anchor __attribute__((section(".scratch"))); /* touch-down x (1-200); 0 lifted */
+static int wh_units __attribute__((section(".scratch")));  /* wh_acc's tick, both in 1/16 unit */
+
+/* Wheel sensitivity (System settings -> Display, crossfade.c's page): 50-200% in tens, Q2POD
+ * WHEELSENSITIVITY in config.ini, anything else 50%. The travel per tick is 50% / sensitivity of
+ * WHEEL_TICK_UNITS: 50% is today's 28 (a seventh of a turn), 100% 14, 200% 7, 1.0.6's scale and
+ * key, so a value saved then means what it did (within the half unit 1.0.6 rounded to). It is kept
+ * in sixteenths of a unit (WHEEL_FINE), so every step differs: 150% is 9.3 units, 160% 8.75. Only
+ * the travel per tick changes: lockouts, holds and the list ramps count ticks and time. wheel_units
+ * is 0 until read, which wheel_sample takes as 50%; one word, so the encoder thread reads it whole.
+ */
+#define WHEEL_FINE 16
+static volatile int wheel_units __attribute__((section(".scratch")));
+static int wheel_percent __attribute__((section(".scratch"))),
+    wheel_read __attribute__((section(".scratch")));
+static void wheel_apply(int pct) {
+    wheel_percent = pct;
+    wheel_units = (WHEEL_TICK_UNITS * WHEEL_FINE * 50 + pct / 2) / pct;
+}
+int wheel_pct(void) {
+    if (!wheel_read) {
+        char v[16] = "", canonical[16];
+        toolsReadConfig("/mnt/data/config.ini", "Q2POD", "WHEELSENSITIVITY", v, "");
+        int n = atoi(v);
+        tk_snprintf(canonical, sizeof canonical, "%d", n);
+        wheel_apply(n >= 50 && n <= 200 && !(n % 10) && !strcmp(v, canonical) ? n : 50);
+        wheel_read = 1;
+    }
+    return wheel_percent;
+}
+/* The nearest ten within 50-200%, live on the next sample, and saved. */
+void wheel_set_pct(int n) {
+    n = n < 50 ? 50 : n > 200 ? 200 : (n + 5) / 10 * 10;
+    if (n == wheel_pct()) return;
+    wheel_apply(n);
+    write_int_config(n, "Q2POD", "WHEELSENSITIVITY");
+}
 
 static void wheel_post(char *info, int key) {
     for (int type = 0x110; type <= 0x114; type += 4) { /* key down, then up */
@@ -64,14 +100,20 @@ void wheel_sample(int *s, int ret, char *info) {
         wh_acc = 0;
         return;
     }
-    int d = s[0] - wh_last;
-    d = d < -100 ? d + 200 : d > 100 ? d - 200 : d;
+    int d = s[0] - wh_last, units = wheel_units ? wheel_units : WHEEL_TICK_UNITS * WHEEL_FINE;
+    d = (d < -100 ? d + 200 : d > 100 ? d - 200 : d) * WHEEL_FINE;
     wh_last = s[0];
+    /* Sensitivity changed mid-turn (its own page takes the wheel): the carry keeps its share of a
+     * tick, so it stays under the new travel and fires no burst. */
+    if (units != wh_units) {
+        wh_acc = wh_units ? wh_acc * units / wh_units : 0;
+        wh_units = units;
+    }
     if ((d ^ wh_acc) < 0) wh_acc = 0; /* reversed */
     wh_acc += d;
-    while (wh_acc >= WHEEL_TICK_UNITS || wh_acc <= -WHEEL_TICK_UNITS) {
+    while (wh_acc >= units || wh_acc <= -units) {
         int dir = wh_acc > 0 ? 1 : -1;
-        wh_acc -= dir * WHEEL_TICK_UNITS;
+        wh_acc -= dir * units;
         wheel_post(info, dir > 0 ? KEY_PREV : KEY_NEXT); /* x rising is back, as stock */
     }
     s[0] = wh_anchor;
@@ -924,6 +966,7 @@ static int playback_next(void) {
     return (mode == 0 || mode == 3) && queue() && at + 1 < deque_size(queue()) ? (int)at + 1 : -1;
 }
 void playback_poll(void) {
+    wheel_pct(); /* the saved sensitivity from the first UI pass */
     xfade_poll(playback_next());
     unsigned now = time_now_ms();
     /* playback_save writes only what changed. */

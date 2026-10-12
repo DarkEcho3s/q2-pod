@@ -2792,6 +2792,12 @@ class QueueMachine(Machine):
         self.title=self.node('hscroll_label','scrlabel_title'); self.back=self.node('image','img_return')
         return self.node('dialog','sortselect_dialog',[self.node('view','view_navbar',[self.title,self.back]),
                                                        self.node('list_view','list_view',[self.view])])
+    def bootvol(self):  # stock's Boot volume page, which crossfade.c re-dresses
+        self.slider=self.node('slider','slider_bootvol'); self.vol=self.node('label','label_vol')
+        self.dec,self.add=self.node('image','img_dec'),self.node('image','img_add')
+        self.title,self.switch=self.node('label','label_title'),self.node('image','img_bootswitch')
+        return self.node('window','bootvol_page',[self.node('view','view_navbar',[self.title,self.switch]),
+                         self.node('view','view_bootvol',[self.slider,self.dec,self.add,self.vol],visible=0)])
     def hook(self,u,address,size,unused):
         name=self.handlers.get(address,'')
         if not name.startswith('q:'): return super().hook(u,address,size,unused)
@@ -2810,7 +2816,7 @@ class QueueMachine(Machine):
         elif name=='window_manager_get_input_device_status': ret=self.status
         elif name=='airplayGetFlag': ret=self.airplay
         elif name=='navigator_to':
-            page=self.text(a); self.top=self.dialog() if page=='dialog/sortselect_dialog' else self.node('window',page)
+            page=self.text(a); self.top=self.dialog() if page=='dialog/sortselect_dialog' else self.bootvol() if page=='playset/bootvol_page' else self.node('window',page)
             self.stack.append(self.top); self.opened.append((page,None))
         elif name=='navigator_to_with_context':
             page=self.text(a)
@@ -5369,9 +5375,9 @@ if variant=='ipod':
         kids=m.nodes[view]['children'][3:]
         return [next(r for r in kids if lab(r).startswith(k)) for k in ('Accent','Home','Battery','Theme')]
     m,view,rows=display({})
-    kids=m.nodes[view]['children'][3:]; cf=kids[3]
-    assert kids==[rows[3],rows[0],rows[1],cf,rows[2]] and m.nodes[rows[0]]['visible']==0  # Theme, hidden Accent, Home, Artist albums, Battery
-    assert m.icons_set==['system_display','system_display','playset_covermode','playset_covermode','system_powermanager'] and all(m.nodes[r]['type']=='list_item' and m.nodes[r]['style']=='s_listitem_black' for r in rows)
+    kids=m.nodes[view]['children'][3:]; cf,wheel=kids[3],kids[5]
+    assert kids==[rows[3],rows[0],rows[1],cf,rows[2],wheel] and m.nodes[rows[0]]['visible']==0  # Theme, hidden Accent, Home, Artist albums, Battery, Wheel sensitivity
+    assert m.icons_set==['system_display','system_display','playset_covermode','playset_covermode','system_powermanager','system_display'] and all(m.nodes[r]['type']=='list_item' and m.nodes[r]['style']=='s_listitem_black' for r in rows)
     buttons=[m.nodes[r]['children'][0] for r in rows]; labels=[m.nodes[b]['children'][1] for b in buttons]
     for b,l in zip(buttons,labels):
         icon=m.nodes[b]['children'][0]  # stock's 0x4c19bc icon geometry, which the row layouter maps
@@ -5418,7 +5424,7 @@ if variant=='ipod':
     writes=click(3); assert [(w[0],m.text(w[1]),m.text(w[2])) for w in writes]==[(1,'IPOD','THEME')]
     assert ('image_manager_unload_all',0x1000500) in [c[:2] for c in m.calls] and ('widget_invalidate_force',m.wm) in [c[:2] for c in m.calls]
     kids=m.nodes[view]['children'][3:]
-    assert kids==[rows[3],rows[0],rows[1],cf,rows[2]] and m.nodes[rows[0]]['visible']==1
+    assert kids==[rows[3],rows[0],rows[1],cf,rows[2],wheel] and m.nodes[rows[0]]['visible']==1
     assert texts()==['Accent: Graphite','Home: Split','Battery: Icon','Theme: Classic']; home_bounds(False,True); passed()
     click(1); assert texts()[1]=='Home: Full'; home_bounds(True,True); click(1); home_bounds(False,True); passed()
     for value,name in ((1,'Crimson'),(2,'Tidal'),(3,'Champagne'),(0,'Graphite'),(1,'Crimson')):
@@ -5431,7 +5437,7 @@ if variant=='ipod':
         assert m.bands[-1][4]==color_t(ACCENTS[value][4]); passed()
     writes=click(3); assert [(w[0],m.text(w[2])) for w in writes]==[(0,'THEME')] and texts()[3]=='Theme: Minimal'
     kids=m.nodes[view]['children'][3:]
-    assert kids==[rows[3],rows[0],rows[1],cf,rows[2]] and m.nodes[rows[0]]['visible']==0 and texts()[1]=='Home: Split'
+    assert kids==[rows[3],rows[0],rows[1],cf,rows[2],wheel] and m.nodes[rows[0]]['visible']==0 and texts()[1]=='Home: Split'
     home_bounds(False)
     m.paint(view); assert not m.bands and m.rounded[0]['color']==color_t(0xeeeeec); passed()
     bar=m.node('window','system_bar'); m.word(syms['system_bar'],bar)
@@ -5573,12 +5579,12 @@ if variant=='ipod':
     # shows it; then the next layout places it right after Theme as a whole settings row (mapped at
     # 0x0 it was an empty gap on the device), and hiding it again leaves no gap. However often Theme
     # flips, the wheel and Centre reach the row after Theme, and a tap selects it.
-    CONFIG.clear(); m,view=settings('display'); items=m.nodes[view]['children']; theme,accent=items[-5:-3]  # then Home, Artist albums, Battery
+    CONFIG.clear(); m,view=settings('display'); items=m.nodes[view]['children']; theme,accent=items[-6:-4]  # then Home, Artist albums, Battery, Wheel sensitivity
     button=lambda i: m.nodes[i]['children'][0]
     for classic in (0,1,0,1,0,1):
         if m.nodes[accent]['visible']!=classic:
             f,ctx=m.nodes[button(theme)]['click']; assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0
-        assert lay(m,view)==0 and m.nodes[view]['children'][-5:-3]==[theme,accent] and m.nodes[accent]['visible']==classic
+        assert lay(m,view)==0 and m.nodes[view]['children'][-6:-4]==[theme,accent] and m.nodes[accent]['visible']==classic
         shown=[i for i in items if m.nodes[i]['visible']]; after=shown[shown.index(theme)+1]
         assert (after==accent)==bool(classic)
         assert [geometry(m,i)[1] for i in shown]==[SET['ROW']*k for k in range(len(shown))]
@@ -7167,7 +7173,7 @@ def settings_page(hook,view_name,config={},stock_rows=2,bt=1):
     view=m.node('scroll_view',view_name,list(entries))
     for e in m.nodes[view]['children']: m.word(e+O['W_PARENT'],view)
     m.top=m.node('window','page',[m.node('list_view','list_view',[view])])
-    target={'power':'systemset_powermanager_page_init','audioset':'playset_playset_page_init','btrows':'btmenu_rows'}[hook]
+    target={'power':'systemset_powermanager_page_init','audioset':'playset_playset_page_init','btrows':'btmenu_rows','display':'systemset_display_page_init'}[hook]
     assert m.call(address=HOOKS[target][0],args=(m.top,5,0,0),gap=0)==0 and m.calls[0][:3]==('stock_'+hook,m.top,5)
     rows=sorted(set(m.nodes[view]['children'])-set(entries))  # ours, as made (the page may restack)
     buttons=[m.nodes[r]['children'][0] for r in rows]; labels=[m.nodes[b]['children'][-1] for b in buttons]
@@ -7228,6 +7234,37 @@ for config,text in (({'XFADE':'1','XFADESEC':'7'},'Crossfade: 7 s'),({'XFADE':'1
     m,rows,texts,*_=settings_page('audioset','scroll_view_playset',config,stock_rows=15)
     assert texts()[2]==text and m.nodes[m.nodes[m.nodes[rows[2]]['children'][0]]['children'][1]].get('name')=='label_xfade'
 passed()
+# Wheel sensitivity (playback.c wheel_pct, test/playback.py's travel): Display's last row in both
+# builds, Q2POD WHEELSENSITIVITY as 1.0.6 saved it, 50% unless a canonical ten in 50-200.
+for config,pct in (({},50),({'WHEELSENSITIVITY':'130'},130),({'WHEELSENSITIVITY':'200'},200),({'WHEELSENSITIVITY':'40'},50),
+                   ({'WHEELSENSITIVITY':'135'},50),({'WHEELSENSITIVITY':'210'},50),({'WHEELSENSITIVITY':'x'},50)):
+    m,rows,texts,icons,click=settings_page('display','scroll_view_display',config,stock_rows=3)
+    label=m.nodes[m.nodes[rows[-1]]['children'][0]]['children'][-1]
+    assert texts()[-1]==f'Wheel sensitivity: {pct}%' and icons[-1]=='system_display' and m.nodes[label]['name']=='label_wheel'
+    assert m.nodes[named(m,m.top,'scroll_view_display')]['children'][-1]==rows[-1],config  # the list's end
+passed()
+# Its row opens stock's Boot volume page re-dressed (crossfade.c): titled, no switch, the percent
+# beside the slider, which runs 50-200 in tens. The wheel and +/- step 10%, live and saved, the
+# slider snaps to a ten, and Centre goes back (edit_key, as on Brightness).
+m,rows,texts,icons,click=settings_page('display','scroll_view_display',stock_rows=3)
+display_page=m.top; m.stack=[m.top]; m.nodes[m.wm]=dict(type='window_manager',name='',children=m.stack,visible=1)
+assert click(-1)==[] and m.top!=display_page and m.nodes[m.top]['name']=='bootvol_page'
+assert m.nodes[m.title]['text']=='Wheel sensitivity' and m.nodes[m.switch]['visible']==0 and m.nodes[m.vol]['text']=='50%'
+assert m.nodes[named(m,m.top,'view_bootvol')]['visible']==1
+def press(w,kind=O['EVT_CLICK']):
+    m.calls=[]; f,ctx=m.handler(w,kind); assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0
+    return [(c[1],m.text(c[2]),m.text(c[3])) for c in m.calls if c[0]=='write_int_config']
+def turn(key=O['KEY_NEXT']):
+    assert m.call(key)==11; return [(c[1],m.text(c[2]),m.text(c[3])) for c in m.calls if c[0]=='write_int_config']
+W='Q2POD','WHEELSENSITIVITY'
+assert turn()==[(60,*W)] and m.nodes[m.vol]['text']=='60%' and texts()[-1]=='Wheel sensitivity: 60%'
+assert turn(O['KEY_PREV'])==[(50,*W)] and m.nodes[m.vol]['text']=='50%' and turn(O['KEY_PREV'])==[]  # 50% is the bottom
+assert press(m.add)==[(60,*W)] and m.nodes[m.vol]['text']=='60%' and texts()[-1]=='Wheel sensitivity: 60%'
+assert press(m.dec)==[(50,*W)] and press(m.dec)==[] and texts()[-1]=='Wheel sensitivity: 50%'
+m.nodes[m.slider]['value']=127; assert press(m.slider,O['EVT_VALUE_CHANGED'])==[(130,*W)] and m.nodes[m.vol]['text']=='130%'
+m.nodes[m.slider]['value']=300; assert press(m.slider,O['EVT_VALUE_CHANGING'])==[(200,*W)] and press(m.add)==[] and turn()==[]
+assert texts()[-1]=='Wheel sensitivity: 200%' and m.nodes[m.switch]['visible']==0
+assert m.confirm()==11 and [c[0] for c in m.calls].count('navigator_back')==1; passed()
 # Bluetooth's list (btmenu_rows, rebuilt on every search) gains Resume on connect with Bluetooth on,
 # right after its fourth row, Bluetooth Headset Volume Control, as stock's rows: no icon, 78 high.
 # Off unless Q2POD RESUME is 1 (docs/internals.md#resume-on-connect).

@@ -15,6 +15,7 @@ Things people often don't know are already there:
 - **Double-press the centre button** to turn the screen off on any page (videos excepted); on Now Playing a single press does it.
 - **Hold Return** jumps to Now Playing from anywhere; hold it again there to go back where you were.
 - **Brightness, volume limits, balance, date and time and the sleep timer** take the wheel: turn to change, Centre to go back or move to the next field and then OK. In the pull-down, the wheel sets the brightness.
+- **Wheel too fast or slow?** **System settings → Display → Wheel sensitivity**: turn the wheel or drag the slider, Centre to go back.
 - **Longer battery:** **System settings → Power → Low power** and **Charge limit**.
 - **Guest artists splitting albums?** **Audio settings → Artists → Album Artist**.
 - **Coverflow order:** the **Sort** card, just before Refresh library, switches to Artist, Year, Recently Added, Most Played or Random.
@@ -28,12 +29,13 @@ Things people often don't know are already there:
 
 **System settings → Display**:
 
-| Setting     | Options                                                                 |
-| ----------- | ----------------------------------------------------------------------- |
-| **Theme**   | Minimal (default) or Classic, the iPod look before 1.0.1                |
-| **Accent**  | Classic only: Graphite (default), Crimson (stock red), Tidal, Champagne |
-| **Home**    | Split (menu beside the playing album's cover) or Full (menu only)       |
-| **Battery** | Icon (default), Percent, Icon + Percent, Percent Inside                 |
+| Setting               | Options                                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Theme**             | Minimal (default) or Classic, the iPod look before 1.0.1                                                                                    |
+| **Accent**            | Classic only: Graphite (default), Crimson (stock red), Tidal, Champagne                                                                     |
+| **Home**              | Split (menu beside the playing album's cover) or Full (menu only)                                                                           |
+| **Battery**           | Icon (default), Percent, Icon + Percent, Percent Inside                                                                                     |
+| **Wheel sensitivity** | 50-200% in 10% steps, 50% by default (a seventh of a turn per tick). Higher needs less turning per step: 100% half as much, 200% a quarter. |
 
 ## Battery and library settings
 

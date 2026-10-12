@@ -512,13 +512,14 @@ assert m.fn('playback_set',0,1)==0 and m.fn('playback_successor',1)==-1; checks+
 # The wheel's ticks (wheel_sample): one per WHEEL_TICK_UNITS of travel, the rest carried; a reversal
 # starts again; the 200 -> 1 seam wraps; stock is handed the touch-down x, so its own logic sees a
 # still finger. Ticks go to stock's poster as key down, then up.
-def wheel(samples):
-    m=PlaybackMachine(); m.handlers[O['WHEEL_POST']]='wheel_post'
+def wheel(samples,m=None):
+    m=m or PlaybackMachine(); m.handlers[O['WHEEL_POST']]='wheel_post'
     info,s=m.alloc(0x60),m.alloc(20); posted=[]; seen=[]
     m.u.hook_add(UC_HOOK_CODE,lambda u,a,n,_: posted.append((m.get(info+O['WHEEL_INFO_EVENT']),
                  m.get(info+O['WHEEL_INFO_KEY']))),begin=O['WHEEL_POST'],end=O['WHEEL_POST'])
-    for x,p in samples:
-        m.word(s,x); m.word(s+8,p); m.fn('wheel_sample',s,1,info); seen.append(m.get(s))
+    for sample in samples:
+        if callable(sample): sample(m); continue  # something the UI does between samples
+        x,p=sample; m.word(s,x); m.word(s+8,p); m.fn('wheel_sample',s,1,info); seen.append(m.get(s))
     assert posted[0::2]==[(0x110,k) for _,k in posted[0::2]] and posted[1::2]==[(0x114,k) for _,k in posted[0::2]]
     return [k for _,k in posted[0::2]],seen
 P,N,U=O['KEY_PREV'],O['KEY_NEXT'],O['WHEEL_TICK_UNITS']
@@ -528,6 +529,47 @@ assert wheel([(195,1),((195+U)%200,1)])[0]==[P] and wheel([((195+U)%200,1),(195,
 assert wheel([(10,1),(10+2*U,1)])[0]==[P,P]                          # one sample, two ticks
 assert wheel([(10,1),(9+U,1)])[0]==[] and wheel([(10,1),(10+U,1)])[0]==[P]  # one tick is U of travel
 assert wheel([(50,1),(52+U,1),(52+U,0),(52+U,1),(51+2*U,1)])[0]==[P]  # a lift drops the carry
+checks+=1
+# Wheel sensitivity (Q2POD WHEELSENSITIVITY, 50-200% in tens, 1.0.6's key and scale): the travel
+# per tick is 50/pct of U, in sixteenths of a unit, so 50% is exactly U (28), the wheel before the
+# setting, and every step differs. A fresh card, a sample before the first read and any value that
+# is not a canonical ten in range all get 50%.
+SIXTEENTHS={pct:(U*16*50+pct//2)//pct for pct in range(50,201,10)}
+assert U==28 and SIXTEENTHS[50]==16*U and SIXTEENTHS[100]==8*U and SIXTEENTHS[200]==4*U
+assert len(set(SIXTEENTHS.values()))==16 and SIXTEENTHS[130]==172  # 10.75 units: 130% is 10 3/4
+def sensitivity(config=None,read=True):
+    m=PlaybackMachine()
+    if config is not None: m.config['WHEELSENSITIVITY']=config
+    return m,(m.fn('wheel_pct') if read else None)
+def travel(m):  # the units of a turn's first tick, a unit per sample
+    for u in range(1,100):
+        if wheel([(10,1),(10+u,1),(10+u,0)],m)[0]: return u
+def spin(m,units=600):  # ticks in three turns, a unit per sample, over the 200 -> 1 seam
+    return len(wheel([((9+k)%200+1,1) for k in range(units+1)],m)[0])
+assert travel(sensitivity(read=False)[0])==U  # not read yet: 50%
+for config,pct in ((None,50),('50',50),('130',130),('200',200),('0',50),('40',50),('210',50),('135',50),
+                   ('-50',50),('050',50),(' 50',50),('50x',50),('abc',50),('',50)):
+    m,got=sensitivity(config); assert got==pct and travel(m)==-(-SIXTEENTHS[pct]//16),(config,got)
+for pct in (50,100,130,150,160,200):  # the carry keeps the sixteenths: 150% and 160% differ
+    assert spin(sensitivity(str(pct))[0])==600*16//SIXTEENTHS[pct],pct
+assert spin(sensitivity('150')[0])==64 and spin(sensitivity('160')[0])==68
+checks+=1
+# Setting it: the nearest ten, clamped, live on the next sample and saved; an unchanged value is
+# not written again.
+for n,pct in ((130,130),(74,70),(75,80),(20,50),(250,200),(50,50)):
+    m,_=sensitivity(); m.calls=[]; m.fn('wheel_set_pct',n)
+    saved=[(c[1],m.text(c[2]),m.text(c[3])) for c in m.calls if c[0]=='write_int_config']
+    assert m.fn('wheel_pct')==pct and travel(m)==-(-SIXTEENTHS[pct]//16) and saved==([] if pct==50 else [(pct,'Q2POD','WHEELSENSITIVITY')]),n
+    assert sensitivity(str(pct))[1]==pct  # read back after a reboot
+checks+=1
+# A change mid-turn (the sensitivity page takes the wheel) keeps the carry's share of a tick, so it
+# fires no burst: 27 of 28 carried is 13.5 of 14 at 100%, and one more unit is one tick, not two.
+fast,slow=(lambda m: m.fn('wheel_set_pct',100)),(lambda m: m.fn('wheel_set_pct',50))
+assert wheel([(10,1),(10+U-1,1),fast,(10+U,1)])[0]==[P]
+assert wheel([(10,1),(10+U-1,1),fast,(10+U,1),(9+U+U//2,1)])[0]==[P] and wheel([(10,1),(10+U-1,1),fast,(10+U,1),(10+U+U//2,1)])[0]==[P,P]
+# From 100%, 13 of 14 is 26 of 28: two more units tick, one does not; a reversal still starts over.
+for more,want in ((1,[]),(2,[P]),(-1,[])):
+    assert wheel([(10,1),(23,1),slow,(23+more,1)],sensitivity('100')[0])[0]==want,more
 checks+=1
 # UI wiring in both variants: stock-style choice menu, selected marker, touch and wheel slider.
 m=PlaybackMachine(); m.top=m.node('window','playing_page'); m.stack=[m.top]; m.word(m.top+O['W_PARENT'],m.wm)
@@ -549,7 +591,7 @@ view=m.node('scroll_view','scroll_view_display'); lst=m.node('list_view','list_v
 m.top=m.node('window','display_page',[lst]); m.stack=[m.top]
 for child,parent in ((view,lst),(lst,m.top),(m.top,m.wm)): m.word(child+O['W_PARENT'],parent)
 assert m.fn('ringnav_display',m.top,0)==0
-assert not any('Wheel' in str(n.get('text')) for n in m.nodes.values())  # no sensitivity row
+assert [n['text'] for n in m.nodes.values() if 'Wheel' in str(n.get('text'))]==['Wheel sensitivity: 50%']  # the row, test/patch.py's
 checks+=1
 
 # Manual Next/Prev at the queue ends runs stock player_change_music through ringnav_change. Stock

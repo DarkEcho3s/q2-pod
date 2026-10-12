@@ -1,7 +1,8 @@
 /* Crossfade (docs/internals.md#crossfade): Audio settings' row, its page and the fade hciplayer's
  * filter applies (peq_player.c). The page is stock's Boot volume page re-dressed: its slider runs
  * Off (0) and XF_MIN..XF_MAX seconds, so it needs no switch; the switch and Centre still turn it on
- * and off. */
+ * and off. Display's Wheel sensitivity row opens the same page (xf.wheel): 50-200% in tens, no
+ * switch, the wheel a ten a tick and Centre back, as on Brightness (navigation.c edit_key). */
 #include "offsets.inc"
 #include "peq.h"
 #include "playback.h"
@@ -10,7 +11,8 @@
 #define XF_MIN 1
 #define XF_MAX 10
 #define XF_DEFAULT 5
-#define XF_ROW "label_xfade" /* the Audio settings row's label, found again by name */
+#define XF_ROW "label_xfade"    /* the Audio settings row's label, found again by name */
+#define WHEEL_ROW "label_wheel" /* and Display's Wheel sensitivity row's */
 
 extern int center_press(unsigned *timer, unsigned *at, int (*single)(const void *), int scrubbing);
 extern void peq_attach(void);
@@ -18,6 +20,7 @@ extern int album_cmp(void *, void *);
 
 static struct {
     int read, on, seconds, attached, done, key[4];
+    int wheel; /* the page is Wheel sensitivity's */
     volatile int *flag;
     void *page, *sw, *view, *slider, *dec, *add, *label;
     unsigned press, press_at;
@@ -48,26 +51,48 @@ void xfade_row(void *label) {
     row_text(label);
 }
 
-/* The slider's value: 0 for Off, else the length. */
-static int value(void) { return xf.on ? xf.seconds : 0; }
+static void wheel_text(void *label) {
+    char t[32];
+    tk_snprintf(t, sizeof t, "Wheel sensitivity: %d%%", wheel_pct());
+    widget_set_text_utf8(label, t);
+}
+
+/* Display's row (navigation.c ringnav_display makes it): the label, named for refresh(). */
+void wheel_row(void *label) {
+    widget_set_name(label, WHEEL_ROW);
+    wheel_text(label);
+}
+
+/* The slider's value: the sensitivity, or 0 for Off, else the length. */
+static int value(void) { return xf.wheel ? wheel_pct() : xf.on ? xf.seconds : 0; }
 
 /* The page and the row from xf, and the choice saved. */
 static void refresh(int save) {
-    if (save) {
+    if (save && !xf.wheel) {
         write_int_config(xf.on, "Q2POD", "XFADE");
         write_int_config(xf.seconds, "Q2POD", "XFADESEC");
     }
     void *row = widget_lookup(window_manager(), XF_ROW, 1);
     if (row) row_text(row);
+    if ((row = widget_lookup(window_manager(), WHEEL_ROW, 1))) wheel_text(row);
     if (!xf.page) return;
     char t[16];
-    tk_snprintf(t, sizeof t, xf.on ? "%d s" : "Off", xf.seconds);
-    image_base_set_image(xf.sw, xf.on ? "switch_on" : "switch_off");
+    if (xf.wheel)
+        tk_snprintf(t, sizeof t, "%d%%", wheel_pct());
+    else {
+        tk_snprintf(t, sizeof t, xf.on ? "%d s" : "Off", xf.seconds);
+        image_base_set_image(xf.sw, xf.on ? "switch_on" : "switch_off");
+    }
     widget_set_text_utf8(xf.label, t);
     if (widget_get_prop_int(xf.slider, "value", 0) != value()) slider_set_value(xf.slider, value());
 }
 
 static void set_value(int n) {
+    if (xf.wheel) {
+        wheel_set_pct(n); /* rounds, clamps and saves */
+        refresh(0);
+        return;
+    }
     n = n < 0 ? 0 : n > XF_MAX ? XF_MAX : n;
     if (n == value()) return;
     xf.on = n > 0;
@@ -77,13 +102,14 @@ static void set_value(int n) {
 
 static int toggle(void *ctx, void *event) {
     (void)ctx, (void)event;
+    if (xf.wheel) return 0;
     xf.on = !xf.on;
     refresh(1);
     return 0;
 }
 static int step(void *ctx, void *event) {
     (void)event;
-    set_value(value() + (int)(long)ctx);
+    set_value(value() + (int)(long)ctx * (xf.wheel ? 10 : 1));
     return 0;
 }
 static int slid(void *ctx, void *event) {
@@ -93,13 +119,12 @@ static int slid(void *ctx, void *event) {
 }
 static int gone(void *ctx, void *event) {
     (void)event;
-    if (xf.page == ctx) xf.page = 0;
+    if (xf.page == ctx) xf.page = 0, xf.wheel = 0;
     return 0;
 }
 
 /* The row's click: stock's Boot volume page, its handlers swapped for these. */
-int xfade_open(void *ctx, void *event) {
-    (void)ctx, (void)event;
+static int open_page(int wheel) {
     settings();
     if (xf.page) return 0;
     void *wm = window_manager(), *below = window_manager_get_top_window(wm);
@@ -129,14 +154,24 @@ int xfade_open(void *ctx, void *event) {
     widget_on(xf.slider, EVT_VALUE_CHANGING, slid, 0);
     widget_on(xf.slider, EVT_VALUE_CHANGED, slid, 0);
     widget_on(page, EVT_DESTROY, gone, page);
-    widget_set_text_utf8(title, "Crossfade");
+    widget_set_text_utf8(title, wheel ? "Wheel sensitivity" : "Crossfade");
     widget_set_visible(xf.view, 1, 0); /* stock shows it only while Boot volume's switch is on */
-    slider_set_min(xf.slider, 0);
-    slider_set_max(xf.slider, XF_MAX);
-    slider_set_step(xf.slider, 1);
+    if (wheel) widget_set_visible(xf.sw, 0, 0);
+    slider_set_min(xf.slider, wheel ? 50 : 0);
+    slider_set_max(xf.slider, wheel ? 200 : XF_MAX);
+    slider_set_step(xf.slider, wheel ? 10 : 1);
+    xf.wheel = wheel;
     xf.page = page;
     refresh(0);
     return 0;
+}
+int xfade_open(void *ctx, void *event) {
+    (void)ctx, (void)event;
+    return open_page(0);
+}
+int wheel_open(void *ctx, void *event) {
+    (void)ctx, (void)event;
+    return open_page(1);
 }
 
 /* A single centre press, DOUBLE_CLICK_MS on: the switch. */
@@ -148,17 +183,19 @@ static int single(const void *info) {
 }
 
 /* ringnav(), the page on top: Centre toggles, a double press turns the screen off as on every
- * page, and the wheel sets the length, down to Off. */
+ * page, and the wheel sets the length, down to Off. Wheel sensitivity: the wheel a ten a tick
+ * (not through +/-, which stock may have disabled), Centre to edit_key, which goes back. */
 int xfade_key(void *top, unsigned key) {
     static const unsigned release[EVENT_KEY / 4 + 1] = { [EVENT_KEY / 4] = KEY_CENTER };
     if (!xf.page || top != xf.page) return 0;
     if (key == KEY_CENTER) {
+        if (xf.wheel) return 0;
         int press = center_press(&xf.press, &xf.press_at, single, 0);
         if (press == 2 && g_backlight_status) on_wm_keyup_fun((void *)0, (void *)release);
         return press;
     }
     if (key != KEY_NEXT && key != KEY_PREV) return 0;
-    set_value(value() + (key == KEY_NEXT ? 1 : -1));
+    set_value(value() + (key == KEY_NEXT ? 1 : -1) * (xf.wheel ? 10 : 1));
     return 1;
 }
 
