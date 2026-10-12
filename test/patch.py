@@ -3981,7 +3981,10 @@ class CoverflowMachine(QueueMachine):
             else: self.opened.append((self.text(a),self.get(b),self.get(b+4))); self.top=self.node('window',self.text(a)); self.stack.append(self.top)
         elif name=='access': path=self.text(a); ret=0 if (self.cached if '/mnt/mmc/.coverflow/' in path else not self.missing) else -1
         elif name=='fopen': ret=0  # no saved album: remember() keeps the first
-        elif name=='toolsQueryDbTable': self.deqs[self.get(syms['tools_pdeq_directory'])][1]=[]
+        elif name=='toolsQueryDbTable':
+            rows=self.albums if 'fileurl not like' in self.text(b) else []
+            self.deqs[self.get(syms['tools_pdeq_directory'])][1]=[self.copy('stSongInfo',e) for e in rows]
+            ret=len(rows)
         elif name=='qsort':  # sorted by the payload's comparator, run nested on a stack below this one
             regs=[UC_MIPS_REG_PC,*range(UC_MIPS_REG_0,UC_MIPS_REG_31+1)]; saved=[u.reg_read(r) for r in regs]; pair=self.alloc(2*c)
             def compare(x,y):

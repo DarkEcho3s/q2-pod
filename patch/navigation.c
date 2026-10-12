@@ -17,9 +17,8 @@ extern int stock_keyup_trampoline(void *, void *), stock_touch_trampoline(void *
     stock_localclass_trampoline(int), stock_detail_trampoline(int, void *),
     stock_artist_trampoline(int), stock_power_trampoline(void *, void *),
     stock_systemset_trampoline(void *, void *), stock_audioset_trampoline(void *, void *),
-    stock_btrows_trampoline(void *, void *),
-    stock_playlist_trampoline(void *), stock_stream_trampoline(void *, void *),
-    stock_start_player_trampoline(void);
+    stock_btrows_trampoline(void *, void *), stock_playlist_trampoline(void *),
+    stock_stream_trampoline(void *, void *), stock_start_player_trampoline(void);
 extern void *coverflow_tracks(void *page);
 extern int coverflow_jump(void *w, int from, int dir, unsigned *letter), coverflow_bounded(void *w);
 extern void *coverflow_album(void *page), *coverflow_album_tracks(void *r);
@@ -1793,8 +1792,9 @@ static void *list_row(void *view, const char *icon, int (*click)(void *, void *)
 #define STR_(x) #x
 #define STR(x) STR_(x)
 enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_ARTIST_CF, POD_YEAR_OLD, POD_ARTISTS, POD_RESUME };
-static int *const pod_values[] = { &st.charge_limit, &st.low_power, &st.wake_double, &st.artist_cf,
-                                   &st.year_old,     0,             &st.resume };
+static int *const pod_values[] = { &st.charge_limit, &st.low_power, &st.wake_double,
+                                   &st.artist_cf,    &st.year_old,  0,
+                                   &st.resume };
 static void pod_settings(void) {
     if (st.pod_read) return;
     st.charge_limit = config_value("Q2POD", "CHARGELIMIT", 2);
@@ -5361,7 +5361,8 @@ static int bt_sync_volume(int left, int right) {
     if (cur > 127) return 0;
     int v = left > right ? left : right;
     v = v < 0 ? 0 : v > 100 ? 100 : v;
-    /* 128 headset steps onto 101: one that already reads as v stays, so the headset's own steps hold */
+    /* 128 headset steps onto 101: one that already reads as v stays, so the headset's own steps
+     * hold */
     if ((int)(cur * 100 + 63) / 127 != v) {
         unsigned want = (v * 127 + 50) / 100;
         if (btctl_transport_set_volume(want)) return 0;
@@ -5466,7 +5467,8 @@ static int wake_gate(void *e) {
     if (!g_backlight_status && key == KEY_RETURN) return 1;
     if (type == EVT_KEY_LONG || key != KEY_CENTER) return 0;
     if (!st.wake_double || g_backlight_status) { /* wake_pass is read by power_poll */
-        if (!g_backlight_status && type == EVT_KEY_DOWN) *(volatile unsigned char *)BOOT_KEY_GUARD = 0;
+        if (!g_backlight_status && type == EVT_KEY_DOWN)
+            *(volatile unsigned char *)BOOT_KEY_GUARD = 0;
         return st.wake_pass = 0;
     }
     if (type == EVT_KEY_UP) {
@@ -5787,7 +5789,8 @@ int ringnav(void *ctx, void *event) {
     if (spot_key(top, key)) return STOP; /* Spotify's page: Centre scrubs */
     if (xfade_key(top, key))
         return STOP; /* Crossfade's page: Centre toggles, the wheel sets the length */
-    if (eq_key(top, key)) return STOP; /* EQ's Simple tab, or its tabs: the wheel moves or adjusts, Centre acts */
+    if (eq_key(top, key))
+        return STOP; /* EQ's Simple tab, or its tabs: the wheel moves or adjusts, Centre acts */
     if (edit_key(top, key)) {
         drop_input();
         return STOP;

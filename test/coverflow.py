@@ -317,8 +317,15 @@ int toolsQueryDbTable(const char *db, const char *sql, void *row, int sort) {
     deque *d = shim_dir;
     d->n = 0;
     if (!strstr(sql, " order by ")) {
-        for (int i = 0; i < albums; ++i) d->at[d->n++] = records[i];
-        return albums;
+        int music = strstr(sql, "fileurl not like") != 0;
+        for (int i = 0; i < albums; ++i) {
+            const char *path = *(const char **)(records[i] + REC_PATH);
+            if (music && (!strncasecmp(path, "/mnt/mmc/audiobooks/", 19) ||
+                          (strlen(path) >= 4 && !strcasecmp(path + strlen(path) - 4, ".m4b")))) continue;
+            d->at[d->n++] = records[i];
+        }
+        if (music && unknown_songs) d->at[d->n++] = unknown_record;
+        return (int)d->n;
     }
     assert(strstr(sql, "time_create") || strstr(sql, "year"));
     rank_sql = sql;
@@ -820,7 +827,7 @@ static void unknown_card(void) {
     unknown_row = 1;
     rescan();
     open_page();
-    assert(slide()->nkids == albums + 2 && unknown_queries == 1);
+    assert(slide()->nkids == albums + 2 && unknown_queries == 0);
     close_page();
     unknown_songs = 1;
     rescan();
@@ -871,6 +878,51 @@ static void same_name(void) {
     albums -= 2;
     rescan();
 }
+/* Audiobook folders and M4B files never make covers, including artist and rated views. */
+static int five_hearts(void *r) { (void)r; return 5; }
+static void audiobooks(void) {
+    extern int coverflow_rated(int (*hearts)(void *));
+    int music = albums;
+    static const char *const books[] = {
+        "/mnt/mmc/Audiobooks/Novel/01.mp3", "/mnt/mmc/aUdIoBoOkS/02.flac",
+        "/mnt/mmc/Music/Novel.M4B"
+    };
+    for (unsigned i = 0; i < sizeof books / sizeof *books; ++i) {
+        album("Novel", 0);
+        snprintf(paths[albums - 1], 600, "%s", books[i]);
+    }
+    /* A music album and a book share album and album-artist tags. */
+    memmove(names[music], names[0], sizeof names[0]);
+    *(const char **)(records[0] + REC_ALBUM_ARTIST) = "Shared";
+    *(const char **)(records[music] + REC_ALBUM_ARTIST) = "Shared";
+    rescan();
+    open_page();
+    assert(slide()->nkids == music + 2);
+    close_page();
+    deque *artist = _create_deque(0);
+    artist->at[artist->n++] = records[music + 1];
+    assert(!coverflow_artist(artist) && artist->n == 1);
+    free(artist);
+    assert(coverflow_rated(five_hearts));
+    run();
+    assert(slide()->nkids == music + 1);
+    close_page();
+    *(const char **)(records[0] + REC_ALBUM_ARTIST) = 0;
+    albums = music;
+    /* An audiobook-only library renders the empty state. */
+    char saved[64][600];
+    for (int i = 0; i < albums; ++i) {
+        strcpy(saved[i], paths[i]);
+        snprintf(paths[i], 600, "/mnt/mmc/Audiobooks/%d.mp3", i);
+    }
+    rescan();
+    open_page();
+    assert(!slide());
+    close_page();
+    for (int i = 0; i < albums; ++i) strcpy(paths[i], saved[i]);
+    rescan();
+}
+
 static void embedded_first(void) {
     /* Embedded art comes before a folder's cover.jpg, and a folder shared with another album gives
        its albums no cover.jpg: with embedded art failing, they keep the placeholder. */
@@ -1052,6 +1104,7 @@ int main(void) {
     unknown_card();
     same_name();
     disc_folders();
+    audiobooks();
 #if IPOD
     /* iPod Home: the player's cover for its type, once the player has parsed the current track
        (g_lastcover_url is its path), else the track album's Coverflow thumbnail, else the
@@ -1193,6 +1246,27 @@ def main():
     ap.add_argument('--captures', type=pathlib.Path,
                     help='write the renderer\'s frames (rest, quarter, half, three-quarter turns, one album) as PNGs here')
     a = ap.parse_args()
+    import ast, re, sqlite3
+    source = (ROOT/'patch/coverflow.c').read_text().replace('\\\n', '')
+    def macro(name):
+        line = re.search(r'^#define ' + name + r' (.*)$', source, re.M)[1]
+        return ''.join(ast.literal_eval(x) for x in re.findall(r'"(?:[^"\\]|\\.)*"', line))
+    sql = macro('MUSIC_ALBUM_SQL') + macro('ALBUM_GROUP')
+    with sqlite3.connect(':memory:') as db:
+        db.execute('create table songtable(id,album,songer,fileurl,albumsonger)')
+        paths = ['/mnt/mmc/Audiobooks/Book/01.mp3', '/mnt/mmc/aUdIoBoOkS/02.flac',
+                 '/mnt/mmc/Music/book.M4B', '/mnt/mmc/Music/song.flac',
+                 '/mnt/mmc/Audiobooks Extra/song.mp3', '/mnt/mmc/Music/book.m4b.mp3']
+        db.executemany('insert into songtable values (?,"Shared","Artist",?,"Artist")', enumerate(paths))
+        rows = db.execute(sql).fetchall()
+        assert len(rows) == 1 and rows[0][3] in paths[3:]
+        db.execute('delete from songtable where id >= 3')
+        assert not db.execute(sql).fetchall()
+        db.execute("insert into songtable values (10,NULL,'Artist','/mnt/mmc/Music/untagged.mp3',NULL)")
+        assert db.execute(sql).fetchone()[:2] == (-1, 'Unknown Album')
+        db.execute("update songtable set fileurl='/mnt/mmc/Audiobooks/untagged.mp3' where id=10")
+        assert not db.execute(sql).fetchall()
+
     with tempfile.TemporaryDirectory(prefix='q2-coverflow-check-') as directory:
         tmp = pathlib.Path(directory)
         (tmp/'shim.h').write_text(SHIM_H)

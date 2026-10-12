@@ -325,8 +325,13 @@ enum { SORT_ALBUM, SORT_ARTIST, SORT_ADDED, SORT_PLAYED, SORT_RANDOM, SORT_RATIN
 static const unsigned char rated_sorts[] = { SORT_RATING, SORT_ALBUM, SORT_ARTIST, SORT_YEAR };
 /* The library's Sort: Year after Artist; saved values are the enum's. */
 static const unsigned char all_sorts[] = { SORT_ALBUM, SORT_ARTIST, SORT_YEAR, SORT_ADDED, SORT_PLAYED, SORT_RANDOM };
-#define ALBUM_SQL "select id,album,songer,fileurl,albumsonger from songtable group by album COLLATE NOCASE," \
+#define ALBUM_GROUP " group by album COLLATE NOCASE," \
     "ifnull(albumsonger,'') COLLATE NOCASE,case ifnull(albumsonger,'') when '' then rtrim(fileurl,replace(fileurl,'/','')) end"
+#define ALBUM_SQL "select id,album,songer,fileurl,albumsonger from songtable" ALBUM_GROUP
+#define MUSIC_ALBUM_SQL "select case when ifnull(album,'')='' then -1 else id end," \
+    "case when ifnull(album,'')='' then 'Unknown Album' else album end," \
+    "songer,fileurl,albumsonger from songtable where " \
+    "fileurl not like '/mnt/mmc/audiobooks/%' and fileurl not like '%.m4b'" ALBUM_GROUP
 #define SORT_SQL ALBUM_SQL " order by "
 extern int ringnav_year_old(void);
 /* Albums by year, Playback settings' Year order (navigation.c): newest or oldest first, undated last. */
@@ -730,6 +735,25 @@ static int split_row(void *a, int n, char **v, char **c) {
     return 0;
 }
 static int rank_query(void *sql) { return toolsQueryDbTable("/mnt/data/database.db", sql, split_row, 0); }
+
+/* Keep only albums with music, using a music track for their art even when tags are shared
+ * with an audiobook. The library's own lists and the card's files stay untouched. */
+static void *music_albums(void *list) {
+    int n;
+    void *rows = staged(rank_query, MUSIC_ALBUM_SQL, &n), *out = _create_deque("stSongInfo");
+    deque_init(out);
+    for (unsigned i = 0; i < deque_size(list); ++i) {
+        void *r = deque_at(list, i);
+        for (unsigned j = 0; j < deque_size(rows); ++j) {
+            void *a = deque_at(rows, j);
+            if (I(r, REC_ID) == -1 ? I(a, REC_ID) != -1 : I(a, REC_ID) == -1 || album_cmp(r, a) != 0) continue;
+            _deque_push_back(out, I(r, REC_ID) == -1 ? r : a);
+            break;
+        }
+    }
+    deque_destroy(rows);
+    return out;
+}
 
 /* getAllAlbum groups by name alone, as stock's Albums list does: each of its rows becomes that
  * name's ALBUM_SQL rows, one per album_cmp album (the SQL keeps disc folders apart), in its place;
@@ -1412,9 +1436,14 @@ static void load(void) {
         n = (int)deque_size(cf.stock);
     else if (!*(volatile int *)SCAN_THREAD || *(volatile int *)SCAN_DONE) {
         cf.stock = staged(albums, 0, &n);
-        if (n > 0) cf.stock = split(cf.stock);
+        if (n > 0) {
+            void *all = split(cf.stock);
+            cf.stock = music_albums(all);
+            deque_destroy(all);
+        }
         cf.albums_gen = gen;
         drop_unknown();
+        n = (int)deque_size(cf.stock);
     }
     if (cf.albums && !cf.scoped && (cf.sort == SORT_YEAR || cf.sort == SORT_ARTIST) &&
         cf.year_old != ringnav_year_old()) { /* Year order changed */
@@ -1659,9 +1688,14 @@ static int coverflow_open(void *ctx, void *event) {
 /* Display settings' Artist albums: Coverflow (navigation.c): albums, coverflow_split's, as the
  * covers, which the page owns; 0 when Coverflow is open already, and albums is the caller's. */
 int coverflow_artist(void *albums) {
-    if (cf.page || !deque_size(albums) ||
-        !(cf.page = page_open("coverflow_page", closed, keyup)))
+    if (cf.page || !deque_size(albums)) return 0;
+    void *music = music_albums(albums);
+    if (!deque_size(music) || !(cf.page = page_open("coverflow_page", closed, keyup))) {
+        deque_destroy(music);
         return 0;
+    }
+    deque_destroy(albums);
+    albums = music;
     cf.all_albums = cf.albums;
     cf.albums = albums;
     cf.scoped = ARTIST_ALBUMS;
@@ -1676,6 +1710,9 @@ int coverflow_rated(int (*hearts)(void *)) {
     if (cf.page) return 0;
     void *all = staged(albums, 0, &n), *rated = _create_deque("stSongInfo");
     if (n > 0) all = split(all);
+    void *music = music_albums(all);
+    deque_destroy(all);
+    all = music;
     deque_init(rated);
     for (unsigned i = 0; i < deque_size(all); ++i)
         if (hearts(deque_at(all, i))) _deque_push_back(rated, deque_at(all, i));

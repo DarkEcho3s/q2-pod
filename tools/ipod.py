@@ -387,10 +387,10 @@ def playing_page(root):
 
     art_y = (NP_SLIDE_H - NP_ART) // 2
     text_w = 375 - NP_MARGIN - NP_TEXT_X
-    # Favourite centres beneath More; shuffle/order stays one touch target to its left.
+    # Favourite centres beneath More; leave 16px between its target and shuffle/order.
     icons_y = NP_SLIDE_H - NP_ICON
     fav_x = named['img_more'][1][0]
-    for name, x in (('img_playmode', fav_x - NP_ICON), ('img_fav', fav_x)):
+    for name, x in (('img_playmode', fav_x - NP_ICON - 16), ('img_fav', fav_x)):
         buttons[3].remove(named[name])
         named[name][1] = [x, icons_y, NP_ICON, NP_ICON]
     top = art_y + (icons_y - art_y - (28 + 4 + 20 + 4 + 20)) // 2
