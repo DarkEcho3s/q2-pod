@@ -148,6 +148,9 @@
 #define BATT_NUB_H 5
 #define BATT_PX 16
 #define BATT_GAP 2
+/* Icon + Percent: BATT_PX digits' ink (rows 8-20 of the 30 px bar, line box centred) sits a row
+ * above the centred BATT_BODY_H icon (rows 10-20), so the icon rises BATT_PCT_DY to share its centre. */
+#define BATT_PCT_DY 1
 #define BATT_CHARGE_RGB 0x34c759
 #define BATT_LOW_RGB 0xff1448
 #define BATT_ROOM 94
@@ -205,8 +208,10 @@
 #define TILE_INSET 2 /* album cards stay inside their tile on all four sides */
 #define TILE_CLEARANCE 4 /* artwork and labels sit this far inside the card */
 #define EDIT_OK_PX 18 /* the date, time and sleep timer pages' OK label, on that card */
-/* Minimal's Now Playing album is NP_CAPS_PX capitals. */
+/* Minimal's Now Playing album is NP_CAPS_PX capitals, NP_CAPS_INSET in from its label's edge as
+ * stock hscroll_label insets the title and artist (margin_left, default 2, 0x5e8378). */
 #define NP_CAPS_PX 13
+#define NP_CAPS_INSET 2
 #define PAGE_SLIDE_MS 120
 #define NP_ARTIST_RGB 0xcccccc
 /* iPod settings rows (docs/ipod.md#settings): the list starts SET_TOP below the status bar and

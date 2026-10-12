@@ -1550,10 +1550,11 @@ static void paint_caps(void *w, void *canvas) {
                          I(canvas, CANVAS_Y) + I(a, W_Y), I(a, W_W), I(a, W_H)))
             return;
         canvas_set_clip_rect(canvas, clip);
-        st.np_over = draw_spaced(canvas, widget_get_text(a), I(a, W_X) - st.np_off,
+        int room = I(a, W_W) - NP_CAPS_INSET;
+        st.np_over = draw_spaced(canvas, widget_get_text(a), I(a, W_X) + NP_CAPS_INSET - st.np_off,
                                  I(a, W_Y) + (I(a, W_H) - NP_CAPS_PX) / 2, NP_CAPS_PX,
-                                 RGBA(SUDO_MUTED), I(a, W_W) + st.np_off) -
-                     SUDO_TRACK - I(a, W_W);
+                                 RGBA(SUDO_MUTED), room + st.np_off) -
+                     SUDO_TRACK - room;
         canvas_set_clip_rect(canvas, old);
         if (st.np_over > 0 && !st.np_marquee)
             st.np_marquee = timer_add(np_marquee, (void *)0, MARQUEE_HOLD_MS);
@@ -2021,7 +2022,8 @@ static void paint_battery(void *w, void *canvas) {
     if (!inside) s[n++] = '%';
     unsigned color = RGBA(key & 2 ? BATT_CHARGE_RGB : key & 1 ? BATT_LOW_RGB : 0xffffff);
     const int bw = inside ? BATT_INSIDE_W : BATT_BODY_W, bh = inside ? BATT_INSIDE_H : BATT_BODY_H,
-              nh = inside ? BATT_INSIDE_NUB_H : BATT_NUB_H, y = (I(w, W_H) + 1 - bh) / 2;
+              nh = inside ? BATT_INSIDE_NUB_H : BATT_NUB_H,
+              y = (I(w, W_H) + 1 - bh) / 2 - BATT_PCT_DY * (st.batt_mode == 2);
     canvas_set_fill_color(canvas, color);
     if (inside) {
         rect_t body = { 0, y, bw, bh };

@@ -803,7 +803,7 @@ else:
         b.nodes[w['label_battery']]['text']='50%'
         paint(); assert shown(b,w)==['view_battery']; before=lcd()
         def slot(): b.bands=[]; b.letters=[]; paint(w['view_battery']); assert lcd()==before; return b.bands,b.letters
-        bw,bh,y=O['BATT_BODY_W'],O['BATT_BODY_H'],(30+1-O['BATT_BODY_H'])//2
+        bw,bh,y=O['BATT_BODY_W'],O['BATT_BODY_H'],(30+1-O['BATT_BODY_H'])//2-O['BATT_PCT_DY']
         for image,value,rgb,text in (('bar_battery',0,0xffffff,'0'),('bar_battery',1,0xffffff,'1'),('bar_battery',50,0xffffff,'50'),('bar_battery',100,0xffffff,'100'),('bar_battery',88,0xffffff,'88'),('bar_charge',63,O['BATT_CHARGE_RGB'],'63'),('bar_charge',100,O['BATT_CHARGE_RGB'],'100'),
                                      ('bar_lowcharge',5,O['BATT_LOW_RGB'],'5')):
             # the level is label_battery's text: stock zeroes progress_battery while charging
@@ -4151,19 +4151,20 @@ if variant=='ipod':
         letters=border(page)+border(win)
         if not minimal: assert not letters; passed(); return
         assert ''.join(l['text'] for l in letters)=='KID A' and len({l['y'] for l in letters})==1
-        assert letters[0]['x']==194
+        assert letters[0]['x']==194+O['NP_CAPS_INSET']
         assert {l['color'] for l in letters}=={color_t(O['SUDO_MUTED'])} and m.font==('default',O['NP_CAPS_PX']); passed()
-        # Wider than its label (5 letters, 58 px, in 40), the album holds, scrolls 2 px a step to its
+        # Wider than its label (5 letters, 58 px, in 40 past the inset), the album holds, scrolls 2 px a step to its
         # end, holds there, then starts over; the canvas gets its clip back.
         m.timers.clear() # stock's own, not emulated
-        m.word(album+O['W_W'],40); border(page); assert len(m.timers)==1
+        m.word(album+O['W_W'],40+O['NP_CAPS_INSET']); border(page); assert len(m.timers)==1
         def x(): return border(page)[0]['x']
-        m.advance(1499); assert x()==194
-        m.advance(1); assert ('widget_invalidate_force',album) in [c[:2] for c in m.calls] and x()==192
-        m.advance(50*8); assert x()==194-18
-        m.advance(1499); assert x()==194-18
-        clip=m.clip; m.advance(1); assert x()==194 and m.clip==clip
-        m.word(album+O['W_W'],165); x(); m.advance(1500); assert not m.timers and x()==194; passed()
+        x0=194+O['NP_CAPS_INSET']
+        m.advance(1499); assert x()==x0
+        m.advance(1); assert ('widget_invalidate_force',album) in [c[:2] for c in m.calls] and x()==x0-2
+        m.advance(50*8); assert x()==x0-18
+        m.advance(1499); assert x()==x0-18
+        clip=m.clip; m.advance(1); assert x()==x0 and m.clip==clip
+        m.word(album+O['W_W'],165); x(); m.advance(1500); assert not m.timers and x()==x0; passed()
     for theme in ('0','1'): minimal_np(theme)
 
     # The full-screen art: stock init runs first; the song name and its shade show BC_MS, then fade
