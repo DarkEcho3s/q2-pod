@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  <b>Turn your Shanling Q2 into an iPod classic.</b><br>
-  Wheel navigation, Coverflow, parametric EQ, Spotify Connect and more, built on the stock firmware.
+  iPod classic experience for the Shanling Q2.<br>
+  Wheel navigation, Coverflow, PEQ and optionally; Spotify Connect &amp; Rockbox, all built on top of the stock firmware.
 </p>
 
 <p align="center">
@@ -21,27 +21,25 @@
   <b><a href="https://github.com/DiamondBond/q2-pod/releases/latest">Download</a></b> ·
   <b><a href="#install">Install</a></b> ·
   <b><a href="docs/guide.md">User guide</a></b> ·
-  <b><a href="docs/changelog.md">Changelog</a></b> ·
-  <b><a href="https://discord.gg/pgsQpXhSQ">Discord</a></b>
+  <b><a href="docs/changelog.md">Changelog</a></b>
 </p>
 
 ## Features
 
 - **iPod UI:** Home, menus, Now Playing, Coverflow and four visualizers. Choose your accent colour, Home layout and battery display.
-- **Wheel navigation:** scrolling follows your finger, and menus remember where you were.
+- **Wheel navigation:** scrolling is now smooth and menus remember your place.
 - **Parametric EQ:** up to 30 bands with a live curve. Import AutoEQ and Equalizer APO presets.
-- **Streaming:** Spotify Connect (Premium), AirPlay from your iPhone, and Internet Radio with the [radio-browser.info](https://www.radio-browser.info) directory.
+- **Streaming:** Spotify Connect (Premium), AirPlay from your iPhone, and Internet Radio.
 - **Scrobbling:** send your listens to Last.fm or ListenBrainz over Wi-Fi.
 - **Ratings:** rate songs and albums 0–5 hearts, then browse Top Rated, Loved and rated albums.
 - **Browsing and playback:** favourites, playlists, Most Played, Long Songs, Crossfade, and shuffle by song, album or folder.
 - **Podcasts and audiobooks:** `.m4b` audiobooks and podcasts resume where you stopped, with per-folder playback speed.
-- **AirPods:** stem controls, ear detection, two-way volume sync and smoother AAC audio.
-- **Battery care:** an optional 80% charge limit, Low power mode and a sleep timer.
-- **Fixes:** the clock no longer resets after power-off.
+- **AirPods:** stem controls, ear detection and two-way volume sync.
+- **Battery:** an optional 80% charge limit and Low power mode.
 
 ## Install
 
-**Requirements:** Shanling Q2 with microSD card and USB-C cable.
+**Requirements:** Q2 with microSD card and USB-C cable.
 
 > [!IMPORTANT]
 > Charge the Q2 before you start. Only insert or remove the microSD card while the Q2 is **fully shut down** (not asleep), or the card can be corrupted.
