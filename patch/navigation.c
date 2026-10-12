@@ -5398,14 +5398,22 @@ int ringnav_sleep(void *loop) {
     return stock_sleep_trampoline(loop);
 }
 
-/* Wake: Double press. With the screen off, a lone centre press (the power key, which wakes it)
+/* With the screen off Return never reaches the UI, so a bump of Back leaves the page alone.
+ * Wake: Double press. With the screen off, a lone centre press (the power key, which wakes it)
  * never reaches the UI, so a pocket bump stays dark; one within WAKE_MS after it passes, press and
- * release, so holding that second press still powers off. Other keys pass: the wheel's volume and
- * the media buttons work dark. Returns 1 to drop the event. */
+ * release, so holding that second press still powers off. With Single press it passes at once.
+ * Either way a passing press clears Standby's resume guard, so its release is not dropped. Other
+ * keys pass: the wheel's volume and the media buttons work dark. Returns 1 to drop the event. */
 static int wake_gate(void *e) {
     unsigned type = (unsigned)I(e, EVENT_TYPE), now = (unsigned)time_now_ms();
-    if ((type != EVT_KEY_DOWN && type != EVT_KEY_UP) || I(e, EVENT_KEY) != KEY_CENTER) return 0;
-    if (!st.wake_double || g_backlight_status) return st.wake_pass = 0; /* read by power_poll */
+    if (type != EVT_KEY_DOWN && type != EVT_KEY_LONG && type != EVT_KEY_UP) return 0;
+    unsigned key = (unsigned)I(e, EVENT_KEY);
+    if (!g_backlight_status && key == KEY_RETURN) return 1;
+    if (type == EVT_KEY_LONG || key != KEY_CENTER) return 0;
+    if (!st.wake_double || g_backlight_status) { /* wake_pass is read by power_poll */
+        if (!g_backlight_status && type == EVT_KEY_DOWN) *(volatile unsigned char *)BOOT_KEY_GUARD = 0;
+        return st.wake_pass = 0;
+    }
     if (type == EVT_KEY_UP) {
         int pass = st.wake_pass;
         st.wake_pass = 0;
@@ -5418,8 +5426,8 @@ static int wake_gate(void *e) {
 }
 
 /* device_standby's awake_screen once Standby resumes, on whichever key woke it (tools/build.py
- * STANDBY_WAKE). Wake: Double press keeps the screen off, so that key acts as it does dark. */
-int ringnav_standby_wake(void) { return st.wake_double ? 1 : awake_screen(); }
+ * STANDBY_WAKE). The screen stays off, so that key acts as it does dark: Play plays, centre wakes. */
+int ringnav_standby_wake(void) { return 1; }
 
 /* window_manager_dispatch_input_event: while q2video plays (books.c) no key or touch reaches the
  * UI; a key's release goes to the player instead. Every event times Low power's idle. */

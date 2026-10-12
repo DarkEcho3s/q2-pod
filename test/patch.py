@@ -7190,21 +7190,25 @@ def wake(kind,key=O['KEY_CENTER'],gap=0):
 DOWN,UP=O['EVT_KEY_DOWN'],O['EVT_KEY_UP']
 m.byte(syms['g_backlight_status'],0)
 assert wake(DOWN,gap=1000) and wake(UP)  # setting off: as stock
-assert click(2)==[(1,'Q2POD','WAKEDOUBLE')] and texts()[2]=='Wake: Double press'
+RET,LONG=O['KEY_RETURN'],O['EVT_KEY_LONG']
+def back_dark(): return not any(wake(t,RET,gap=1000) for t in (DOWN,LONG,UP))  # Back does nothing dark (#28)
+assert back_dark()
+m.byte(O['BOOT_KEY_GUARD'],1); assert wake(DOWN,gap=1000) and m.u.mem_read(O['BOOT_KEY_GUARD'],1)==b'\0' and wake(UP)  # Single press wakes after Standby
+assert click(2)==[(1,'Q2POD','WAKEDOUBLE')] and texts()[2]=='Wake: Double press' and back_dark()
 assert not wake(DOWN,gap=1000) and not wake(UP,gap=50)  # a pocket bump
 assert wake(DOWN,gap=100) and wake(UP,gap=50)  # the double press
 assert not wake(DOWN,gap=O['WAKE_MS']) and not wake(UP) and not wake(DOWN,gap=O['WAKE_MS']) and not wake(UP)  # too slow
 assert wake(DOWN,O['KEY_PLAY'],gap=1000) and wake(UP,O['KEY_PLAY']) and wake(UP,O['KEY_NEXT'])  # media and wheel work dark
-m.byte(syms['g_backlight_status'],1); assert wake(DOWN,gap=1000) and wake(UP); passed()
-# Standby's resume (STANDBY_WAKE, device_standby's awake_screen) stays dark with the setting on, so the
-# resuming key acts as dark; a wake press clears stock's resume guard, which would drop its release.
+m.byte(syms['g_backlight_status'],1); assert wake(DOWN,gap=1000) and wake(UP) and all(wake(t,RET,gap=1000) for t in (DOWN,LONG,UP)); passed()
+# Standby's resume (STANDBY_WAKE, device_standby's awake_screen) stays dark in both modes, so the
+# resuming key acts as dark (#27); a wake press clears stock's resume guard, which would drop its release.
 from build import STANDBY_WAKE
 assert struct.unpack_from('<I',demo,fileoff(demo,STANDBY_WAKE[0]))[0]==0x0c000000|payload_syms['ringnav_standby_wake']>>2
 def resume(): m.call(address=payload_syms['ringnav_standby_wake'],args=(0,0,0,0),gap=0); return [c[0] for c in m.calls if c[0]=='awake_screen']
 m.byte(syms['g_backlight_status'],0); assert resume()==[]
 m.byte(O['BOOT_KEY_GUARD'],1); assert not wake(DOWN,gap=1000) and m.u.mem_read(O['BOOT_KEY_GUARD'],1)==b'\1'
 assert wake(DOWN,gap=100) and m.u.mem_read(O['BOOT_KEY_GUARD'],1)==b'\0' and wake(UP,gap=50)
-assert click(2)==[(0,'Q2POD','WAKEDOUBLE')] and resume()==['awake_screen']; passed()
+assert click(2)==[(0,'Q2POD','WAKEDOUBLE')] and resume()==[]; passed()
 m,rows,texts,*_=settings_page('power','scroll_view_powermanager',{'CHARGELIMIT':'1','LOWPOWER':'1','WAKEDOUBLE':'1'})
 assert texts()==[f"Charge limit: {O['CHARGE_STOP']}%",'Low power: On','Wake: Double press']; passed()
 m,rows,texts,icons,click=settings_page('audioset','scroll_view_playset',stock_rows=15)

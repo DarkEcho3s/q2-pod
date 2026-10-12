@@ -170,7 +170,7 @@ SHUFFLE_CALL = (0x5addf0, 0x0411e8cb)  # bal mcl_shuffle_pick; its delay slot (a
 # Hold Return: only on_wm_keylong_fun's final Home call (bal) changes; all stock gates and its release
 # guard precede it. It becomes jal compact_now_playing (docs/ipod.md#hold-return).
 HOLD_RETURN = (0x4e8924, 0x04110fdf)
-# device_standby's bal awake_screen after the resume from Standby; Wake: Double press keeps it dark.
+# device_standby's bal awake_screen after the resume from Standby; skipped, so the screen stays dark.
 STANDBY_WAKE = (0x4f7d24, 0x0411ff26)
 # The bal toolsTrimLeft on each name copy in the two library name comparators (0x5b9d40, 0x5ba658, the
 # Chinese and other-language sorts); they become jal ringnav_sort_key, which also drops a leading article.
@@ -519,7 +519,6 @@ FUNCTIONS = {
  'save_memoryplay_info': ('int', 'void'),  # Memory playback's queue and position, as into_poweroff saves them
  'mclSetDacPwr': ('int', 'int'),
  'reset_poweroptions_timer': ('int', 'int, int, int'),
- 'awake_screen': ('int', 'void'),  # the backlight on, if off; Standby's resume calls it (STANDBY_WAKE)
  'btctl_transport_get_volume': ('int', 'void'),
  'btctl_transport_set_volume': ('int', 'int'),
  'device_set_volume': ('int', 'int, int'),  # volume, notify: the DAC's or hciplayer's, as the volume dialog
