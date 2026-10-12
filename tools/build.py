@@ -24,6 +24,7 @@ BASE = 0xb00000
 SCRATCH = 0xb40000
 RING_STEP = 48
 HOOKS = {
+    'on_wm_keydown_before_fun': (0x4e8424, 'ringnav_keydown'),
     'on_wm_keyup_before_fun': (0x4e85c8, 'ringnav'),
     'on_wm_tsdown_before_fun': (0x4e8bd0, 'ringnav_touch'),
     'widget_on_paint_border': (0x6596a0, 'ringnav_paint'),
@@ -85,8 +86,7 @@ IPOD_HOOKS = {'playlist_rebuild': (0x4b2dac, 'ringnav_playlist'),
               'widget_on_paint_background': (0x65c77c, 'ringnav_paint_bg'),
               'bigcover_page_init': (0x5200ec, 'ringnav_bigcover'),
               'style_get_color': (0x649f6c, 'ringnav_style_color'),
-              'image_manager_add': (0x6445d4, 'ringnav_image_add'),
-              'on_wm_keydown_before_fun': (0x4e8424, 'ringnav_keydown')}
+              'image_manager_add': (0x6445d4, 'ringnav_image_add')}
 # The payload's stock_<name>_trampoline resumes each hook past its 3-word PIC prologue, in this order.
 TRAMPOLINES = {'pause': 'player_play_pause', 'btvol': 'mclSetBtVol', 'savequeue': 'save_memoryplay_info', 'load': 'mclLoadPlayList', 'next': 'mclNextSong', 'prev': 'mclPrevSong',
                'mode': 'mclSetPlayMode', 'preload': 'mcl_preload', 'memory': 'memeory_startplayer', 'playlist': 'playlist_rebuild', 'keyup': 'on_wm_keyup_before_fun', 'touch': 'on_wm_tsdown_before_fun', 'paint': 'widget_on_paint_border',

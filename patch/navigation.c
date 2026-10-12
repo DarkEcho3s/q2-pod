@@ -5508,7 +5508,6 @@ int ringnav_buzzer(int on) {
     return stock_buzzer_trampoline(on);
 }
 
-#if IPOD
 /* on_wm_keydown_before_fun. Stock clicks (buzzeer_switch, which reads g_keytone_flag) on the press,
  * before the release moves anything. A wheel press on a page whose release ringnav() takes as row
  * navigation runs the whole stock body with the flag off for that one synchronous call, so its
@@ -5517,8 +5516,10 @@ int ringnav_buzzer(int on) {
  * scrub, the volume and every other key keep the stock click. */
 int ringnav_keydown(void *ctx, void *event) {
     unsigned key = event ? (unsigned)I(event, EVENT_KEY) : 0;
+    void *top = window_manager_get_top_window(window_manager());
+#if IPOD
     unsigned char tone = g_keytone_flag;
-    void *top = window_manager_get_top_window(window_manager()), *row = (void *)0;
+    void *row = (void *)0;
     entries_t s = { &row, 0, 1, 4096 };
     st.tone_key = 0;
     if ((key == KEY_PREV || key == KEY_NEXT) && usable() && allowed_top(top)) {
@@ -5528,11 +5529,17 @@ int ringnav_keydown(void *ctx, void *event) {
         if (s.n) st.tone_key = key;
     }
     if (st.tone_key) g_keytone_flag = 0;
+#endif
     int result = stock_keydown_trampoline(ctx, event);
+#if IPOD
     if (st.tone_key) g_keytone_flag = tone;
+#endif
+    /* Coverflow moves on release; stop the press before it navigates the focused list below. */
+    if (!result && (key == KEY_PREV || key == KEY_NEXT) && top &&
+        !tk_strcmp(widget_get_prop_str(top, "name", ""), "coverflow_page"))
+        return STOP;
     return result;
 }
-#endif
 
 /* Stock's setting editors, which have no list. Brightness, maximum and startup volume and balance
  * step with the wheel through their own +/- (limits and saving stay stock's), and Centre goes back.

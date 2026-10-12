@@ -4417,6 +4417,19 @@ for name,want in (('١ Song',ord('#')),('० Song',ord('#')),('—Song',ord('#')
     assert cf_jump(m,0,1)==(1,want); passed()
 m=CoverflowMachine(albums=2); m.word(m.albums[1]+O['REC_ALBUM'],m.string('Unknown Album'))
 m.word(m.albums[1]+O['REC_ID'],0xffffffff); m.open(); assert cf_jump(m,0,1)==(1,ord('#')); passed()
+# Coverflow owns both halves of a wheel tick: the stock press filter runs, then stops before
+# native focus navigation can move the Artists list underneath; release still moves the covers.
+m=CoverflowMachine(albums=3)
+for page,want in (('localclass_page',0),('coverflow_page',11)):
+    if page=='coverflow_page': m.open()
+    else: m.top=m.node('window',page)
+    for key in (O['KEY_PREV'],O['KEY_NEXT'],O['KEY_CENTER']):
+        ret=m.call(key,address=HOOKS['on_wm_keydown_before_fun'][0],
+                   event_type=O['EVT_KEY_DOWN_BEFORE'],gap=0)
+        assert ret==(want if key!=O['KEY_CENTER'] else 0)
+        assert any(c[0]=='reset_poweroptions_timer' for c in m.calls)
+assert m.call()==11; m.advance(300); assert m.get(m.slide+O['SLIDE_INDEX'])==1; passed()
+
 # Slow steps stay precise. Continuous 50ms ticks cross the 300ms threshold and jump groups.
 m=CoverflowMachine(albums=10)
 for r,name in zip(m.albums,['A1','A2','A3','D1','D2','D3','G1','G2','Z1','Z2']): m.word(r+O['REC_ALBUM'],m.string(name))
@@ -5645,7 +5658,7 @@ if variant=='ipod':
 
 # Wheel precision (docs/internals.md, Wheel movement): every tick moves, the list ends, and Key Tone
 # moved from the press to the row change.
-KEYDOWN=IPOD_HOOKS['on_wm_keydown_before_fun'][0]
+KEYDOWN=HOOKS['on_wm_keydown_before_fun'][0]
 NEXT,PREV,CENTER,RETURN=O['KEY_NEXT'],O['KEY_PREV'],O['KEY_CENTER'],O['KEY_RETURN']
 TONE=syms['g_keytone_flag']; SOUND_LATCH=0xa37c90; KEY_LATCH=0xa37c89  # stock: one click a press; wheel lockout
 def audible(m,tone=1):
@@ -5879,10 +5892,8 @@ if variant=='ipod':
     m.advance(10000); assert not buzzes(m) and m.u.mem_read(TONE,1)==b'\x01'; passed()
     CONFIG.clear()
 else:
-    # The Stock build has no key-down hook: the stock entry is untouched, every press clicks as the
-    # stock binary does whether or not the row moves, the release adds nothing, every tick steps a
-    # row and no setting is read.
-    off=fileoff(demo,KEYDOWN); assert demo[off:off+12]==(B/'stock-demo').read_bytes()[off:off+12]
+    # Outside Coverflow, Stock's key-down hook keeps every press clicking as the stock binary
+    # does whether or not the row moves; release adds nothing, every tick steps a row, no setting is read.
     m=audible(Machine()); w,es=m.page_list(3); m.paint(w)
     s=audible(Machine(patched=False)); got=[]
     for _ in range(4):
