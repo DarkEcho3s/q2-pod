@@ -828,6 +828,8 @@ def eq3_editor_check(lib, ui, tmp):
     good = active.read_bytes(); (active.parent/'peq-active.tmp').mkdir()
     keys(NEXT, CENTRE, NEXT, CENTRE)
     assert title() == 'Save failed; EQ unchanged' and active.read_bytes() == good
+    ui.shim_tab_touch(300)
+    assert title() == 'Save failed; EQ unchanged' and active.read_bytes() == good
     (active.parent/'peq-active.tmp').rmdir()
     keys(CENTRE, CENTRE); assert gains() == [0.5, 0, 0] and title() == ''
     # Return leaves; leaving with Off held lets the preamp go.

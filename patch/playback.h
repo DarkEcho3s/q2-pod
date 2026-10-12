@@ -12,6 +12,6 @@ void xfade_poll(int next); /* crossfade.c */
 int playback_resumed(void *r);
 void playback_save(void);
 void playback_clear(void);
-int wheel_pct(void); /* Wheel sensitivity, 0-100 */
+int wheel_pct(void); /* Wheel sensitivity, 50-200% */
 void wheel_set_pct(int n);
 #endif

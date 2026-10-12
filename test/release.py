@@ -8,6 +8,14 @@ from unittest.mock import patch
 import sys; sys.path.insert(0, sys.path[0] + '/../tools')  # tools/ first
 import release
 
+# Changing either guide input must invalidate an already packaged release.
+source = release.source_sha256()
+read_bytes = pathlib.Path.read_bytes
+for name in ('build.py', 'guide.html'):
+    target = release.ROOT/'docs/manual'/name
+    with patch.object(pathlib.Path, 'read_bytes', lambda p: read_bytes(p) + (b'\n' if p == target else b'')):
+        assert release.source_sha256() != source, name
+
 with tempfile.TemporaryDirectory() as tmp:
     out = pathlib.Path(tmp)/'package'
     # This version's changelog entry, in the format since V7.7; older entries are history.

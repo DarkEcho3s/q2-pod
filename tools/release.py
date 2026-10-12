@@ -61,6 +61,8 @@ def validate(directory, variant):
     subprocess.run([sys.executable, str(ROOT/'test/build.py'), '--build', str(directory)], check=True)
     subprocess.run([sys.executable, str(ROOT/'test/patch.py'), str(directory)], check=True)
     subprocess.run([sys.executable, str(ROOT/'test/playback.py'), str(directory)], check=True)
+    subprocess.run([sys.executable, str(ROOT/'test/m4b.py'), str(directory)], check=True)
+    subprocess.run([sys.executable, str(ROOT/'test/ldac.py'), str(directory)], check=True)
 
 
 def archive_bytes(directory):

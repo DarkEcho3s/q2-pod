@@ -657,7 +657,10 @@ static void load(eq_state *s) {
  * what plays. */
 static void tab_to(int tab) {
     if (tab == ui.tab) return;
-    if (ui.tab == SIMPLE) e3_done();
+    if (ui.tab == SIMPLE) {
+        e3_done();
+        if (e3.dirty) { e3_show(); return; } /* keep unsaved gains if saving failed */
+    }
     eq_state s;
     load(&s);
     ui.tab = tab;

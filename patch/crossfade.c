@@ -123,8 +123,11 @@ static int gone(void *ctx, void *event) {
     return 0;
 }
 
-/* The row's click: stock's Boot volume page, its handlers swapped for these. */
-static int open_page(int wheel) {
+/* The row's click: stock's Boot volume page, its handlers swapped for these; ctx 1 for Wheel
+ * sensitivity's row. */
+int xfade_open(void *ctx, void *event) {
+    (void)event;
+    int wheel = ctx != 0;
     settings();
     if (xf.page) return 0;
     void *wm = window_manager(), *below = window_manager_get_top_window(wm);
@@ -164,14 +167,6 @@ static int open_page(int wheel) {
     xf.page = page;
     refresh(0);
     return 0;
-}
-int xfade_open(void *ctx, void *event) {
-    (void)ctx, (void)event;
-    return open_page(0);
-}
-int wheel_open(void *ctx, void *event) {
-    (void)ctx, (void)event;
-    return open_page(1);
 }
 
 /* A single centre press, DOUBLE_CLICK_MS on: the switch. */

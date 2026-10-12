@@ -33,3 +33,76 @@ for ext in ('M4A','M4B','m4b','M4b','m4B','MP4'):
     u.emu_start(0x10a7ac,0x10a3f4,count=200)
     assert seen==[mp4],ext
 print('Installed TagLib: M4B and M4A reach the same MP4 metadata constructor.')
+
+# Cover extraction has a separate vendor dispatcher; metadata support alone is insufficient.
+from build import segments
+from m4b import TAG_C, patch_m4b_cover
+raw = subprocess.check_output(['unsquashfs', '-cat', str(pathlib.Path(sys.argv[1])/'stock.squashfs'), TAG_C])
+patched = patch_m4b_cover(raw)
+try:
+    patch_m4b_cover(raw[:-1])
+    raise AssertionError('Accepted an unrecognized TagLib library')
+except ValueError:
+    pass
+_, segment = segments(patched)[-1]
+assert segment[0] == 1 and segment[2] == 0x30000 and segment[4:7] == (48, 48, 5)
+# The dispatch table's GOT slots are pinned by the library hash in patch_m4b_cover.
+gp = 0x327e0
+slots = dict(mp3=-0x7d1c, m4a=-0x7cb8, wma=-0x7e24, wav=-0x7f38,
+             ape=-0x7c9c, aiff=-0x7e7c, flac=-0x7d84, ogg=-0x7c88, dsf=-0x7f14)
+helpers = {struct.unpack_from('<I', raw, fileoff(raw, gp+slot))[0]: name for name, slot in slots.items()}
+
+def cover_dispatch(data, ext, load, readable=True):
+    u = Uc(UC_ARCH_MIPS, UC_MODE_MIPS32 | UC_MODE_LITTLE_ENDIAN)
+    for _, (kind, off, addr, _, size, mem, _, _) in segments(data):
+        if kind != 1: continue
+        start = (load + addr) & ~4095
+        u.mem_map(start, ((load + addr + mem + 4095) & ~4095) - start)
+        u.mem_write(load + addr, data[off:off+size])
+    # Model the loader's rebasing of the GOT entries used by the dispatcher.
+    for slot in (-0x7c64, -0x7da8, -0x7e90, -0x7fd8, *slots.values()):
+        val = struct.unpack_from('<I', raw, fileoff(raw, gp+slot))[0]
+        u.mem_write(load+gp+slot, struct.pack('<I', load+val))
+    u.mem_map(0x2000000, 0x10000)
+    path, dst, stop = 0x2000100, 0x2000300, 0x2000800
+    u.mem_write(path, ('/books/book.'+ext+'\0').encode())
+    def string(p):
+        b = bytearray()
+        while u.mem_read(p+len(b), 1)[0]: b += u.mem_read(p+len(b), 1)
+        return bytes(b)
+    imports = {struct.unpack_from('<I', raw, fileoff(raw, gp+s))[0]: name
+               for s, name in ((-0x7c64, 'access'), (-0x7da8, 'strrchr'), (-0x7e90, 'strcasecmp'))}
+    seen = []
+    def hook(u, addr, size, _):
+        addr -= load
+        if addr in helpers:
+            seen.append(helpers[addr])
+            assert [u.reg_read(r) for r in (UC_MIPS_REG_A0, UC_MIPS_REG_A1,
+                    UC_MIPS_REG_A2, UC_MIPS_REG_A3)] == [path, dst, 0x100000, 0x600000]
+            u.emu_stop(); return
+        name = imports.get(addr)
+        if not name: return
+        a, b = u.reg_read(UC_MIPS_REG_A0), u.reg_read(UC_MIPS_REG_A1)
+        if name == 'access': result = 0 if readable else -1
+        elif name == 'strrchr':
+            at = string(a).rfind(bytes([b])); result = a+at if at >= 0 else 0
+        else: result = int(string(a).lower() != string(b).lower())
+        u.reg_write(UC_MIPS_REG_V0, result & 0xffffffff)
+        u.reg_write(UC_MIPS_REG_PC, u.reg_read(UC_MIPS_REG_RA))
+    u.hook_add(UC_HOOK_CODE, hook)
+    for reg, val in ((UC_MIPS_REG_A0, path), (UC_MIPS_REG_A1, dst),
+                     (UC_MIPS_REG_A2, 0x100000), (UC_MIPS_REG_A3, 0x600000),
+                     (UC_MIPS_REG_T9, load+0x12508), (UC_MIPS_REG_RA, stop),
+                     (UC_MIPS_REG_SP, 0x200f000)):
+        u.reg_write(reg, val)
+    u.emu_start(load+0x12508, stop, count=500)
+    return seen
+
+for load in (0, 0x40000000):
+    for ext in ('m4b', 'M4B', 'M4b', 'm4B'):
+        assert cover_dispatch(raw, ext, load) == [], ext
+        assert cover_dispatch(patched, ext, load) == ['m4a'], ext
+        assert cover_dispatch(patched, ext, load, readable=False) == [], ext
+    for ext in ('mp3', 'm4a', 'mp4', 'wma', 'wav', 'ape', 'aiff', 'aif', 'flac', 'ogg', 'dsf', 'm4', 'm4b.extra', 'unknown'):
+        assert cover_dispatch(patched, ext, load) == cover_dispatch(raw, ext, load), ext
+print('Cover dispatch: M4B uses the existing MP4 extractor; all original formats, read failures and relocated loading preserved.')

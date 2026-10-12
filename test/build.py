@@ -145,12 +145,19 @@ def validate_assets(directory):
         assert struct.unpack_from('<I', demo, off)[0] == int(entry['replacement'], 16)
         assert stock[off-8:off-4] == struct.pack('<I', 0x8f99f950)
     changed = manifest['changed_assets']
+    from m4b import TAG_C, patch_m4b_cover
     xx = 'release/assets/default/raw/images/xx/'
     assert set(changed) == {'release/assets/default/raw/ui/'+p for p in (UI_ASSETS if ipod else [ARTIST_PAGE, HOME_PAGE])} | {
         'release/assets/default/raw/styles/'+p for p in (AUDIT['styles'] if ipod else [])} | {
-        xx+n for n in (SETTINGS_ICONS | QUIET_ICONS | STATUS_ICONS if ipod else [])} | {'release/assets/default/raw/strings/en_US.bin', FONT}
+        xx+n for n in (SETTINGS_ICONS | QUIET_ICONS | STATUS_ICONS if ipod else [])} | {'release/assets/default/raw/strings/en_US.bin', FONT, TAG_C}
     def read(image, rel):
         return subprocess.check_output(['unsquashfs', '-cat', str(directory/image), rel])
+    tag_old, tag_new = read('stock.squashfs', TAG_C), read('rootfs.squashfs', TAG_C)
+    assert tag_new == patch_m4b_cover(tag_old)
+    assert changed[TAG_C] == dict(original_sha256=sha(tag_old), sha256=sha(tag_new))
+    from build import segments
+    tag_segment = segments(tag_new)[-1][1]
+    assert tag_segment[0] == 1 and tag_segment[2] == 0x30000 and tag_segment[4:7] == (48, 48, 5)
     if ipod:
         import tempfile
         with tempfile.NamedTemporaryFile(suffix='.ttf') as font:

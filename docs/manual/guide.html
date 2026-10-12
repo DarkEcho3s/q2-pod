@@ -590,7 +590,7 @@ http://stream.radioparadise.com/mp3-128</pre>
   <p>Put one folder per show or book in <code>Podcasts/</code> or <code>Audiobooks/</code> at the card’s root. They always resume where you stopped and never count as plays. Playback speed is set per folder (see Chapter 3).</p>
   <div class="sub">
   <h3>M4B audiobooks</h3>
-  <p>Unprotected <code>.m4b</code> files play as they are: copy the original files onto the card, with no renaming or conversion needed. Extensions are case-insensitive. M4B files anywhere on the card resume at any duration and don’t count toward Most Played or scrobbles. <code>Audiobooks/</code> adds a Library shortcut, but is optional for M4B.</p>
+  <p>Unprotected <code>.m4b</code> files play as they are: copy the original files onto the card, with no renaming or conversion needed. Extensions are case-insensitive. M4B files anywhere on the card resume at any duration and don’t count toward Most Played or scrobbles. <code>Audiobooks/</code> adds a Library shortcut, but is optional for M4B. Embedded artwork uses the MP4 cover reader, with folder artwork as the fallback.</p>
   <div class="note"><p><span class="label">Note:</span> DRM-protected files and chapter navigation aren’t supported. CUE tracks don’t resume.</p></div>
 
   </div>
@@ -677,7 +677,7 @@ http://stream.radioparadise.com/mp3-128</pre>
   <h2 id="bt">Bluetooth headphones</h2>
   <ul>
     <li><b>Codec:</b> the Bluetooth codec (AAC, LDAC…) shows briefly in the status bar on connect.</li>
-    <li><b>Quality:</b> LDAC HQ is 990 kbps (909 for 44.1 kHz music), LDAC Standard 660 (606), and LDAC Connection (auto) adapts the bit rate to the connection. Rockbox uses the last choice made here.</li>
+    <li><b>Quality:</b> LDAC HQ is 990 kbps (909 for 44.1 kHz music), LDAC Standard 660 (606), and LDAC Connection (auto) adapts to the connection, including intermediate 492 and 396 kbps rates at 48/96 kHz. Auto uses discrete rates, not 1 kbps increments. Try Auto when HQ breaks up. Rockbox uses the last choice made here.</li>
     <li><b>Where things play:</b> Spotify, Internet Radio and video sound play on the headphone jack, Bluetooth or a USB DAC.</li>
   </ul>
   <div class="sub">

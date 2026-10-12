@@ -278,8 +278,9 @@ def sha(b): return hashlib.sha256(b).hexdigest()
 def source_sha256():
     """Hash every build input, so a test run cannot silently use a stale output directory."""
     h = hashlib.sha256()
-    tools = [ROOT/'tools'/f for f in ('build.py', 'ipod.py', 'peq.py', 'release.py')]
-    for path in sorted([*(p for p in ROOT.glob('assets/**/*') if p.is_file()), *ROOT.glob('patch/*'), *tools]):
+    tools = [ROOT/'tools'/f for f in ('build.py', 'ipod.py', 'peq.py', 'release.py', 'm4b.py')]
+    manual = [ROOT/'docs/manual'/f for f in ('build.py', 'guide.html')]
+    for path in sorted([*(p for p in ROOT.glob('assets/**/*') if p.is_file()), *ROOT.glob('patch/*'), *tools, *manual]):
         h.update(str(path.relative_to(ROOT)).encode() + b'\0')
         h.update(path.read_bytes())
     return h.hexdigest()
@@ -931,6 +932,12 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         removed.append(line.group().split()[:6])
         p = p[:line.start()]+p[line.end():]
     changed_assets = {}
+    from m4b import TAG_C, patch_m4b_cover
+    original = cat(TAG_C)
+    data = patch_m4b_cover(original)
+    (out/'libtag_c.so.2.0.1').write_bytes(data)
+    p = swap_inode(p, TAG_C.encode(), out/'libtag_c.so.2.0.1')
+    changed_assets[TAG_C] = dict(original_sha256=sha(original), sha256=sha(data))
     original = cat(FONT)
     data = font_quotes(original)
     (out/'default.ttf').write_bytes(data)

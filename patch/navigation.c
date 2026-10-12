@@ -37,8 +37,7 @@ extern int spot_media(unsigned key), spot_key(void *top, unsigned key),
     spot_open(void *ctx, void *event);
 extern void radio_poll(void);
 extern void xfade_row(void *label), wheel_row(void *label);
-extern int xfade_open(void *ctx, void *event), xfade_key(void *top, unsigned key),
-    wheel_open(void *ctx, void *event);
+extern int xfade_open(void *ctx, void *event), xfade_key(void *top, unsigned key);
 extern int eq_key(void *top, unsigned key); /* peq_ui.c */
 extern int radio_media(unsigned key), radio_open(void *ctx, void *event);
 extern const char *radio_hold(void *top);
@@ -2812,7 +2811,7 @@ int ringnav_display(void *win, void *ctx) {
 #else
     pod_rows(win, "scroll_view_display", POD_ARTIST_CF, 1, cf_icon);
 #endif
-    if (view) wheel_row(list_row(view, "system_display", wheel_open, (void *)0));
+    if (view) wheel_row(list_row(view, "system_display", xfade_open, (void *)1));
     return result;
 }
 

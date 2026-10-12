@@ -56,7 +56,7 @@ Charge limit applies while the Q2 is on; charging while it's powered off is stoc
 - **Home:** a list (Now Playing, Library, Coverflow, Folder, Rockbox when it's on the card, Streaming, Settings) beside the playing track's cover, instead of the carousel. **Settings** slides in **Playback** and **System** in the list's place, as an iPod's submenu, with the cover still beside it; Return goes back.
 - **Lists:** four rows per screen, full-width accent bar; **`>`** marks rows that open another list.
 - **Status bar:** play state, EQ, time, Bluetooth, Wi-Fi, battery. The Bluetooth codec (AAC, LDAC…) shows briefly on connect.
-- **Bluetooth quality:** LDAC HQ is 990 kbps (909 for 44.1 kHz music), LDAC Standard 660 (606), and LDAC Connection (auto) adapts the bit rate to the connection. Rockbox uses the last choice made here.
+- **Bluetooth quality:** LDAC HQ is 990 kbps (909 for 44.1 kHz music), LDAC Standard 660 (606), and LDAC Connection (auto) adapts to the connection, including intermediate 492 and 396 kbps rates at 48/96 kHz. Auto uses discrete rates, not 1 kbps increments. Try Auto when HQ breaks up. Rockbox uses the last choice made here.
 - **Now Playing:** "3 of 12", large rounded cover beside title, artist and album, and a slim accent progress capsule.
 - **Visualizer:** swipe Now Playing to its fourth page: Spectrum, Oscilloscope, VU Meters or Halo. Tap to switch; your choice is kept. It follows what you hear, EQ included.
 - **Quick settings:** pull down from the top edge.
@@ -312,7 +312,7 @@ Playlist import, a stock feature, reads M3U files only from the **`_explaylist_d
 
 ## M4B audiobooks
 
-Unprotected `.m4b` files use the existing MP4 decoder and metadata reader, with the codecs that decoder supports. Copy the original files onto the card; no renaming or conversion is needed. Extensions are case-insensitive. M4B files anywhere on the card resume at any duration and do not count toward Most Played or scrobbles. The existing resume storage limit and 30-second end exclusions still apply, and CUE tracks remain excluded. `Audiobooks/` adds a Library shortcut, but is optional for M4B. DRM and chapter navigation are unsupported.
+Unprotected `.m4b` files use the existing MP4 decoder and metadata reader, with the codecs that decoder supports. Copy the original files onto the card; no renaming or conversion is needed. Extensions are case-insensitive. M4B files anywhere on the card resume at any duration and do not count toward Most Played or scrobbles. The existing resume storage limit and 30-second end exclusions still apply, and CUE tracks remain excluded. `Audiobooks/` adds a Library shortcut, but is optional for M4B. Embedded M4B artwork uses the existing MP4 cover reader, with folder artwork as the fallback. DRM and chapter navigation are unsupported.
 
 ## AirPods controls
 
