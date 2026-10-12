@@ -7285,14 +7285,18 @@ class Full(PowerMachine):
 m=Full({'LOWPOWER':'1'}); m.byte(syms['g_backlight_status'],0); m.pass_(1); m.pass_(1)
 assert not any(p==CPU1 for p,_ in m.writes); passed()
 # Now Playing keeps stock's pace only while its visualizer repaints; idle, it idles like any page.
-class Live(PowerMachine):
-    def hook(self,u,address,size,unused):
-        if self.handlers.get(address)=='v:live':
-            u.reg_write(UC_MIPS_REG_V0,self.live); u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA)); return
-        return super().hook(u,address,size,unused)
-m=Live({'LOWPOWER':'1'}); m.handlers[payload_syms['visualizer_live']]='v:live'; m.live=1
-m.top=m.node('window','playing_page'); m.pass_(1)
-assert m.pass_(O['LOW_IDLE_MS'])[1]==[]; m.live=0; assert m.pass_(1)[1]==[O['LOW_IDLE_SLEEP_MS']]; passed()
+if variant=='ipod':  # stock has no visualizer: np_animating() is 0 there
+    class Live(PowerMachine):
+        def hook(self,u,address,size,unused):
+            if self.handlers.get(address)=='v:live':
+                u.reg_write(UC_MIPS_REG_V0,self.live); u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA)); return
+            return super().hook(u,address,size,unused)
+    m=Live({'LOWPOWER':'1'}); m.handlers[payload_syms['visualizer_live']]='v:live'; m.live=1
+    m.top=m.node('window','playing_page'); m.pass_(1)
+    assert m.pass_(O['LOW_IDLE_MS'])[1]==[]; m.live=0; assert m.pass_(1)[1]==[O['LOW_IDLE_SLEEP_MS']]; passed()
+else:
+    m=PowerMachine({'LOWPOWER':'1'}); m.top=m.node('window','playing_page'); m.pass_(1)
+    assert m.pass_(O['LOW_IDLE_MS'])[1]==[O['LOW_IDLE_SLEEP_MS']]; passed()
 # A boot that stalled offlining CPU1 left the marker: the next one renames it and never tries.
 m=PowerMachine({'LOWPOWER':'1'},files={MARK:b''}); m.byte(syms['g_backlight_status'],0); m.pass_(1)
 assert not m.writes and '/mnt/data/q2pod-cpu1.bad' in m.files and MARK not in m.files; passed()

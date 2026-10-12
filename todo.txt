@@ -15,4 +15,4 @@
 [x] Artist pages (Grid + Coverflow) → albums by release year; Playback settings → Year order: Newest (default) / Oldest first, for every year sort
 [x] Thick settings sliders: endpoint icons and dark discs removed
 [ ] Audiobooks → Add .m4b audiobook support
-[ ] Airpods → Add AirPods Support (connect card with battery, ear detection, stem buttons, volume sync)
+[ ] Airpods → Add AirPods Support (connect card with battery, ear detection, stem buttons, volume sync) - see https://github.com/DiamondBond/q2-pod/commit/6799d59d708c667ea050e7ab5776c96ad21fef4c
