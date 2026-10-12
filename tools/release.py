@@ -57,12 +57,9 @@ def validate(directory, variant):
                                   ['kernel_sha256', 'rootfs_sha256']):
             data = t.extractfile(name).read()
             check(line.split() == [hashlib.md5(data).hexdigest(), name] and sha(data) == m[key], 'Update payload mismatch')
-    subprocess.run([sys.executable, str(ROOT/'test/peq.py')], check=True)
-    subprocess.run([sys.executable, str(ROOT/'test/build.py'), '--build', str(directory)], check=True)
-    subprocess.run([sys.executable, str(ROOT/'test/patch.py'), str(directory)], check=True)
-    subprocess.run([sys.executable, str(ROOT/'test/playback.py'), str(directory)], check=True)
-    subprocess.run([sys.executable, str(ROOT/'test/m4b.py'), str(directory)], check=True)
-    subprocess.run([sys.executable, str(ROOT/'test/ldac.py'), str(directory)], check=True)
+    for test, *args in (('peq',), ('build', '--build', directory), ('patch', directory),
+                        ('playback', directory), ('m4b', directory), ('ldac', directory)):
+        subprocess.run([sys.executable, ROOT/f'test/{test}.py', *map(str, args)], check=True)
 
 
 def archive_bytes(directory):

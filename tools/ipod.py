@@ -5,13 +5,12 @@ The audit records full original instructions and asset hashes, not search/replac
 """
 import copy
 import functools
-import hashlib
 import json
 import math
 import pathlib
 import re
 import struct
-from build import ROOT, check, fileoff
+from build import ROOT, check, fileoff, sha
 
 AUDIT = json.loads((pathlib.Path(__file__).resolve().parents[1]/'patch/ipod.json').read_text())
 UI_ASSETS = AUDIT['assets'] | AUDIT['navbar_only'] | AUDIT['slide_only']
@@ -275,7 +274,7 @@ def style_props(data):
 
 def patch_style(data, audit):
     """Replace each edit's old value, same size, in the n states of widget/style that hold it."""
-    check(hashlib.sha256(data).hexdigest() == audit['sha256'], 'Unaudited style file')
+    check(sha(data) == audit['sha256'], 'Unaudited style file')
     out, props = bytearray(data), list(style_props(data))
     for widget, style, prop, old, new, n in audit['edits']:
         old, new = bytes.fromhex(old), bytes.fromhex(new)
@@ -566,7 +565,7 @@ STATUS_ICONS = AUDIT['status_icons']
 
 def status_icon(name, data):
     """One optical weight, rendered at 4x for smooth edges on the native-size panel."""
-    check(hashlib.sha256(data).hexdigest() == STATUS_ICONS.get(name), f'{name}: unaudited status icon')
+    check(sha(data) == STATUS_ICONS.get(name), f'{name}: unaudited status icon')
     width = 14 if name.startswith('bar_wifi') else 42 if name.startswith('bar_bt') else 12
     if name.startswith('bar_wifi'):
         level = int(name[-5])
@@ -588,7 +587,7 @@ def status_icon(name, data):
 
 
 def settings_icon(name, data):
-    check(hashlib.sha256(data).hexdigest() == SETTINGS_ICONS.get(name), f'{name}: unaudited settings icon')
+    check(sha(data) == SETTINGS_ICONS.get(name), f'{name}: unaudited settings icon')
     check(png_header(data) == (SET_STOCK_ICON, SET_STOCK_ICON, 8, 6), f'{name}: unexpected stock icon format')
     out = imagemagick('png:-', '-alpha', 'on', '-filter', 'Lanczos', '-resize', f'{SET_ICON}x{SET_ICON}!',
                       *PNG_OUT, data=data)
@@ -617,7 +616,7 @@ def slider_plain(path, root):
 
 
 def quiet_icon(name, data):
-    check(hashlib.sha256(data).hexdigest() == QUIET_ICONS.get(name), f'{name}: unaudited control icon')
+    check(sha(data) == QUIET_ICONS.get(name), f'{name}: unaudited control icon')
     return imagemagick('png:-', '-trim', '+repage', '-filter', 'Lanczos', '-resize', '24x24',
                       '-channel', 'RGB', '-fill', '#aaaaaa' if name == 'play_moredown.png' else '#eeeeee',
                       '-colorize', '100', '+channel', '-gravity', 'center', '-background', 'none',
@@ -633,7 +632,7 @@ def patch_word(data, address, old, new, purpose, changes=None):
 
 
 def patch_asset(path, data, ipod):
-    check(hashlib.sha256(data).hexdigest() == UI_ASSETS[path], f'{path}: unaudited UI asset')
+    check(sha(data) == UI_ASSETS[path], f'{path}: unaudited UI asset')
     root = decode(data)
     check(encode(root) == data, f'{path}: UI round trip differs')
     if path == ARTIST_PAGE:
