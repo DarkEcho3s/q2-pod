@@ -28,11 +28,7 @@ int ringnav_play_pause(void) {
 }
 int media_owner(void) { return video_status() ? 4 : radio_status() ? 3 : spot_status() ? 2 : 1; }
 int media_playing(void) {
-    int owner = media_owner();
-    return (owner == 4   ? video_status()
-            : owner == 3 ? radio_status()
-            : owner == 2 ? spot_status()
-                         : mclGetPlayStatus()) == 2;
+    return (video_status() ?: radio_status() ?: spot_status() ?: mclGetPlayStatus()) == 2;
 }
 static unsigned media_session(void) {
     int owner = media_owner();

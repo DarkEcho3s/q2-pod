@@ -5355,9 +5355,13 @@ static int bt_sync_volume(int left, int right) {
     if (cur > 127) return 0;
     int v = left > right ? left : right;
     v = v < 0 ? 0 : v > 100 ? 100 : v;
-    int want = (v * 127 + 50) / 100;
-    if (cur != (unsigned)want && btctl_transport_set_volume(want)) return 0;
-    btvol.last = want;
+    /* 128 headset steps onto 101: one that already reads as v stays, so the headset's own steps hold */
+    if ((int)(cur * 100 + 63) / 127 != v) {
+        unsigned want = (v * 127 + 50) / 100;
+        if (btctl_transport_set_volume(want)) return 0;
+        cur = want;
+    }
+    btvol.last = cur;
     return 1;
 }
 
@@ -5465,10 +5469,6 @@ static int wake_gate(void *e) {
     if (st.wake_pass) *(volatile unsigned char *)BOOT_KEY_GUARD = 0; /* not Standby's resume key */
     return !st.wake_pass;
 }
-
-/* device_standby's awake_screen once Standby resumes, on whichever key woke it (tools/build.py
- * STANDBY_WAKE). The screen stays off, so that key acts as it does dark: Play plays, centre wakes. */
-int ringnav_standby_wake(void) { return 1; }
 
 /* window_manager_dispatch_input_event: while q2video plays (books.c) no key or touch reaches the
  * UI; a key's release goes to the player instead. Every event times Low power's idle. */

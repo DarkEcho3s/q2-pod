@@ -708,5 +708,6 @@ for data in (b'broken',b'/B/\0'+bytes(1020)+struct.pack('<I',2),fresh.files[path
 for badpath in ('https://host/book.mp3','/A/','/'+'x'*1024+'/a.mp3'):
     m=PlaybackMachine(); m.install([('invalid',badpath,'',0,0,0,0)])
     assert speed_at(m,0)==0
-    m.fn('ringnav_speed',2); assert not m.files
+    # No folder (a stream): the change applies to this track only, nothing is saved.
+    m.fn('ringnav_speed',2); assert not m.files and m.sent_speed==2 and m.u.mem_read(syms['g_playspeed_mode'],1)[0]==2
 print('Folder speed: persistence, exact parents, reconnect, gapless and failed saves passed')

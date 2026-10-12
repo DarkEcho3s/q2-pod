@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  An iPod classic style firmware mod for the Shanling Q2.<br>
-  Wheel navigation, parametric EQ and Coverflow, built on the stock firmware.
+  <b>Turn your Shanling Q2 into an iPod classic.</b><br>
+  Wheel navigation, Coverflow, parametric EQ, Spotify Connect and more, built on the stock firmware.
 </p>
 
 <p align="center">
@@ -21,78 +21,91 @@
   <b><a href="https://github.com/DiamondBond/q2-pod/releases/latest">Download</a></b> ·
   <b><a href="#install">Install</a></b> ·
   <b><a href="docs/guide.md">User guide</a></b> ·
-  <b><a href="docs/changelog.md">Changelog</a></b>
+  <b><a href="docs/changelog.md">Changelog</a></b> ·
+  <b><a href="https://discord.gg/pgsQpXhSQ">Discord</a></b>
 </p>
 
 ## Features
 
-- **iPod UI:** Home, lists, Now Playing, Coverflow and four visualizers, with your choice of accent, Home layout and battery display.
-- **Wheel navigation:** ticks follow your finger, and menus remember your place.
-- **Parametric EQ:** up to 30 bands, a live curve, and AutoEQ / Equalizer APO preset imports.
-- **Spotify Connect:** the Q2 becomes a Spotify speaker (Premium required).
-- **Internet Radio:** your own stations plus the [radio-browser.info](https://www.radio-browser.info) directory.
-- **Scrobbling:** send listens to Last.fm or ListenBrainz over Wi-Fi.
-- **Battery options:** an optional 80% charge limit, Low power mode and a sleep timer.
-- **Ratings:** give songs and albums 0-5 hearts, then browse Top Rated, Loved, Disliked and rated albums in Coverflow.
-- **Also includes:** favourites, playlists, Most Played, Long Songs, shuffle by song, album or folder, Crossfade, podcasts and unprotected `.m4b` audiobooks that resume where you stopped, AirPods stem controls, ear detection and two-way volume sync, and fixes for choppy AirPods AAC audio and the clock resetting after power-off.
-
-Prefer the stock look? Download `Q2.Firmware.*-stock.zip`. It has the same features and fixes, without the iPod UI.
+- **iPod UI:** Home, menus, Now Playing, Coverflow and four visualizers. Choose your accent colour, Home layout and battery display.
+- **Wheel navigation:** scrolling follows your finger, and menus remember where you were.
+- **Parametric EQ:** up to 30 bands with a live curve. Import AutoEQ and Equalizer APO presets.
+- **Streaming:** Spotify Connect (Premium), AirPlay from your iPhone, and Internet Radio with the [radio-browser.info](https://www.radio-browser.info) directory.
+- **Scrobbling:** send your listens to Last.fm or ListenBrainz over Wi-Fi.
+- **Ratings:** rate songs and albums 0–5 hearts, then browse Top Rated, Loved and rated albums.
+- **Browsing and playback:** favourites, playlists, Most Played, Long Songs, Crossfade, and shuffle by song, album or folder.
+- **Podcasts and audiobooks:** `.m4b` audiobooks and podcasts resume where you stopped, with per-folder playback speed.
+- **AirPods:** stem controls, ear detection, two-way volume sync and smoother AAC audio.
+- **Battery care:** an optional 80% charge limit, Low power mode and a sleep timer.
+- **Fixes:** the clock no longer resets after power-off.
 
 ## Install
 
+**Requirements:** Shanling Q2 with microSD card and USB-C cable.
+
 > [!IMPORTANT]
-> Charge the Q2 first, and leave the microSD card in until the update finishes. Only remove or insert the card with the Q2 fully shut down (not asleep), or it can corrupt the card.
+> Charge the Q2 before you start. Only insert or remove the microSD card while the Q2 is **fully shut down** (not asleep), or the card can be corrupted.
 
-1. [Download the latest release](https://github.com/DiamondBond/q2-pod/releases/latest), unzip `Q2.Firmware.*.zip`, and copy `update.tar` to the microSD card's root.
-2. On the Q2, open **System settings → System Update → TF card update**.
-3. After the restart, **System settings → About** shows FW V1.32 and your **CFW. Version**.
+1. **Download** `Q2.Firmware.*.zip` from the [latest release](https://github.com/DiamondBond/q2-pod/releases/latest).
+2. **Plug the Q2 into your computer** with the USB-C cable. The card shows up as a drive.
+3. **Unzip the download** and copy `update.tar` to the **root** of the card (not inside a folder), then eject and unplug.
+4. **Update:** open **System settings → System Update → TF card update**. Leave the card in until the Q2 restarts.
 
-The updater skips a build that's already installed, so updating to a newer release always works.
+> [!TIP]
+> Prefer Shanling's original look? Download `Q2.Firmware.*-stock.zip` instead. It has the same features and fixes, without the iPod UI.
 
-**Restore stock:** flash the [official Shanling firmware](https://en.shanling.com/download/150) the same way. If the UI won't start, copy the `recovery-update` folder from [Shanling's recovery package](https://drive.google.com/file/d/1aINQfJu6n0JTQ4hOzzD1uSpSj3TS_NJj/view?usp=drive_link) to the card, then hold previous-song and power on with the centre button.
-
-## Optional add-ons
-
-- **Rockbox:** unzip [Rockbox's `rockbox.zip`](https://github.com/DiamondBond/q2-rockbox/releases) to the card's root. Hold Play/Pause while powering on to use Q2 Pod for that session. See the [setup guide](docs/setup.md) and [ported themes](https://github.com/DiamondBond/q2-rockbox-themes/releases).
-- **Spotify:** unzip `q2-librespot-*.zip` from [q2-librespot's latest release](https://github.com/DiamondBond/q2-librespot/releases/latest) to the card's root, then open **Streaming → Spotify** on the Q2 and pick it in the Spotify app. See the [guide](docs/guide.md#spotify).
-
-## Everyday use
+## Controls
 
 | Control             | Action                                                                   |
 | ------------------- | ------------------------------------------------------------------------ |
-| **Wheel**           | Scroll. Spin faster to speed up. Change a setting when a slider is open. |
+| **Wheel**           | Scroll. Spin faster to speed up. Adjust a slider when one is open.       |
 | **Centre**          | Open the selected item. Double-press to turn the screen off.             |
-| **Hold Play/Pause** | Open the track, queue, playlist and shuffle/repeat options.              |
+| **Hold Play/Pause** | Track, queue, playlist and shuffle/repeat options.                       |
 | **Hold Return**     | Jump to Now Playing; hold again to go back.                              |
 
-Run **Library → Update Local Music** after adding music. The [user guide](docs/guide.md) covers all [controls](docs/guide.md#controls), [EQ](docs/guide.md#parametric-eq), [Coverflow](docs/guide.md#coverflow) and [tips](docs/guide.md#tips).
+The [user guide](docs/guide.md) covers every [control](docs/guide.md#controls), [EQ](docs/guide.md#parametric-eq), [Coverflow](docs/guide.md#coverflow) and more [tips](docs/guide.md#tips).
 
-## Set up your card
+## Library
 
-Put any of these folders at the microSD card's root, and each adds a Library entry: `Podcasts/`, `Audiobooks/`, `Photos/`, `Books/`, `Videos/` and `EQ/` (for AutoEQ / Equalizer APO presets). See the [microSD card guide](docs/guide.md#microsd-card) for formats.
+Copy your music to the card over USB-C, then run **Library → Update Local Music** on the Q2.
 
-Settings, play counts, ratings and resume points live on the Q2, so they stay with the device. For scrobbling, see [set up scrobbling](docs/guide.md#set-up-scrobbling).
+These folders at the card's root each add their own Library entry: `Podcasts/`, `Audiobooks/`, `Photos/`, `Books/`, `Videos/`, and `EQ/` for EQ presets. See the [microSD card guide](docs/guide.md#microsd-card) for supported formats.
+
+Settings, play counts, ratings and resume points are stored on the Q2 itself, so they stay put when you swap cards.
+
+## Extras
+
+- **Spotify Connect:** unzip `q2-librespot-*.zip` from [q2-librespot's latest release](https://github.com/DiamondBond/q2-librespot/releases/latest) to the card's root. Then open **Streaming → Spotify** on the Q2 and pick it in the Spotify app. [More](docs/guide.md#spotify).
+- **Scrobbling:** connect Last.fm or ListenBrainz with the [scrobbling guide](docs/guide.md#set-up-scrobbling).
+- **Lock screen:** add your own [images](docs/guide.md#lock-screen); it's black until you do.
+- **Rockbox:** unzip [`rockbox.zip`](https://github.com/DiamondBond/q2-rockbox/releases) to the card's root. Hold Play/Pause while powering on to use Q2 Pod for that session. See the [setup guide](docs/setup.md) and [ported themes](https://github.com/DiamondBond/q2-rockbox-themes/releases).
+
+## Updating
+
+Repeat the [install steps](#install) with the newest release. Your settings, ratings and play counts are kept. The updater skips a version that's already installed, so a newer release always goes on.
+
+## Restoring stock firmware
+
+Install the [official Shanling firmware](https://en.shanling.com/download/150) the same way. If the Q2 won't boot, copy the `recovery-update` folder from [Shanling's recovery package](https://drive.google.com/file/d/1aINQfJu6n0JTQ4hOzzD1uSpSj3TS_NJj/view?usp=drive_link) to the card, then hold **Previous** and press **Centre** to power on.
 
 ## Known limitations
 
-- **Library size:** Update Local Music adds up to 65,000 songs.
-- **Bluetooth:** skipping tracks can stutter on some headphones (AAC and LDAC). The new AirPods controls, ear detection and volume sync still need Q2 hardware verification.
-- **Crossfade:** only between songs from different albums, with **Gapless** on.
-- **Lock screen:** black until you add your own [images](docs/guide.md#lock-screen).
+- Update Local Music indexes up to 65,000 songs.
+- Skipping tracks can stutter on some AAC Bluetooth headphones.
+- Crossfade needs **Gapless** on and only works between different albums.
 
-See the [changelog](docs/changelog.md) for the full list of changes and known issues.
+## Help
+
+- **Questions:** join the [Discord](https://discord.gg/pgsQpXhSQ).
+- **Bugs:** [open an issue](https://github.com/DiamondBond/q2-pod/issues) with steps to reproduce.
 
 ## Documentation
 
 - [User guide](docs/guide.md): settings, controls, playback, media and scrobbling
 - [Setup](docs/setup.md): Q2 Pod, Rockbox and themes on a fresh Q2
-- [Changelog](docs/changelog.md): what's changed in each release
-- [Building](docs/building.md) · [Releasing](docs/releasing.md) · [Internals](docs/internals.md)
-
-## Contributing
-
-Found a bug? [Open an issue](https://github.com/DiamondBond/q2-pod/issues) with the screen and the steps to reproduce it. To build it yourself, see [Building](docs/building.md).
+- [Changelog](docs/changelog.md): what's new in each release
+- For developers: [Building](docs/building.md) · [Releasing](docs/releasing.md) · [Internals](docs/internals.md)
 
 ## License
 
-[MIT](LICENSE) covers this repository's code and docs. The Shanling firmware used in release images remains Shanling's. Q2 Pod is not affiliated with Shanling.
+[MIT](LICENSE) covers this repository's code and docs. The Shanling firmware included in release images remains Shanling's. Q2 Pod is an independent project and is not affiliated with Shanling.

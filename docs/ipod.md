@@ -556,12 +556,8 @@ What Classic does not restore: the pinned theme edit of `s_btn_listitem`'s press
 (`#3D1920` to `#333333`), so a touched row flashes grey rather than an accent tint, and the
 status bar asset's own background (`#000000`, not `#161616`), which the payload's fill covers.
 
-## Review and device acceptance
+## Review sheets
 
 Review sheets are native-size **composed previews**, not firmware captures.
 Host and MIPS checks cover geometry, clipping, selection contrast, recycled rows,
-preferences, input and packaging. They do not establish panel readability or rendering speed.
-Before release, check the real Q2 with bright/dark/missing covers, long multilingual labels,
-all accents, both themes, Split/Full, Rockbox present/absent, paused playback,
-seeking and streaming. Switch Theme with Now Playing and Spotify open underneath.
-Confirm wheel and touch behavior, transitions, frame responsiveness and the rounded-glass edges.
+preferences, input and packaging.

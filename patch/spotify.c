@@ -476,7 +476,7 @@ int spot_status(void) {
         control.until && time_now_ms() - control.until < 1000 ? control.playing : sp.playing;
     return sp.active ? (playing ? 2 : 3) : 0;
 }
-unsigned spot_session(void) { return fnv(2166136261u, (const unsigned char *)sp.track); }
+unsigned spot_session(void) { return fnv(FNV_SEED, (const unsigned char *)sp.track); }
 void spot_set_playing(int playing) {
     if (sp.active && playing != (spot_status() == 2)) {
         spot_send(SPOT_SOCK, playing ? "p" : "s", 1);

@@ -175,8 +175,9 @@ SHUFFLE_CALL = (0x5addf0, 0x0411e8cb)  # bal mcl_shuffle_pick; its delay slot (a
 # Hold Return: only on_wm_keylong_fun's final Home call (bal) changes; all stock gates and its release
 # guard precede it. It becomes jal compact_now_playing (docs/ipod.md#hold-return).
 HOLD_RETURN = (0x4e8924, 0x04110fdf)
-# device_standby's bal awake_screen after the resume from Standby; skipped, so the screen stays dark.
-STANDBY_WAKE = (0x4f7d24, 0x0411ff26)
+# device_standby's bal awake_screen after the resume from Standby becomes li $v0, 1: the screen stays dark,
+# so the resuming key acts as it does dark (Play plays, centre wakes).
+STANDBY_WAKE = (0x4f7d24, 0x0411ff26, 0x24020001)
 # checkBluetoothStatus' jalr player_save_start once a headset's A2DP comes up (a0 0: the queue restarts
 # unpaused, whatever it was doing). It becomes jal ringnav_bt_connect_start (docs/internals.md#resume-on-connect).
 BT_CONNECT_START = (0x4f358c, 0x0320f809)
@@ -326,6 +327,13 @@ def segments(b):
     size, num = struct.unpack_from('<HH', b, 42)
     check(size == 32, 'Unexpected ELF program header size')
     return [(phoff+i*size, struct.unpack_from('<8I', b, phoff+i*size)) for i in range(num)]
+def load_elf(u, b):
+    """Map an ELF's LOAD segments into a Unicorn instance."""
+    for _, (t, o, v, _, f, m, _, _) in segments(b):
+        if t != 1: continue
+        start = v & ~4095
+        u.mem_map(start, ((v+m+4095) & ~4095) - start)
+        u.mem_write(v, b[o:o+f])
 def fileoff(b, a):
     for _, (t, o, v, _, f, _, _, _) in segments(b):
         if t == 1 and v <= a < v+f: return o+a-v
@@ -520,7 +528,6 @@ FUNCTIONS = {
  'mclGetLyricSize': ('int', 'void'),  # the playing track's lyric lines, 0 without
  'player_play_pause': ('int', 'void'),
  'player_next_music': ('int', 'void'), 'player_prev_music': ('int', 'void'),
- 'mclSetPause': ('int', 'void'), 'mclSetResume': ('int', 'void'),
  'getBtLinkSize': ('int', 'void'), 'getBtLinkItem': ('int', 'int, int *, char *'),
  'mclGetPlayStatus': ('int', 'void'),  # 1 stopped, 2 playing, 3 paused (mclStop, mclSetResume, mclSetPause)
  'player_stop': ('int', 'void'),
@@ -804,8 +811,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
                'shuffle honours Play next')
     patch_word(patched, *HOLD_RETURN, 0x0c000000 | (ps['compact_now_playing'] >> 2),
                'long Return destination after stock input gates')
-    patch_word(patched, *STANDBY_WAKE, 0x0c000000 | (ps['ringnav_standby_wake'] >> 2),
-               'Wake: Double press after Standby')
+    patch_word(patched, *STANDBY_WAKE, 'Standby resume stays dark')
     patch_word(patched, *BT_CONNECT_START, 0x0c000000 | (ps['ringnav_bt_connect_start'] >> 2),
                'Bluetooth: Resume on connect')
     scan, load, limit, count = SCAN_LIMIT

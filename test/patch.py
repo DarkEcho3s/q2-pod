@@ -6,7 +6,7 @@ import json, math, pathlib, re, struct, sys
 from unicorn import Uc, UcError, UC_ARCH_MIPS, UC_MODE_MIPS32, UC_MODE_LITTLE_ENDIAN, UC_HOOK_CODE, UC_HOOK_BLOCK
 from unicorn.mips_const import *
 sys.path.insert(0, sys.path[0] + '/../tools')  # tools/ first
-from build import segments, symbols, BASE, SCRATCH, HOOKS, IPOD_HOOKS, WM_PAINT_LEAF, FUNCTIONS, GLOBALS, CONTEXT_DATA, ROOT, source_sha256, sha, PRIVATE_FUNCTIONS, VERSIONS, VERSION, dev_tag
+from build import segments, load_elf, symbols, BASE, SCRATCH, HOOKS, IPOD_HOOKS, WM_PAINT_LEAF, FUNCTIONS, GLOBALS, CONTEXT_DATA, ROOT, source_sha256, sha, PRIVATE_FUNCTIONS, VERSIONS, VERSION, dev_tag
 B=pathlib.Path(sys.argv[1] if len(sys.argv)>1 else 'build')
 payload_syms=symbols(B/'patch.elf')
 manifest=json.loads((B/'manifest.json').read_text())
@@ -55,13 +55,9 @@ class Machine:
     def __init__(self, patched=True):
         self.u=Uc(UC_ARCH_MIPS, UC_MODE_MIPS32|UC_MODE_LITTLE_ENDIAN)
         data=(B/('demo' if patched else 'stock-demo')).read_bytes()
-        for _,(t,o,v,_,f,m,flags,_) in segments(data):
-            if t!=1: continue
-            start=v&~4095; end=(v+m+4095)&~4095
-            self.u.mem_map(start,end-start)
-            self.u.mem_write(v,data[o:o+f])
-            # Payload text is execute-only; its top page holds the scratch cell.
-            if v==BASE: self.u.mem_protect(start,SCRATCH-start,5)
+        load_elf(self.u,data)
+        # Payload text is execute-only; its top page holds the scratch cell.
+        if patched: self.u.mem_protect(BASE,SCRATCH-BASE,5)
         for v,w in FP64_FIX: self.u.mem_write(v,struct.pack('<I',w))
         self.u.mem_map(0x1000000,0x200000)
         self.u.mem_map(0x70000000,0x10000)
@@ -6616,6 +6612,9 @@ passed()
 # Playing: no key or touch reaches the UI; a key's release goes to the player's socket as a datagram:
 # Play/Pause pauses, the side buttons seek, Return quits.
 m.way=0; m.forked=4242; play(1)
+# The helper starts at the output's level: the first poll sends nothing (no volume bar flash); a change sends v then g.
+def vpoll(): m.now+=500; m.sent=[]; m.call(address=payload_syms['video_poll'],args=(0,0,0,0),gap=0,clear=False); return [x[1] for x in m.sent]
+assert vpoll()==[]; m.byte(syms['g_volume'],43); assert vpoll()==['v+','g+']; passed()
 inp=HOOKS['window_manager_dispatch_input_event'][0]; m.handlers[inp+12]='stock_input'
 def event(kind,key=0):
     m.calls=[]; m.sent=[]
@@ -7206,12 +7205,11 @@ m.byte(syms['g_backlight_status'],1); assert wake(DOWN,gap=1000) and wake(UP) an
 # Standby's resume (STANDBY_WAKE, device_standby's awake_screen) stays dark in both modes, so the
 # resuming key acts as dark (#27); a wake press clears stock's resume guard, which would drop its release.
 from build import STANDBY_WAKE
-assert struct.unpack_from('<I',demo,fileoff(demo,STANDBY_WAKE[0]))[0]==0x0c000000|payload_syms['ringnav_standby_wake']>>2
-def resume(): m.call(address=payload_syms['ringnav_standby_wake'],args=(0,0,0,0),gap=0); return [c[0] for c in m.calls if c[0]=='awake_screen']
-m.byte(syms['g_backlight_status'],0); assert resume()==[]
+assert struct.unpack_from('<I',demo,fileoff(demo,STANDBY_WAKE[0]))[0]==STANDBY_WAKE[2]
+m.byte(syms['g_backlight_status'],0)
 m.byte(O['BOOT_KEY_GUARD'],1); assert not wake(DOWN,gap=1000) and m.u.mem_read(O['BOOT_KEY_GUARD'],1)==b'\1'
 assert wake(DOWN,gap=100) and m.u.mem_read(O['BOOT_KEY_GUARD'],1)==b'\0' and wake(UP,gap=50)
-assert click(2)==[(0,'Q2POD','WAKEDOUBLE')] and resume()==[]; passed()
+assert click(2)==[(0,'Q2POD','WAKEDOUBLE')]; passed()
 m,rows,texts,*_=settings_page('power','scroll_view_powermanager',{'CHARGELIMIT':'1','LOWPOWER':'1','WAKEDOUBLE':'1'})
 assert texts()==[f"Charge limit: {O['CHARGE_STOP']}%",'Low power: On','Wake: Double press']; passed()
 m,rows,texts,icons,click=settings_page('audioset','scroll_view_playset',stock_rows=15)
@@ -7414,6 +7412,174 @@ for _ in range(9): m.call()
 assert m.confirm()==11 and m.dispatched()[0][1]==button; passed()
 print('Boot settings: conditional row/order, restart, card removal and failed atomic writes passed.')
 
-exec((ROOT/'test/headset_cases.py').read_text())
+from build import AUDIO_EXTENSION_CALLS
+for site in AUDIO_EXTENSION_CALLS:
+    for ext, accepted in (('.m4b',1),('.M4B',1),('.m4B',1),('.M4b',1),('.m4a',1),('.M4A',1),('.flac',1),('.mp3',1),('.m4b.tmp',0),('.pdf',0)):
+        m=Machine(); m.mock('strstr@GLIBC_2.0')
+        formats=m.string('.mp3 .flac .m4a .M4A'); suffix=m.string(ext)
+        m.word(0x7000f000+(0xdd4 if site==0x5c2054 else 0xd64),formats)
+        def extension_return(u,address,size,unused):
+            u.reg_write(UC_MIPS_REG_PC,0x1000000)
+        m.u.hook_add(UC_HOOK_CODE,extension_return,begin=site+8,end=site+8)
+        assert bool(m.call(address=site,args=(formats,suffix,0,0),gap=0))==bool(accepted)
+        passed()
+
+# M4B is spoken audio anywhere, at short duration; persistence and CUE rules stay shared.
+for path in ('/mnt/mmc/Novel.m4b','/mnt/mmc/Music/Novel.M4B','/mnt/mmc/Novel.m4B'):
+    m=ResumeMachine(); r=m.items(m.get(syms['mcl_pdeqplaylist']))[0]
+    m.word(r+O['REC_PATH'],m.string(path)); playing(m,0,200,pos=0,n=110)
+    assert m.places()==[(fnv(path),61)] and '/mnt/data/ringnav-plays' not in m.files and '/mnt/mmc/.scrobbler.log' not in m.files
+    m.poll(110,200,n=3)
+    files=m.files
+    m=ResumeMachine(files); r=m.items(m.get(syms['mcl_pdeqplaylist']))[0]; m.word(r+O['REC_PATH'],m.string(path))
+    m.poll(0,200,pos=0,n=2); playing(m,1,200,n=2); assert m.seeks==[110]
+    m.poll(195,200,n=3); assert not m.places()
+    passed()
+m=ResumeMachine(); r=m.items(m.get(syms['mcl_pdeqplaylist']))[0]
+m.word(r+O['REC_PATH'],m.string('/mnt/mmc/cue.m4b')); m.word(r+O['REC_CUE_START'],200)
+playing(m,0,200,pos=0,n=110); assert not m.places(); passed()
+
+# Mock only player endpoints, exercising the actual routing and ear/AVRCP state machine.
+class HeadsetMachine(Machine):
+    def __init__(self,owner=1):
+        super().__init__(); self.owner=owner; self.playing=True; self.session=42; self.actions=[]; self.saved=0
+        self.handlers[syms['mclGetSavePlayStatus']]='hs:saved'
+        for name in ('spot_status','radio_status','video_status','spot_session','radio_session','video_session',
+                     'spot_set_playing','radio_set_playing','video_set_playing','spot_media','radio_media','video_key'):
+            self.handlers[payload_syms[name]]='hs:'+name
+        self.handlers[syms['mclGetPlayStatus']]='hs:local_status'
+        self.handlers[syms['player_play_pause']]='hs:local_toggle'
+        self.handlers[syms['player_next_music']]='hs:local_next'
+        self.handlers[syms['player_prev_music']]='hs:local_prev'
+    def hook(self,u,address,size,unused):
+        name=self.handlers.get(address,'')
+        if not name.startswith('hs:'): return super().hook(u,address,size,unused)
+        name=name[3:]; a=u.reg_read(REGS[0]); ret=0
+        owner=4 if name.startswith('video') else 3 if name.startswith('radio') else 2 if name.startswith('spot') else 1
+        if name=='saved': ret=self.saved
+        elif name.endswith('_status'): ret=(2 if self.playing else 3) if self.owner==owner else 0
+        elif name.endswith('_session'): ret=self.session
+        elif name.endswith('_set_playing'): self.playing=bool(a); self.actions.append((owner,'play' if a else 'pause'))
+        elif name=='local_toggle': self.playing=not self.playing; self.actions.append((1,'play' if self.playing else 'pause'))
+        else: self.actions.append((owner,a if owner!=1 else name))
+        u.reg_write(UC_MIPS_REG_V0,ret); u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA))
+    def fn(self,name,value=0,gap=0): return self.call(address=payload_syms[name],args=(value,0,0,0),gap=gap)
+    def ears(self,mask,gap=100): return self.fn('headset_ears',4|mask,gap)
+    def command(self,code,gap=200): return self.fn('headset_command',code,gap)
+for owner in (1,2,3,4):
+    m=HeadsetMachine(owner); m.byte(syms['g_backlight_status'],0)
+    m.ears(3); assert m.playing and not m.actions
+    m.ears(2); assert not m.playing and m.actions==[(owner,'pause')]
+    m.command(201); m.command(164); assert not m.playing and len(m.actions)==1
+    m.ears(0); m.ears(1); assert not m.playing  # other bud alone does not resume
+    m.ears(3); assert m.playing and m.actions[-1]==(owner,'play')
+    m.ears(2); m.fn('headset_manual'); m.ears(3); assert not m.playing
+    m=HeadsetMachine(owner); m.ears(3); m.command(201); m.ears(2); m.ears(3); assert m.playing
+    m=HeadsetMachine(owner); m.ears(0); m.ears(3); assert not m.playing  # initial report establishes state
+    m=HeadsetMachine(owner); m.ears(3); m.ears(2); m.owner=1 if owner!=1 else 2; m.ears(3); assert not m.playing
+    m=HeadsetMachine(owner); m.ears(3); m.ears(2)
+    if owner!=1: m.session+=1
+    else: m.word(O['MCL_POS'],1)
+    m.ears(3); assert not m.playing
+    m=HeadsetMachine(owner); m.command(163); m.command(163,gap=1); assert len(m.actions)==1
+    m.command(165); assert len(m.actions)==2 and all(a[0]==owner for a in m.actions)
+    passed()
+m=HeadsetMachine(); good=bytes([4,0,4,0,6,0,0,2])
+for packet in (b'',good[:7],good+b'\0',bytes([4,0,4,0,6,0,3,0]),bytes([4,1,4,0,6,0,0,0])):
+    p=m.alloc(max(1,len(packet))); m.u.mem_write(p,packet)
+    assert m.call(address=payload_syms['ringnav_aap_parse'],args=(p,len(packet),0,0),gap=0)==0
+p=m.alloc(8); m.u.mem_write(p,good); assert m.call(address=payload_syms['ringnav_aap_parse'],args=(p,8,0,0),gap=0)==2; passed()
+# Ears are counted: the report's primary/secondary slots swap. One worn AirPod out pauses and back
+# (now the other slot) resumes; a swap alone does nothing; a manual command still cancels resume.
+for owner in (1,2,3,4):
+    m=HeadsetMachine(owner); m.ears(1); m.ears(2); assert m.playing and not m.actions
+    m.ears(0); assert not m.playing and m.actions==[(owner,'pause')]
+    m.ears(2); assert m.playing and m.actions[-1]==(owner,'play')
+    m.ears(1); m.ears(3); m.ears(2); assert not m.playing  # two worn: primary out, slots swapped
+    m.ears(3); assert m.playing
+    m.ears(1); m.fn('headset_manual'); m.ears(3); assert not m.playing
+    passed()
+
+for absolute,limit,want in ((127,40,40),(0,100,0),(64,100,50),(1,100,1),(126,100,99)):
+    b=BtVolumeMachine(); b.poll(); b.byte(syms['g_maxvolume'],limit)
+    b.absolute=absolute; b.poll()
+    assert b.u.mem_read(syms['g_volume'],1)[0]==want
+    assert b.absolute==(want*127+50)//100
+    b.poll(); assert not b.writes()
+    passed()
+# A headset step that already reads as the Q2 volume stays: 2 is volume 2, never rewritten to 3.
+b=BtVolumeMachine(); b.poll(); b.absolute=2; b.poll()
+assert b.u.mem_read(syms['g_volume'],1)[0]==2 and not b.writes() and b.absolute==2
+assert b.volume(2,2)==[(100,100)] and not b.writes(); b.poll(); assert not b.writes(); passed()
+print('M4B recognition/resume and headset routing, ear masks, manual cancellation, malformed packets and volume limits passed.')
+
+# Real helper APIs: explicit pause/resume is observable and repeatable, with shared gain changes.
+def endpoint(m,name,value=0):
+    return m.call(address=payload_syms[name],args=(value,0,0,0),gap=0,clear=False)
+def ready_gain(m,ready,volume):
+    m.way=1
+    for name in ('g_bluetoothflag','bt_linkstatus'): m.byte(syms[name],1)
+    m.word(syms['bt_showcoding'],1); m.byte(syms['g_volume'],volume)
+    m.word(payload_syms['btvol']+4 if 'btvol' in payload_syms else payload_syms['btvol.1'],ready)  # clang may split scalar fields
+m=SpotMachine({BIN:bytearray()}); spot_open(m,stream_page(m)); m.state('playing'); m.poll()
+for playing,command in ((0,'s'),(1,'p')):
+    m.sent=[]; endpoint(m,'spot_set_playing',playing); endpoint(m,'spot_set_playing',playing)
+    assert [x[1] for x in m.sent]==[command] and endpoint(m,'spot_status')==(2 if playing else 3)
+ready_gain(m,1,32); m.now+=500; m.sent=[]; endpoint(m,'spot_poll'); assert m.sent[-1][1]=='v'+chr(100)
+ready_gain(m,1,0); m.now+=500; endpoint(m,'spot_poll'); assert m.sent[-1][1]=='v\0'
+ready_gain(m,0,32); m.now+=500; endpoint(m,'spot_poll'); assert m.sent[-1][1]=='v'+chr(32)
+passed()
+m=RadioMachine(); radio_open(m); m.row(1); m.row(0)
+assert endpoint(m,'radio_status')==2
+m.waited=m.forked
+endpoint(m,'media_set_playing',0); endpoint(m,'media_set_playing',0); assert endpoint(m,'radio_status')==3
+m.waited=0
+endpoint(m,'media_set_playing',1); assert endpoint(m,'radio_status')==2
+ready_gain(m,1,32); m.sent=[]; m.now+=500; endpoint(m,'radio_poll'); assert m.sent[-1][1]=='v'+chr(100)
+ready_gain(m,0,32); m.sent=[]; m.now+=500; endpoint(m,'radio_poll'); assert m.sent[-1][1]=='v'+chr(32)
+passed()
+m=BooksMachine({},{}); vid=payload_syms['vid']; m.word(vid+12,4242); m.word(vid+16,7)
+for playing,command in ((0,'a'),(1,'r')):
+    m.sent=[]; endpoint(m,'video_set_playing',playing); endpoint(m,'video_set_playing',playing)
+    assert [x[1] for x in m.sent]==[command,command] and endpoint(m,'video_status')==(2 if playing else 3)
+ready_gain(m,1,32); m.now+=1500; m.sent=[]; endpoint(m,'video_poll')
+assert [x[1] for x in m.sent]==['v'+chr(32),'g'+chr(100)]
+ready_gain(m,0,32); m.now+=500; m.sent=[]; endpoint(m,'video_poll'); assert m.sent[-1][1]=='g'+chr(32)
+m.files['/tmp/q2video.state']=bytearray(struct.pack('<i',1)); m.now+=500; endpoint(m,'video_poll'); assert endpoint(m,'video_status')==3
+passed()
+# Manual video pause must take effect before the helper's next state report.
+m=BooksMachine({},{}); m.word(payload_syms['vid']+12,4242); m.word(payload_syms['vid']+16,7)
+endpoint(m,'headset_ears',7); endpoint(m,'video_key',O['KEY_PLAY'])
+assert endpoint(m,'video_status')==3
+endpoint(m,'headset_ears',6); endpoint(m,'headset_ears',7)
+assert endpoint(m,'video_status')==3
+m.files['/tmp/q2video.state']=bytearray(struct.pack('<i',0)); m.now+=400; endpoint(m,'video_poll')
+assert endpoint(m,'video_status')==3  # stale helper state cannot undo the manual pause
+endpoint(m,'video_key',O['KEY_PLAY']); assert endpoint(m,'video_status')==2
+passed()
+# Stock Tidal shares the native queue controls and session cancellation.
+m=HeadsetMachine(); m.word(O['MCL_TYPE'],2); m.ears(3); m.ears(1); assert not m.playing
+m.ears(3); assert m.playing; m.command(163); assert m.actions[-1]==(1,'local_next'); passed()
+# Resume on connect (docs/internals.md#resume-on-connect), local music and Spotify. Off (default): a
+# headset's PLAY within CONNECT_HOLD_MS (5 s) of the link starts nothing, a later one plays. On: it plays.
+for owner in (1,2):
+    for off in (0,1):
+        m=HeadsetMachine(owner); m.playing=False
+        if not off: m.config['RESUME']='1'
+        for name in ('g_bluetoothflag','bt_linkstatus'): m.byte(syms[name],1)
+        m.fn('headset_poll',gap=200); m.command(200)
+        if not off: assert m.playing; passed(); continue
+        m.command(164); m.command(207); assert not m.playing and not m.actions
+        m.command(200,gap=5000); assert m.playing and m.actions==[(owner,'play')]; passed()
+# Stock's restart once A2DP comes up (BT_CONNECT_START): on, player_save_start(0) as stock. Off (default): a
+# playing queue goes on, a paused one comes back paused, a stopped one or a stream's turn starts nothing.
+from build import BT_CONNECT_START
+assert struct.unpack_from('<I',demo,fileoff(demo,BT_CONNECT_START[0]))[0]==0x0c000000|payload_syms['ringnav_bt_connect_start']>>2
+for off,owner,saved,want in ((0,1,3,[0]),(0,2,0,[0]),(1,1,2,[0]),(1,1,3,[1]),(1,1,0,[]),(1,2,3,[])):
+    m=HeadsetMachine(owner); m.saved=saved
+    if not off: m.config['RESUME']='1'
+    m.fn('ringnav_bt_connect_start')
+    assert [c[1] for c in m.calls if c[0]=='player_save_start']==want; passed()
+print('Real Spotify/radio/video play-state APIs, helper gain updates and stock Tidal routing passed.')
 
 print(f'{checks} MIPS execution scenarios passed; toolkit services mocked, stock lock filter executed.')

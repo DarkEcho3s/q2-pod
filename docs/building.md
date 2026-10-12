@@ -57,10 +57,10 @@ python3 test/alsa.py BUILD QEMU_MIPSEL     # ALSA startup lock regression (see i
 python3 test/ui_preview.py BEFORE AFTER OUT.png  # not a test: side-by-side iPod layout review sheet of two builds (or one build's two themes; --themes, ImageMagick)
 ```
 
-- **MIPS suite:** `test/patch.py` executes the actual patched payload and the stock key and touch filters under Unicorn. UI services are mocked; the one other mocked boundary is the `system()` call that Key Tone uses to click the speaker. Case coverage lives in `test/patch.py` and its included `test/headset_cases.py`. Run the payload, headset worker, metadata dispatch and packaging checks for both Stock and iPod builds.
+- **MIPS suite:** `test/patch.py` executes the actual patched payload and the stock key and touch filters under Unicorn. UI services are mocked; the one other mocked boundary is the `system()` call that Key Tone uses to click the speaker. Case coverage lives in `test/patch.py`. Run the payload, headset worker, metadata dispatch and packaging checks for both Stock and iPod builds.
 - **Known gap:** the stock rounded vgcanvas branch can't run end to end under Unicorn 2.1.4. Stock is built `-mfp64`, and Unicorn's MIPS32 FPU only implements `FR=0`, so its 64-bit conversions trap. The test runs the branch up to that instruction and asserts the calls before it.
 - **Reproducibility:** two fresh builds must produce identical `update.tar` files. Packaging verifies MD5 entries, unchanged kernel and rootfs metadata, and a rootfs no larger than stock.
 - **Space:** the payload is built with `-Oz`, and demo's `.pdr` section (MIPS procedure descriptors, 423 KB past every LOAD segment, never read at run time) ships zeroed. mksquashfs packs file tails into fragments (`-tailends`), which saves about 26 KB. Stock has about 25 KB of rootfs space left; iPod has about 250 KB.
 - **Manifest checks:** the runner refuses a `manifest.json` whose `source_sha256` doesn't match the current patch sources, and verifies the stock, patched and payload hashes against it.
 - **Guards:** the builder rejects any `patch/contexts.inc` name that isn't a window name in the stock rootfs UI assets, so an allowlist typo can't silently disable a screen. Widget offsets and shared ABI constants live in `patch/offsets.inc`, which both the payload and the test mocks read.
-- **Limits:** instruction counts are mocked-service measurements, not hardware latency. Hardware verification happens before release.
+- **Limits:** instruction counts are mocked-service measurements, not hardware latency.

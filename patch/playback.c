@@ -114,9 +114,7 @@ static int speed_folder(int at, char folder[1024]) {
 }
 
 static void speed_file(char path[80], const char *folder) {
-    tk_snprintf(path, 80, "/mnt/data/ringnav-speed-%08x-%08x",
-                fnv(FNV_SEED, (const unsigned char *)folder),
-                fnv(0x9e3779b9u, (const unsigned char *)folder));
+    tk_snprintf(path, 80, "/mnt/data/ringnav-speed-%08x", fnv(FNV_SEED, (const unsigned char *)folder));
 }
 
 static unsigned speed_read(int at) {
@@ -133,16 +131,17 @@ static unsigned speed_read(int at) {
 void playback_speed_start(void) { g_playspeed_mode = speed_read(M(MCL_POS)); }
 
 int ringnav_speed(int mode) {
+    folder_speed saved = { { 0 }, 0 };
+    char path[80], tmp[84];
     /* player_initconfig re-applies speed when the decoder connects; that is not a user edit. */
-    if (__builtin_return_address(0) == (void *)0x51339c) {
+    if (__builtin_return_address(0) == (void *)0x51339c || (unsigned)mode >= 4) {
         playback_speed_start();
         return stock_speed_trampoline(g_playspeed_mode);
     }
-    folder_speed saved = { { 0 }, 0 };
-    char path[80], tmp[84];
-    if ((unsigned)mode >= 4 || !speed_folder(M(MCL_POS), saved.folder)) {
-        playback_speed_start();
-        return stock_speed_trampoline(g_playspeed_mode);
+    if (!speed_folder(M(MCL_POS), saved.folder)) { /* no folder (a Tidal stream): this track only */
+        g_playspeed_mode = (unsigned char)mode;
+        close_preload();
+        return stock_speed_trampoline(mode);
     }
     saved.mode = (unsigned)mode;
     speed_file(path, saved.folder);

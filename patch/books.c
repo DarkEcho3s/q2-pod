@@ -784,7 +784,8 @@ static int play_video(void *ctx, void *event) {
     BLOB_IO(VIDEO_PLACE, vid.at, 1);
     vid.pid = video_start(path, 0);
     vid.seek = vid.paused = 0;
-    vid.volume = -1;
+    vid.volume = g_volume; /* the helper starts at output_device's level: nothing to send, no bar */
+    vid.gain = headset_gain();
     unlink("/tmp/q2video.state");
     vid.sock = socket(1, 1, 0); /* AF_UNIX, SOCK_DGRAM (MIPS numbering) */
     return 0;

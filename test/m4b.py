@@ -2,7 +2,7 @@
 """Exercise the installed TagLib's native MP4 dispatch, without decoding audio or flashing."""
 import pathlib, struct, subprocess, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]/'tools'))
-from build import segments, symbols, fileoff
+from build import load_elf, fileoff
 from unicorn import Uc, UC_ARCH_MIPS, UC_MODE_MIPS32, UC_MODE_LITTLE_ENDIAN, UC_HOOK_CODE
 from unicorn.mips_const import *
 raw = subprocess.check_output(['unsquashfs','-cat',str(pathlib.Path(sys.argv[1])/'stock.squashfs'),'usr/lib/libtag.so.2.0.1'])
@@ -10,9 +10,7 @@ raw = subprocess.check_output(['unsquashfs','-cat',str(pathlib.Path(sys.argv[1])
 assert raw[fileoff(raw,0x115130):fileoff(raw,0x115130)+4] == b'M4B\0'
 for ext in ('M4A','M4B','m4b','M4b','m4B','MP4'):
     u=Uc(UC_ARCH_MIPS,UC_MODE_MIPS32|UC_MODE_LITTLE_ENDIAN)
-    for _,(kind,off,addr,_,size,mem,_,_) in segments(raw):
-        if kind==1:
-            start=addr&~4095; u.mem_map(start,((addr+mem+4095)&~4095)-start); u.mem_write(addr,raw[off:off+size])
+    load_elf(u,raw)
     u.mem_map(0x2000000,0x10000)
     def word(addr): return struct.unpack('<I',u.mem_read(addr,4))[0]
     gp=0x158590
@@ -34,4 +32,4 @@ for ext in ('M4A','M4B','m4b','M4b','m4B','MP4'):
     u.mem_write(0x200f018,struct.pack('<I',gp))
     u.emu_start(0x10a7ac,0x10a3f4,count=200)
     assert seen==[mp4],ext
-print('Installed TagLib: M4B and M4A reach the same MP4 metadata constructor (audio decoding untested).')
+print('Installed TagLib: M4B and M4A reach the same MP4 metadata constructor.')

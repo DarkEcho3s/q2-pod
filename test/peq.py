@@ -7,12 +7,10 @@ import pathlib
 import subprocess
 import tempfile
 import sys; sys.path.insert(0, sys.path[0] + '/../tools')  # tools/ first
-from build import FUNCTIONS
+from build import FUNCTIONS, ROOT
 from peq import LIBC
 
 PROTOTYPES = {**FUNCTIONS, **LIBC}  # the stock calls the host shims stand in for
-
-ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 class Band(C.Structure):
     _fields_ = [('enabled', C.c_int), ('type', C.c_int), ('frequency', C.c_double),
