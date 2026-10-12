@@ -443,6 +443,7 @@ int ringnav_prev(void) {
  * Skip every branch calls mclNextSong(0)/mclPrevSong, so advanced order applies. MCL_MODE is
  * written directly: mclSetPlayMode would end advanced play. */
 int ringnav_change(int next) {
+    headset_manual();
     if (!s.active) {
         if (!next || !list_end()) return stock_change_trampoline(next);
         ringnav_next(0); /* stops */
@@ -862,4 +863,10 @@ void playback_poll(void) {
 int ringnav_savequeue(void) {
     playback_save();
     return stock_savequeue_trampoline();
+}
+
+/* Stock passes its audio extension list and the final dot suffix in folder and scan paths.
+ * Keep every existing format; TagLib's FileRef already dispatches M4B to MP4. */
+char *ringnav_audio_extension(const char *formats, const char *ext) {
+    return !strcasecmp(ext, ".m4b") ? (char *)ext : strstr(formats, ext);
 }

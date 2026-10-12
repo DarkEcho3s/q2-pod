@@ -252,6 +252,7 @@ void radio_stop(void) {
 /* rd.list's station i (round the ends): q2video started on the output in use, after librespot let
  * go, and the station kept in RADIO_LAST. */
 static void radio_play(int i) {
+    headset_manual();
     int n = rd.list.n;
     if (!n) return;
     rd.at = (i % n + n) % n;
@@ -259,7 +260,7 @@ static void radio_play(int i) {
     spot_yield();
     rd.pid = video_start(url_of(&rd.list, rd.at), 1);
     rd.active = 1;
-    rd.volume = g_volume + 1u;
+    rd.volume = headset_gain() + 1u;
     rd.since = 0;
     rd.title[0] = rd.codec[0] = rd.bitrate[0] = rd.error[0] = 0;
     ++rd.serial;
@@ -292,9 +293,9 @@ void radio_poll(void) {
     }
     reset_poweroptions_timer(1, 1, 0);
     if (I(g_dacoff_time, 0) > 0) I(g_dacoff_time, 0) = 0;
-    if (rd.volume != g_volume + 1u) {
-        char v[2] = { 'v', (char)g_volume };
-        rd.volume = g_volume + 1u;
+    if (rd.volume != headset_gain() + 1u) {
+        char v[2] = { 'v', (char)headset_gain() };
+        rd.volume = headset_gain() + 1u;
         send_key(v, 2);
     }
 }
@@ -303,6 +304,7 @@ void radio_poll(void) {
  * played, Play/Pause stops or restarts the station and the side buttons step through its list. */
 int radio_media(unsigned key) {
     if (!rd.active || (key != KEY_PLAY && key != KEY_FWD_BTN && key != KEY_BACK_BTN)) return 0;
+    headset_manual();
     if (key == KEY_PLAY && rd.pid)
         radio_halt();
     else
@@ -721,4 +723,14 @@ int radio_open(void *ctx, void *event) {
     show(MENU);
     return 0;
 }
+int radio_status(void) { return rd.active ? (rd.pid ? 2 : 3) : 0; }
+unsigned radio_session(void) { return rd.serial; }
+void radio_set_playing(int playing) {
+    if (!rd.active) return;
+    if (!playing)
+        radio_halt();
+    else if (!rd.pid)
+        radio_play(rd.at);
+}
+
 #endif

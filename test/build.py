@@ -137,6 +137,13 @@ def validate_assets(directory):
     # Both jump from window_manager_paint (Videos).
     off = fileoff(stock, WM_PAINT_LEAF[1])
     assert demo[off:off+8] == (0x08000000 | symbols(directory/'patch.elf')[WM_PAINT_LEAF[2]] >> 2).to_bytes(4, 'little') + bytes(4)
+    from build import AUDIO_EXTENSION_CALLS
+    for entry, address in zip(manifest['audio_extension_calls'], AUDIO_EXTENSION_CALLS, strict=True):
+        off = fileoff(stock, address)
+        assert entry['address'] == hex(address)
+        assert struct.unpack_from('<I', stock, off)[0] == int(entry['original'], 16)
+        assert struct.unpack_from('<I', demo, off)[0] == int(entry['replacement'], 16)
+        assert stock[off-8:off-4] == struct.pack('<I', 0x8f99f950)
     changed = manifest['changed_assets']
     xx = 'release/assets/default/raw/images/xx/'
     assert set(changed) == {'release/assets/default/raw/ui/'+p for p in (UI_ASSETS if ipod else [ARTIST_PAGE, HOME_PAGE])} | {

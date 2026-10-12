@@ -3,6 +3,7 @@
 #include "peq.h" /* libc/libcstl imports (deque_*, send) and the shared helpers */
 #include "playback.h"
 #include "stock.h"
+#undef select /* the UI selection helper below; headset.c uses libc select */
 extern int stock_keyup_trampoline(void *, void *), stock_touch_trampoline(void *, void *),
     stock_paint_trampoline(void *, void *), stock_dispatch_trampoline(void *, void *),
     stock_keylong_trampoline(void *, void *), stock_paint_bg_trampoline(void *, void *),
@@ -4424,7 +4425,9 @@ static int media_kind(const char *s) {
 
 /* A track in Podcasts or Audiobooks: always resumed, never counted or scrobbled. */
 static int spoken(const char *path) {
-    return path && tk_str_start_with(path, "/mnt/mmc/") && media_kind(path + 9) - 1u < AUDIOBOOKS;
+    const char *ext = path ? strrchr(path, '.') : 0;
+    return (ext && !strcasecmp(ext, ".m4b")) ||
+           (path && tk_str_start_with(path, "/mnt/mmc/") && media_kind(path + 9) - 1u < AUDIOBOOKS);
 }
 
 /* The card's folder for kind into path (sizeof st.media_root, which a MEDIA name always fits); 0
@@ -4582,6 +4585,7 @@ int ringnav_stream(void *win, void *ctx) {
 /* mclStartPlayer, every local track's start: a playing librespot or radio station lets the DAC's
  * PCM go first. */
 int ringnav_start_player(void) {
+    headset_manual();
     spot_yield();
     radio_stop();
     return stock_start_player_trampoline();
@@ -5272,11 +5276,13 @@ int rockbox_open(void *ctx, void *event) {
 }
 #endif
 
+#if IPOD
 /* Now Playing on top. */
 static int now_playing(void) {
     void *top = window_manager_get_top_window(window_manager());
     return top && !tk_strcmp(widget_get_prop_str(top, "name", ""), "playing_page");
 }
+#endif
 
 /* Now Playing's visualizer repainting or its album marquee moving: their 40 and 50 ms timers would
  * run late on an idle pass. Its progress and lyrics tick every 250 ms and keep up. */
@@ -5296,37 +5302,72 @@ static int bt_audio_ready(void) {
            !bt__recv_pageflag && mclGetOutputWay() == 1;
 }
 
+static struct {
+    unsigned checked;
+    int ready, last;
+} btvol __attribute__((section(".scratch")));
+
+void headset_volume_reset(void) { btvol.ready = 0; }
+
 static int bt_sync_volume(int left, int right) {
     unsigned cur = (unsigned)btctl_transport_get_volume();
     if (cur > 127) return 0;
     int v = left > right ? left : right;
     v = v < 0 ? 0 : v > 100 ? 100 : v;
     int want = (v * 127 + 50) / 100;
-    return cur == (unsigned)want || btctl_transport_set_volume(want) == 0;
+    if (cur != (unsigned)want && btctl_transport_set_volume(want)) return 0;
+    btvol.last = want;
+    return 1;
 }
 
-/* AVRCP 0 is the headset's lowest step, which many still play, so volume 0 keeps stock's gain:
- * (0, 0) silences hciplayer's soft volume. The next step up restores full gain. */
+int headset_gain(void) { return bt_audio_ready() && btvol.ready && g_volume ? 100 : g_volume; }
+
+/* Absolute zero still needs software mute. Unsupported/failed writes retain stock gain. */
 int ringnav_btvol(int left, int right) {
-    if (bt_audio_ready() && bt_sync_volume(left, right) && (left > 0 || right > 0))
-        return stock_btvol_trampoline(100, 100);
+    if (bt_audio_ready()) {
+        btvol.ready = bt_sync_volume(left, right);
+        if (btvol.ready && (left > 0 || right > 0)) return stock_btvol_trampoline(100, 100);
+    }
     return stock_btvol_trampoline(left, right);
 }
-
-static struct {
-    unsigned checked;
-    int ready;
-} btvol __attribute__((section(".scratch")));
 
 static void bt_volume_poll(void) {
     unsigned now = time_now_ms();
     if (now - btvol.checked < 400) return;
     btvol.checked = now;
-    if (!bt_audio_ready())
+    if (!bt_audio_ready()) {
         btvol.ready = 0;
-    else if (!btvol.ready && bt_sync_volume(g_volume, g_volume)) {
-        stock_btvol_trampoline(g_volume ? 100 : 0, g_volume ? 100 : 0);
-        btvol.ready = 1;
+        return;
+    }
+    if (!btvol.ready) {
+        if (bt_sync_volume(g_volume, g_volume)) {
+            stock_btvol_trampoline(g_volume ? 100 : 0, g_volume ? 100 : 0);
+            btvol.ready = 1;
+        }
+        return; /* Initial connection preserves Q2 volume. */
+    }
+    int cur = btctl_transport_get_volume();
+    if (cur < 0 || cur > 127) {
+        btvol.ready = 0;
+        stock_btvol_trampoline(g_volume, g_volume);
+        return;
+    }
+    if (cur == btvol.last) return;
+    int v = (cur * 100 + 63) / 127;
+    int limit = g_maxvolume < 100 ? g_maxvolume : 100;
+    if (v > limit) v = limit;
+    btvol.last = cur;
+    g_volume = (unsigned char)v;
+    *(volatile signed char *)0xa38c41u = (signed char)v; /* stock responseSetVolume's level */
+    device_set_volume(v, 1);
+    write_int_config(v, "PLAYSET", "VOLUME");
+    /* device_set_volume invokes our gain hook; enforce the limit even when mocked/unsupported. */
+    btvol.ready = bt_sync_volume(v, v);
+    stock_btvol_trampoline(btvol.ready && v ? 100 : v, btvol.ready && v ? 100 : v);
+    void *top = window_manager_get_top_window(window_manager());
+    if (top && !tk_strcmp(widget_get_prop_str(top, "name", ""), "volume_dialog")) {
+        void *slider = widget_lookup(top, "slider_vol", 1);
+        if (slider) widget_set_prop_int(slider, "value", v);
     }
 }
 
@@ -5337,6 +5378,7 @@ static void bt_volume_poll(void) {
  * With Low power and the screen on, a pass idles LOW_IDLE_SLEEP_MS once input and window
  * animations have been still for LOW_IDLE_MS, except while Now Playing animates. */
 int ringnav_sleep(void *loop) {
+    headset_poll();
     bt_volume_poll();
     video_poll();
     spot_poll();
@@ -5622,10 +5664,12 @@ int ringnav(void *ctx, void *event) {
     if (usable() && rate_key(window_manager_get_top_window(window_manager()), key)) return STOP;
     int result = stock_keyup_trampoline(ctx, event);
     if (key == KEY_PLAY && hold_released()) return STOP;
-    /* Spotify's or the radio's while it was the last to play; on local Now Playing they are local
-     * music's, so stock's play_pause restarts the track player_stop left and its start
-     * (ringnav_start_player) takes the output and the keys back. */
-    if (!result && !now_playing() && (spot_media(key) || radio_media(key))) return STOP;
+    /* Media controls follow the active source, including when local Now Playing is visible. */
+    if (!result && media_owner() != 1 &&
+        (key == KEY_PLAY || key == KEY_FWD_BTN || key == KEY_BACK_BTN)) {
+        media_key(key);
+        return STOP;
+    }
     if (result) {
         cancel_center();
         if (key == KEY_PREV || key == KEY_NEXT) drop_wheel();

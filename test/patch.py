@@ -89,6 +89,7 @@ class Machine:
         if patched:
             for name in ('paint','dispatch','paint_bg'):
                 self.handlers[int(manifest['patch_symbols']['stock_'+name+'_trampoline'],16)]='stock_'+name
+        self.mock('pthread_create@GLIBC_2.2','pthread_detach@GLIBC_2.0')
         self.mock('reset_poweroptions_timer','screen_action','enable_fb','usleep@GLIBC_2.0','sprintf@GLIBC_2.0',
                   'airplayGetFlag','playpause_quick_click','time@GLIBC_2.0','localtime@GLIBC_2.0',
                   'strlen@GLIBC_2.0','strrchr@GLIBC_2.0','strcasecmp@GLIBC_2.0','strncasecmp@GLIBC_2.0',
@@ -3219,7 +3220,7 @@ class BtVolumeMachine(Machine):
         super().__init__()
         self.absolute=10; self.write_result=0; self.way=1
         self.byte(syms['g_bluetoothflag'],1); self.byte(syms['bt_linkstatus'],1)
-        self.word(syms['bt_showcoding'],1); self.byte(syms['g_volume'],20)
+        self.word(syms['bt_showcoding'],1); self.byte(syms['g_volume'],20); self.byte(syms['g_maxvolume'],100)
         self.handlers[HOOKS['mclSetBtVol'][0]+12]='stock_btvol'
         self.handlers[HOOKS['main_loop_sleep_default'][0]+12]='stock_sleep'
         self.mock('mclSetLocalVol','mclUsbAudioSetVol','notifyVolume','airplaySendVol')
@@ -3268,10 +3269,10 @@ b=BtVolumeMachine(); b.absolute=-1; b.poll()
 assert not b.writes()
 b.absolute=10; b.poll(399); assert not b.writes()
 b.poll(1); assert b.writes()==[25]
-b.absolute=5; b.poll(); assert not b.writes()  # one synchronization per ready connection
+b.absolute=5; b.poll(); assert not b.writes()  # exact rounded remote value
 b.byte(syms['bt_linkstatus'],0); b.poll(); assert not b.writes()
 b.byte(syms['bt_linkstatus'],1); b.word(syms['bt_showcoding'],0); b.poll(); assert not b.writes()
-b.word(syms['bt_showcoding'],1); b.poll(); assert b.writes()==[25]; passed()
+b.word(syms['bt_showcoding'],1); b.poll(); assert not b.writes(); passed()
 b=BtVolumeMachine(); b.write_result=-1; b.poll()
 assert b.writes()==[25] and not any(c[0]=='stock_btvol' for c in b.calls)
 b.write_result=0; b.poll(); assert b.writes()==[25]; passed()
@@ -6624,7 +6625,9 @@ assert event(0x110,O['KEY_CENTER'])==[] and event(O['EVT_POINTER_DOWN'])==[] and
 # The wheel is the volume, as stock's volume dialog steps it: 1 a tick through device_set_volume, saved as
 # PLAYSET VOLUME, up to g_maxvolume (and 100) and down to 0; each tick sends v and the volume, at an end too.
 def key(k):
-    names=event(O['EVT_KEY_UP'],k); assert 'stock_input' not in names and len(m.sent)==1 and m.sent[0][2]==len(m.sent[0][1])
+    names=event(O['EVT_KEY_UP'],k); assert 'stock_input' not in names and m.sent[0][2]==len(m.sent[0][1])
+    assert len(m.sent)==(2 if m.sent[0][1].startswith('v') else 1)
+    if len(m.sent)==2: assert m.sent[1][1]=='g'+m.sent[0][1][1]
     vol=[c[1:3] for c in m.calls if c[0]=='device_set_volume']; saved=[(c[1],m.text(c[2]),m.text(c[3])) for c in m.calls if c[0]=='write_int_config']
     assert len(vol)==len(saved)<=1 and all(v==(s[0],1) and s[1:]==('PLAYSET','VOLUME') for v,s in zip(vol,saved))
     return m.sent[0][1],vol and vol[0][0]
@@ -6955,10 +6958,9 @@ assert m.key(O['KEY_PLAY'])==11 and m.sent[0][1]=='q' and RSTATE not in m.files 
 assert m.key(O['KEY_PLAY'])==11 and forks()==1 and last()=='https://three/c?x=1'
 assert m.key(O['KEY_FWD_BTN'])==11 and m.sent[0][1]=='q' and forks()==1 and last()=='http://one/a'
 assert m.key(O['KEY_BACK_BTN'])==11 and last()=='https://three/c?x=1'; passed()
-# On local Now Playing the media keys stay local music's while the radio has them elsewhere: stock's
-# play_pause restarts the track player_stop left, and its start takes the keys back.
+# Media keys target the active radio even with local Now Playing visible.
 m.top=m.node('window','playing_page')
-for k in ('KEY_PLAY','KEY_FWD_BTN','KEY_BACK_BTN'): assert m.key(O[k])!=11 and not m.sent and not forks()
+assert m.key(O['KEY_FWD_BTN'])==11 and forks()==1
 m.top=m.node('window','home_page'); passed()
 # Local music starting takes the output: q2video quits first, and the keys are local music's again.
 names=start(); assert m.sent[0][1]=='q' and names.index('waitpid')<names.index('stock_start_player')
@@ -7390,5 +7392,7 @@ m.paint(view)
 for _ in range(9): m.call()
 assert m.confirm()==11 and m.dispatched()[0][1]==button; passed()
 print('Boot settings: conditional row/order, restart, card removal and failed atomic writes passed.')
+
+exec((ROOT/'test/headset_cases.py').read_text())
 
 print(f'{checks} MIPS execution scenarios passed; toolkit services mocked, stock lock filter executed.')

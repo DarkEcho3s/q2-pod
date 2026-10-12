@@ -137,7 +137,7 @@ Video sound plays on the headphone jack, Bluetooth or a USB DAC. Music stops mea
 | **Wheel**       | Volume, as everywhere: the Q2's volume is Spotify's                                                                                                             |
 | **Centre**      | On the Spotify page, as on Now Playing: press once to turn the screen off; double-press, turn the wheel 5 s a tick, then double-press again or wait 3 s to jump |
 
-Until you play local music again, the buttons stay Spotify's, except on the local Now Playing page, where Play resumes your music. Picking a song in the Library pauses Spotify and plays the song; casting from the phone again stops local music. Playback carries on with the screen off. Spotify plays on the headphone jack, Bluetooth or a USB DAC, as Videos and Internet Radio do: whichever is in use when playback starts. If you switch output while it plays, pause and play again to move it. Bluetooth and USB need a current `.spotify/aplay.sh`; an older one always plays on the headphone jack.
+Until you play local music again, the playback buttons control Spotify from any page, including local Now Playing. Picking a song in the Library pauses Spotify and plays the song; casting from the phone again stops local music. Playback carries on with the screen off. Spotify plays on the headphone jack, Bluetooth or a USB DAC, as Videos and Internet Radio do: whichever is in use when playback starts. If you switch output while it plays, pause and play again to move it. Bluetooth and USB need a current `.spotify/aplay.sh`; an older one always plays on the headphone jack.
 
 The first time, open **Streaming → Spotify** and pick **Q2** in the Spotify app; the login is saved on the card. After each power-on, open **Streaming → Spotify** once and the Q2 shows up in Spotify again; until then nothing Spotify runs. To save battery, Spotify stops itself after 30 seconds paused or stopped; open the row again to bring it back.
 
@@ -170,7 +170,7 @@ To update, unzip a newer release over it; its `cache/` keeps the saved login. To
 | **Wheel**           | Volume, as everywhere                                                                                                                                |
 | **Return**          | Goes back a level                                                                                                                                    |
 
-Now Playing shows the station, the artist and song when the station sends them, the format and bitrate, and how long it has played. Until you play local music again, the buttons stay the radio's, except on the local Now Playing page, where Play resumes your music. Picking a song in the Library, playing a video or casting Spotify stops the radio. It plays on the headphone jack, Bluetooth or a USB DAC, and carries on with the screen off. If the stream drops, it reconnects; after five failed tries it shows **Can't play this station**. If the output itself can't be opened, it shows **Can't play:** and the reason; please send that text with a bug report.
+Now Playing shows the station, the artist and song when the station sends them, the format and bitrate, and how long it has played. Until you play local music again, the playback buttons control radio from any page, including local Now Playing. Picking a song in the Library, playing a video or casting Spotify stops the radio. It plays on the headphone jack, Bluetooth or a USB DAC, and carries on with the screen off. If the stream drops, it reconnects; after five failed tries it shows **Can't play this station**. If the output itself can't be opened, it shows **Can't play:** and the reason; please send that text with a bug report.
 
 To add your own stations, put `.m3u` or `.pls` playlists in the card's `Radio` folder: they all appear under **Favourites**. An `.m3u` lists each station as a name line, then its address:
 
@@ -288,3 +288,17 @@ Playlist import, a stock feature, reads M3U files only from the **`_explaylist_d
 - **Sort**, the card before it: press to switch between **Album**, **Artist** (then year), **Year** (newest or oldest first, as Playback settings → **Year order**), **Recently Added**, **Most Played** and **Random**. The choice is kept; Random reshuffles each time you pick it.
 - **An artist's albums as Coverflow:** **System settings → Display → Artist albums: Coverflow** toggles between the default Grid and Coverflow for **Library → Artists → selected artist → Albums**. Coverflow contains only that artist's albums, including when Artists is set to Album Artist. Return goes straight back to the Artists list.
 - **Artwork:** embedded art first, then `cover.jpg` and `folder.jpg`; otherwise a placeholder. A folder shared by several albums skips its `cover.jpg` and `folder.jpg`, since they'd be another album's art.
+
+## M4B audiobooks
+
+Unprotected `.m4b` files use the existing MP4 decoder and metadata reader, with the codecs that decoder supports. Copy the original files onto the card; no renaming or conversion is needed. Extensions are case-insensitive. M4B files anywhere on the card resume at any duration and do not count toward Most Played or scrobbles. The existing resume storage limit and 30-second end exclusions still apply, and CUE tracks remain excluded. `Audiobooks/` adds a Library shortcut, but is optional for M4B. DRM and chapter navigation are unsupported.
+
+## AirPods controls
+
+Both Stock and iPod builds now implement AirPods controls. A single stem press toggles the active player; double/triple presses use Next/Previous: tracks for local music, Tidal and Spotify, stations for Internet Radio, and the existing seek steps for video. Playback controls target the active player from any page, including with the screen off.
+
+Removing a worn bud pauses playback. Putting the previously worn buds back resumes the session that ear detection paused. A manual playback command, a different player or track, or a disconnect cancels that automatic resume. The first ear report establishes state without starting playback; both buds out keeps playback paused. Radio resumes by restarting the current station.
+
+The Q2's volume is preserved on connection. Later headset volume changes update the Q2, its visible volume controls and helper-player gain, within the configured volume limit; zero mutes. Unsupported or failed headset volume operations use software gain. No extra setting is needed. AirPlay and DLNA retain their existing receiver controls.
+
+These features have build and emulator coverage, but AirPods Pro 2 behavior and M4B decoding, seeking and reboot resume still require testing on a Q2. There is no battery connection card.

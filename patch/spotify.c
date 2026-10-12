@@ -130,6 +130,7 @@ static unsigned spot_position(void) {
  * (books.c). Bluetooth and USB outputs are left alone: librespot's sink plays on them itself
  * (spot_output). */
 static void spot_take(void) {
+    headset_manual();
     spot_log("take", g_headset_output, mclGetOutputWay());
     radio_stop(); /* Internet Radio's q2video holds the PCM */
     if (mclGetPlayStatus() != 1) player_stop(); /* 1 stopped */
@@ -142,7 +143,7 @@ static void spot_take(void) {
  * a running q2video gets v and the volume, as radio's does. ponytail: a new device waits for the
  * sink's next start (pause and play), as Videos and Internet Radio keep theirs till they end. */
 static void spot_output(void) {
-    char vol[5], out[sizeof sp.out] = "", v[2] = { 'v', (char)g_volume };
+    char vol[5], out[sizeof sp.out] = "", v[2] = { 'v', (char)headset_gain() };
     const char *dev = output_device(vol);
     if (dev) tk_snprintf(out, sizeof out, "%s %s\n", dev, vol);
     if (!strcmp(out, sp.out)) return;
@@ -258,6 +259,7 @@ int spot_media(unsigned key) {
                     : key == KEY_BACK_BTN ? "b"
                                           : 0;
     if (!c || !sp.active) return 0;
+    headset_manual();
     spot_send(SPOT_SOCK, c, 1);
     return 1;
 }
@@ -464,3 +466,21 @@ int spot_open(void *ctx, void *event) {
 
 /* iPod's Now Playing corners (navigation.c paint_cover) round the art too. */
 void *spot_art(void) { return ui.art; }
+
+static struct {
+    unsigned until;
+    int playing;
+} control __attribute__((section(".scratch")));
+int spot_status(void) {
+    int playing =
+        control.until && time_now_ms() - control.until < 1000 ? control.playing : sp.playing;
+    return sp.active ? (playing ? 2 : 3) : 0;
+}
+unsigned spot_session(void) { return fnv(2166136261u, (const unsigned char *)sp.track); }
+void spot_set_playing(int playing) {
+    if (sp.active && playing != (spot_status() == 2)) {
+        spot_send(SPOT_SOCK, playing ? "p" : "s", 1);
+        control.until = time_now_ms();
+        control.playing = playing;
+    }
+}

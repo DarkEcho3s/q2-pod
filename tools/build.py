@@ -43,6 +43,7 @@ HOOKS = {
     'scanAllMusicFile': (0x4fc788, 'coverflow_scan_all'),
     'scanSpecFolder': (0x4fc964, 'coverflow_scan_folder'),
     'deleteMusicFromMusicDb': (0x500b5c, 'coverflow_delete_song'),
+    'player_play_pause': (0x515728, 'ringnav_play_pause'),
     'mclSetBtVol': (0x5accec, 'ringnav_btvol'),
     'main_loop_sleep_default': (0x648f00, 'ringnav_sleep'),
     'systemset_about_page_init': (0x4bc80c, 'ringnav_about'),
@@ -83,7 +84,7 @@ IPOD_HOOKS = {'playlist_rebuild': (0x4b2dac, 'ringnav_playlist'),
               'image_manager_add': (0x6445d4, 'ringnav_image_add'),
               'on_wm_keydown_before_fun': (0x4e8424, 'ringnav_keydown')}
 # The payload's stock_<name>_trampoline resumes each hook past its 3-word PIC prologue, in this order.
-TRAMPOLINES = {'btvol': 'mclSetBtVol', 'savequeue': 'save_memoryplay_info', 'load': 'mclLoadPlayList', 'next': 'mclNextSong', 'prev': 'mclPrevSong',
+TRAMPOLINES = {'pause': 'player_play_pause', 'btvol': 'mclSetBtVol', 'savequeue': 'save_memoryplay_info', 'load': 'mclLoadPlayList', 'next': 'mclNextSong', 'prev': 'mclPrevSong',
                'mode': 'mclSetPlayMode', 'preload': 'mcl_preload', 'memory': 'memeory_startplayer', 'playlist': 'playlist_rebuild', 'keyup': 'on_wm_keyup_before_fun', 'touch': 'on_wm_tsdown_before_fun', 'paint': 'widget_on_paint_border',
                'dispatch': 'widget_dispatch', 'keylong': 'on_wm_keylong_fun', 'eq': 'set_equalizer_value',
                'home': 'home_page_init', 'localmusic': 'localmusic_page_init', 'localclass': 'load_localclass_list',
@@ -173,6 +174,7 @@ HOLD_RETURN = (0x4e8924, 0x04110fdf)
 STANDBY_WAKE = (0x4f7d24, 0x0411ff26)
 # The bal toolsTrimLeft on each name copy in the two library name comparators (0x5b9d40, 0x5ba658, the
 # Chinese and other-language sorts); they become jal ringnav_sort_key, which also drops a leading article.
+AUDIO_EXTENSION_CALLS = (0x5c2054, 0x5c3da4)  # toolsLoadDirectory and recursive scan
 SORT_TRIMS = (0x5b9e38, 0x5b9ea4, 0x5ba750, 0x5ba7bc)
 # toolsLoadAllFile stops a scan at 20,000 songs: lw $2,count; slti $2,$2,0x4e20 before each entry. 65,000
 # overflows slti's signed immediate, so the lw becomes jal ringnav_scan_room and the slti loads the count
@@ -508,6 +510,10 @@ FUNCTIONS = {
  # Videos (books.c): stop the music, the DAC's power, and the screen and standby timeouts held off
  'mclGetOutputWay': ('int', 'void'),
  'mclGetLyricSize': ('int', 'void'),  # the playing track's lyric lines, 0 without
+ 'player_play_pause': ('int', 'void'),
+ 'player_next_music': ('int', 'void'), 'player_prev_music': ('int', 'void'),
+ 'mclSetPause': ('int', 'void'), 'mclSetResume': ('int', 'void'),
+ 'getBtLinkSize': ('int', 'void'), 'getBtLinkItem': ('int', 'int, int *, char *'),
  'mclGetPlayStatus': ('int', 'void'),  # 1 stopped, 2 playing, 3 paused (mclStop, mclSetResume, mclSetPause)
  'player_stop': ('int', 'void'),
  'save_memoryplay_info': ('int', 'void'),  # Memory playback's queue and position, as into_poweroff saves them
@@ -605,7 +611,7 @@ def compile_payload(out, ipod=False):
     run('clang',*FLAGS,'-c',out/'trampoline.S','-o',out/'trampoline.o')
     run('ld.lld','-m','elf32ltsmip','--gc-sections','-T',ROOT/'patch/link.ld','-e','ringnav',
         *[f'--undefined={name}' for _, name in hooks(ipod).values()], *[f'--undefined={IPOD_LEAF[2]}'] * ipod,
-        f'--undefined={WM_PAINT_LEAF[2]}', '--undefined=ringnav_bootmode', '--undefined=ringnav_ts_read',
+        f'--undefined={WM_PAINT_LEAF[2]}', '--undefined=ringnav_audio_extension', '--undefined=ringnav_bootmode', '--undefined=ringnav_ts_read',
         out/'navigation.o',out/'trampoline.o',*extra,'-o',out/'patch.elf')
     run('llvm-objcopy','-O','binary',out/'patch.elf',out/'patch.bin')
     return symbols(out/'patch.elf')
@@ -796,6 +802,11 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     for address, old, new in LDAC_HQ:
         patch_word(patched, address, old, new, 'LDAC HQ sends 990 kbps')
     patch_word(patched, WHEEL_TS_READ[0], WHEEL_TS_READ[1], 0x0c000000 | ps['ringnav_ts_read'] >> 2, 'wheel ticks')
+    for address in AUDIO_EXTENSION_CALLS:
+        check(struct.unpack_from('<I', raw_demo, fileoff(raw_demo, address-8))[0] == 0x8f99f950,
+              'audio extension: expected strstr import')
+        patch_word(patched, address, 0x0320f809, 0x0c000000 | ps['ringnav_audio_extension'] >> 2,
+                   'recognize M4B alongside existing audio extensions')
     for address in SORT_TRIMS:
         patch_word(patched, address, 0x04110000 | (syms['toolsTrimLeft'] - address - 4) >> 2 & 0xffff,
                    0x0c000000 | (ps['ringnav_sort_key'] >> 2), 'sort without a leading article')
@@ -950,6 +961,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         demo_sha256=sha(patched), patch_sha256=sha(payload), update_sha256=sha((out/'update.tar').read_bytes()),
         rootfs_sha256=sha(newsq.read_bytes()), kernel_sha256=sha(blobs['recovery-update/xImage']),
         patch_bytes=len(payload), ring_step_pixels=RING_STEP,
+        audio_extension_calls=[dict(address=hex(a), original='0x0320f809', replacement=hex(0x0c000000 | ps['ringnav_audio_extension'] >> 2)) for a in AUDIO_EXTENSION_CALLS],
         version=version, variant=variant, dev=dev, peq=audio, bluealsa_sha256=sha(bluealsa), q2video_sha256=sha((out/'q2video').read_bytes()), q2boot_sha256=sha((out/'q2boot').read_bytes()), compact_code=code_changes, changed_assets=changed_assets, logo_sha256=sha(logo_data),
         patch_symbols={n:hex(v) for n,v in ps.items() if n.startswith('stock_')},
         tools={t:run(t,'--version').splitlines()[0] for t in ['clang','ld.lld','llvm-objcopy']} |

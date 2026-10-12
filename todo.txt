@@ -14,5 +14,8 @@
 [x] Album ratings: Hold Play/Pause on a Coverflow cover, Library Album or artist album row → Add/Remove from Favourites, Rate album (0-5♥, /mnt/data/ringnav-album-ratings); Library → Ratings → Albums: rated albums in Coverflow, Sort Rating/Album/Artist/Year
 [x] Artist pages (Grid + Coverflow) → albums by release year; Playback settings → Year order: Newest (default) / Oldest first, for every year sort
 [x] Thick settings sliders: endpoint icons and dark discs removed
-[ ] Audiobooks → Add .m4b audiobook support
-[ ] Airpods → Add AirPods Support (connect card with battery, ear detection, stem buttons, volume sync) - see https://github.com/DiamondBond/q2-pod/commit/6799d59d708c667ea050e7ab5776c96ad21fef4c
+[x] Audiobooks → unprotected .m4b recognition, MP4 metadata path, resume at any duration, no counts/scrobbles (Stock + iPod)
+[ ] Q2 hardware → long .m4b playback, seeking and reboot resume
+[x] AirPods → AACP ear detection, AVRCP stem buttons, active-player routing and two-way volume sync (Stock + iPod); protocol from 6799d59
+[ ] Q2 hardware → AirPods Pro 2 buttons, ear transitions and volume in local/Tidal/Spotify/radio/video, both builds
+Skipped by scope: AirPods battery connection card, chapter browser and DRM.

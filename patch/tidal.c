@@ -90,6 +90,7 @@ static void *download(void *unused) {
 }
 
 int tidal_play(const char *url, const char *id) {
+    headset_manual();
     char ext[8], path[96];
     int level = I(tidalStreamingLevelNow, 0);
     if (!url || !id || !*id || strstr(id, "/") || !tidal_ext(url, ext, sizeof ext))

@@ -67,6 +67,12 @@ LIBC = {
     # Home's Rockbox row (navigation.c rockbox_open)
     'system': ('int', 'const char *'),
     'waitpid': ('int', 'int, int *, int'), 'socket': ('int', 'int, int, int'), 'close': ('int', 'int'),
+    'connect': ('int', 'int, const void *, unsigned'),
+    'recv': ('int', 'int, void *, unsigned, int'),
+    'select': ('int', 'int, void *, void *, void *, void *'),
+    'getsockopt': ('int', 'int, int, int, void *, unsigned *'),
+    'fcntl': ('int', 'int, int, ...'), 'ioctl': ('int', 'int, unsigned, ...'),
+    'usleep': ('int', 'unsigned'),
     'sendto': ('int', 'int, const void *, unsigned, int, const void *, unsigned'),
     # The visualizer's PCM tap (peq_player.c writes, visualizer.c reads) and its analysis
     'open': ('int', 'const char *, int, ...'), 'ftruncate': ('int', 'int, long'),
@@ -111,7 +117,7 @@ def compile_common(out, binary, player=False, ipod=False):
     flags = [*FLAGS, '-fno-math-errno', '-ffunction-sections', '-fdata-sections', f'-DIPOD={int(ipod)}']
     if player: flags += ['-mnan=2008']
     objects = []
-    for name in ['peq.c', 'peq_player.c'] if player else ['peq.c', 'peq_ui.c', 'coverflow.c', 'scrobble.c', 'photos.c', 'books.c', 'visualizer.c', 'playback.c', 'spotify.c', 'radio.c', 'tidal.c', 'crossfade.c']:
+    for name in ['peq.c', 'peq_player.c'] if player else ['peq.c', 'peq_ui.c', 'coverflow.c', 'scrobble.c', 'photos.c', 'books.c', 'visualizer.c', 'playback.c', 'spotify.c', 'radio.c', 'tidal.c', 'crossfade.c', 'headset.c']:
         obj = out/(name+'.o')
         run('clang', *flags, '-I', out, '-c', ROOT/'patch'/name, '-o', obj)
         objects.append(obj)

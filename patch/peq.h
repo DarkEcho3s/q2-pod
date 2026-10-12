@@ -125,6 +125,16 @@ unsigned state_read(const char *path, char *raw, unsigned size);
 void dgram_send(int *sock, const char *path, const char *c, unsigned n);
 void *label(void *parent, int x, int y, int w, int h, const char *style, int px, unsigned color);
 void spot_yield(void), radio_stop(void);
+void headset_volume_reset(void);
+void headset_poll(void), headset_manual(void);
+int media_owner(void), media_playing(void);
+void media_set_playing(int playing), media_key(unsigned key);
+void video_key(unsigned key);
+int radio_media(unsigned key), spot_media(unsigned key);
+int headset_gain(void);
+int spot_status(void), radio_status(void), video_status(void);
+unsigned spot_session(void), radio_session(void), video_session(void);
+void spot_set_playing(int playing), radio_set_playing(int playing), video_set_playing(int playing);
 int video_start(const char *file, int radio); /* books.c */
 void *edit_create(void *item, const char *input_type); /* peq_ui.c */
 const char *output_device(char *vol);         /* books.c */

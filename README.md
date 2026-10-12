@@ -34,7 +34,7 @@
 - **Scrobbling:** send listens to Last.fm or ListenBrainz over Wi-Fi.
 - **Battery options:** an optional 80% charge limit, Low power mode and a sleep timer.
 - **Ratings:** give songs and albums 0-5 hearts, then browse Top Rated, Loved, Disliked and rated albums in Coverflow.
-- **Also includes:** favourites, playlists, Most Played, Long Songs, shuffle by song, album or folder, Crossfade, podcasts and audiobooks that resume where you stopped, and fixes for choppy AirPods AAC audio and the clock resetting after power-off.
+- **Also includes:** favourites, playlists, Most Played, Long Songs, shuffle by song, album or folder, Crossfade, podcasts and unprotected `.m4b` audiobooks that resume where you stopped, AirPods stem controls, ear detection and two-way volume sync, and fixes for choppy AirPods AAC audio and the clock resetting after power-off.
 
 Prefer the stock look? Download `Q2.Firmware.*-stock.zip`. It has the same features and fixes, without the iPod UI.
 
@@ -76,7 +76,7 @@ Settings, play counts, ratings and resume points live on the Q2, so they stay wi
 ## Known limitations
 
 - **Library size:** Update Local Music adds up to 65,000 songs.
-- **Bluetooth:** skipping tracks can stutter on some headphones (AAC and LDAC), and AirPods' tap controls don't reach the Q2.
+- **Bluetooth:** skipping tracks can stutter on some headphones (AAC and LDAC). The new AirPods controls, ear detection and volume sync still need Q2 hardware verification.
 - **Crossfade:** only between songs from different albums, with **Gapless** on.
 - **Lock screen:** black until you add your own [images](docs/guide.md#lock-screen).
 

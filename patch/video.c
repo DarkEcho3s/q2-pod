@@ -70,6 +70,10 @@ int bt_gain(int v) {
     return 65536 * (v < 50 ? 2 * v : 18 * v - 800) / 1000;
 }
 
+int video_pause(int paused, int command) {
+    return command == 'p' ? !paused : command == 'a' ? 1 : command == 'r' ? 0 : paused;
+}
+
 /* n samples times gain g (at most 65536, so no sample overflows). */
 void scale(short *s, unsigned n, int g) {
     for (unsigned i = 0; i < n; ++i) s[i] = (short)(s[i] * g >> 16);
@@ -133,6 +137,9 @@ int open(const char *, int, ...), close(int), read(int, void *, unsigned), ioctl
 int fork(void), execv(const char *, const char *const *), waitpid(int, int *, int), kill(int, int);
 int dup2(int, int), pipe2(int *, int), fcntl(int, int, ...), poll(struct pollfd *, unsigned, int);
 int socket(int, int, int), bind(int, const void *, unsigned), recv(int, void *, unsigned, int);
+void *fopen(const char *, const char *);
+unsigned fwrite(const void *, unsigned, unsigned, void *);
+int fclose(void *);
 int atoi(const char *), unlink(const char *), rename(const char *, const char *), write(int, const void *, unsigned), usleep(unsigned), clock_gettime(int, struct timespec *), strcmp(const char *, const char *);
 int setenv(const char *, const char *, int);
 void *mmap(void *, unsigned, int, int, int, long), *malloc(unsigned), (*signal(int, void (*)(int)))(int);
@@ -386,6 +393,15 @@ static int sink(char **argv) {
     return !au.pcm;
 }
 
+static void video_state(int paused) {
+    void *f = fopen("/tmp/q2video.state.tmp", "wb");
+    if (f) {
+        int ok = fwrite(&paused, sizeof paused, 1, f) == 1;
+        if (fclose(f)) ok = 0;
+        if (ok) rename("/tmp/q2video.state.tmp", "/tmp/q2video.state");
+    }
+}
+
 int main(int argc, char **argv) {
     if (argc < 3) return 2;
     /* Stock ALSA's plug/prepare leaves a slave lock held; our PCM calls never overlap. */
@@ -423,6 +439,7 @@ int main(int argc, char **argv) {
     close(pp[1]);
     int fd = open(Q2VIDEO_PLACE, O_CLOEXEC), place = 0;
     if (fd >= 0) read(fd, &at, sizeof at), close(fd);
+    video_state(0);
     while (!quit) {
         int vp[2], ap[2] = { -1, -1 };
         if (pipe2(vp, O_CLOEXEC) || (audio && pipe2(ap, O_CLOEXEC))) break;
@@ -480,10 +497,13 @@ int main(int argc, char **argv) {
             poll(p, have < size ? 3 : 2, wait < 100 ? wait : 100);
             char c[2] = { 0 };
             if (p[0].revents && recv(sock, c, 2, 0) > 0) {
-                if (c[0] == 'p') au.paused = !au.paused;
+                if (c[0] == 'p' || c[0] == 'a' || c[0] == 'r') { au.paused = video_pause(au.paused, c[0]);
+                    video_state(au.paused);
+                }
                 if (c[0] == 'f' || c[0] == 'b') seek += c[0] == 'f' ? SEEK_S : -SEEK_S, seek_at = t + SEEK_WAIT_MS;
+                if (c[0] == 'g') au.gain = soft ? bt_gain((unsigned char)c[1]) : 65536;
                 if (c[0] == 'v') vol = (unsigned char)c[1], au.gain = soft ? bt_gain(vol) : 65536;
-                if (c[0] && c[0] != 'p' && c[0] != 'q') /* s, f, b, v: the bar */
+                if (c[0] && c[0] != 'p' && c[0] != 'a' && c[0] != 'r' && c[0] != 'g' && c[0] != 'q') /* s, f, b, v: the bar */
                     pos_bar = c[0] != 'v', until = t + OVERLAY_MS, redraw = au.paused;
                 quit = c[0] == 'q';
             }
@@ -524,6 +544,7 @@ int main(int argc, char **argv) {
     fd = open(Q2VIDEO_PLACE, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
     if (fd >= 0) write(fd, &place, sizeof place), close(fd);
     unlink(Q2VIDEO_SOCK);
+    unlink("/tmp/q2video.state");
     return 0;
 }
 #endif

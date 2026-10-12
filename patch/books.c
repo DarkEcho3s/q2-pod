@@ -715,8 +715,8 @@ void books_paint(void *w, void *canvas) {
 #define VIDEO_SOCK "/tmp/q2video.sock" /* video.c Q2VIDEO_SOCK */
 #define VIDEO_PLACE "/tmp/q2video.place" /* video.c Q2VIDEO_PLACE: the second to start at, then left */
 static struct {
-    int pid, sock, seek; /* seek: the wheel seeks, since seek_at (time_now_ms) */
-    unsigned seek_at, key, at; /* key: the video's in BOOK_MARKS, at its second there */
+    int paused, volume, gain, pid, sock, seek; /* seek: the wheel seeks, since seek_at (time_now_ms) */
+    unsigned polled, control_at, seek_at, key, at; /* key: the video's in BOOK_MARKS, at its second there */
 } vid __attribute__((section(".scratch")));
 
 int video_on(void) { return vid.pid; }
@@ -734,7 +734,8 @@ static int usb_soft(void) { return g_usbvol_mode && I(USB_MIXER, 0) == -2; }
  * the volume, which the helper only shows. */
 const char *output_device(char *vol) {
     int way = mclGetOutputWay();
-    tk_snprintf(vol, 5, way == 2 && !usb_soft() ? "h%u" : "%u", g_volume);
+    tk_snprintf(vol, 5, way == 2 && !usb_soft() ? "h%u" : "%u",
+                way == 1 ? headset_gain() : g_volume);
     return way == 1 ? "plug:bluealsa" : way == 2 ? "usb" : 0;
 }
 
@@ -772,6 +773,7 @@ int video_start(const char *file, int radio) {
 static int play_video(void *ctx, void *event) {
     (void)event;
     if (vid.pid) return 0;
+    headset_manual();
     radio_stop(); /* it holds the PCM too */
     const char *path = bk.path[(int)(long)ctx];
     vid.key = fnv(FNV_SEED, (const unsigned char *)path);
@@ -781,7 +783,9 @@ static int play_video(void *ctx, void *event) {
         if (bk.marks[k].key == vid.key) vid.at = bk.marks[k].pos;
     BLOB_IO(VIDEO_PLACE, vid.at, 1);
     vid.pid = video_start(path, 0);
-    vid.seek = 0;
+    vid.seek = vid.paused = 0;
+    vid.volume = -1;
+    unlink("/tmp/q2video.state");
     vid.sock = socket(1, 1, 0); /* AF_UNIX, SOCK_DGRAM (MIPS numbering) */
     return 0;
 }
@@ -792,6 +796,21 @@ void video_poll(void) {
     int status;
     if (!vid.pid) return;
     if (!waitpid(vid.pid, &status, 1)) { /* WNOHANG: still playing */
+        int paused;
+        if (time_now_ms() - vid.polled >= 400) {
+            vid.polled = time_now_ms();
+            if (time_now_ms() - vid.control_at >= 1000 &&
+                BLOB_IO("/tmp/q2video.state", paused, 0) && (paused == 0 || paused == 1))
+                vid.paused = paused;
+            if (vid.volume != g_volume || vid.gain != headset_gain()) {
+                char v[2] = { 'v', (char)g_volume };
+                dgram_send(&vid.sock, VIDEO_SOCK, v, 2);
+                char g[2] = { 'g', (char)headset_gain() };
+                dgram_send(&vid.sock, VIDEO_SOCK, g, 2);
+                vid.volume = g_volume;
+                vid.gain = headset_gain();
+            }
+        }
         reset_poweroptions_timer(1, 1, 1);
         if (I(g_dacoff_time, 0) > 0) I(g_dacoff_time, 0) = 0;
         if (vid.seek && time_now_ms() - vid.seek_at >= SCRUB_MS) vid.seek = 0; /* back on volume */
@@ -811,6 +830,8 @@ void video_poll(void) {
  * through device_set_volume (the DAC's, or hciplayer's for Bluetooth and a soft USB volume) and
  * saved; the helper gets it for that soft gain and its bar. */
 void video_key(unsigned key) {
+    if (key == KEY_PLAY || key == KEY_FWD_BTN || key == KEY_BACK_BTN || key == KEY_RETURN)
+        headset_manual();
     int wheel = key == KEY_NEXT || key == KEY_PREV, v = g_volume + (key == KEY_NEXT ? 1 : -1);
     if (key == KEY_CENTER) vid.seek = !vid.seek;
     if (key == KEY_CENTER || (wheel && vid.seek)) vid.seek_at = time_now_ms();
@@ -832,6 +853,12 @@ void video_key(unsigned key) {
         char path[108];
     } to = { 1, VIDEO_SOCK };
     if (c[0]) sendto(vid.sock, c, c[0] == 'v' ? 2 : 1, 0x40, &to, sizeof to); /* MSG_DONTWAIT */
+    if (c[0] == 'v') {
+        char g[2] = { 'g', (char)headset_gain() };
+        dgram_send(&vid.sock, VIDEO_SOCK, g, 2);
+        vid.volume = g_volume;
+        vid.gain = headset_gain();
+    }
 }
 
 /* Local Music's Books and Videos rows (navigation.c media_click): the books or videos, by path. */
@@ -858,4 +885,14 @@ void books_open(const char *root, int videos) {
         page_row_detail(bk.view, k, title(bk.path[k], name), 0,
                         videos ? play_video : open_book);
 }
+int video_status(void) { return vid.pid ? (vid.paused ? 3 : 2) : 0; }
+unsigned video_session(void) { return (unsigned)vid.pid; }
+void video_set_playing(int playing) {
+    if (vid.pid) {
+        dgram_send(&vid.sock, VIDEO_SOCK, playing ? "r" : "a", 1);
+        vid.paused = !playing;
+        vid.control_at = time_now_ms();
+    }
+}
+
 #endif
