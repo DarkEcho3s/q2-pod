@@ -327,10 +327,11 @@ with tempfile.TemporaryDirectory(prefix='q2-ui-preview-') as tmp:
                 width=inc('BATT_PCT_W') if effective==1 else bw+inc('BATT_NUB_W')+(inc('BATT_GAP')+inc('BATT_PCT_W') if effective==2 else 0)
                 x=375-STATUS_MARGIN-width; y=(31-bh)//2
                 if effective!=1:
-                    a += ['-fill',color,'-draw',f'roundrectangle {x},{y} {x+bw-1},{y+bh-1} 3,3']
-                    if not inside:
-                        a += ['-fill',bg,'-draw',f'roundrectangle {x+1},{y+1} {x+bw-2},{y+bh-2} 2,2']
-                        fill=max(1,(bw-4)*level//100) if level else 0
+                    if inside: a += ['-fill',color,'-draw',f'roundrectangle {x},{y} {x+bw-1},{y+bh-1} 3,3']
+                    else:
+                        for dx,dy,w,h in ((1,0,bw-2,1),(1,bh-1,bw-2,1),(0,1,1,bh-2),(bw-1,1,1,bh-2)):
+                            rect(a,x+dx,y+dy,w,h,color)
+                        fill=(bw-4)*(100 if state=='charging' else level)//100
                         if fill: rect(a,x+2,y+2,fill,bh-4,color)
                     rect(a,x+bw,y+(bh-nh)//2,inc('BATT_NUB_W'),nh,color)
                 if inside:

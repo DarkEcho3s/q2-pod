@@ -812,11 +812,11 @@ else:
             b.calls=[]; paint(); assert ('widget_invalidate_force',w['view_battery']) in [c[:2] for c in b.calls]
             b.calls=[]; paint(); assert ('widget_invalidate_force',w['view_battery']) not in [c[:2] for c in b.calls]
             bands,letters=slot()
-            fill=max(1,(bw-4)*value//100) if value else 0
-            assert [x[:5] for x in bands]==[(bw,y+(bh-O['BATT_NUB_H'])//2,O['BATT_NUB_W'],O['BATT_NUB_H'],color_t(rgb))]
-            expected=[('fill',(0,y,bw,bh),color_t(rgb),3),('fill',(1,y+1,bw-2,bh-2),color_t(O['BAR_COLOR']),2)]
-            if fill: expected.append(('fill',(2,y+2,fill,bh-4),color_t(rgb),1))
-            assert [(r['kind'],r['rect'],r['color'],r['radius']) for r in b.rounded]==expected
+            fill=bw-4 if image=='bar_charge' else (bw-4)*value//100
+            expected=[(1,y,bw-2,1,color_t(rgb)),(1,y+bh-1,bw-2,1,color_t(rgb)),(0,y+1,1,bh-2,color_t(rgb)),
+                      (bw-1,y+1,1,bh-2,color_t(rgb)),(bw,y+(bh-O['BATT_NUB_H'])//2,O['BATT_NUB_W'],O['BATT_NUB_H'],color_t(rgb)),
+                      (2,y+2,fill,bh-4,color_t(rgb))]
+            assert [x[:5] for x in bands]==expected
             assert [(l['text'],l['rect'],l['color'],l['font'],l['align']) for l in letters]==[(text+'%',(bw+O['BATT_NUB_W']+O['BATT_GAP'],0,O['BATT_PCT_W'],30),color_t(rgb),('default',O['BATT_PX']),(1,1))]
 
         # Percent Inside: compact rounded body and dark digits, including 100, in every state.
