@@ -54,6 +54,13 @@
 > [!TIP]
 > Prefer Shanling's original look? Download `Q2.Firmware.*-stock.zip` instead. It has the same features and fixes, without the iPod UI.
 
+## Extras
+
+- **Spotify Connect:** unzip `q2-librespot-*.zip` from [q2-librespot's latest release](https://github.com/DiamondBond/q2-librespot/releases/latest) to the card's root. Then open **Streaming → Spotify** on the Q2 and pick it in the Spotify app. [More](docs/guide.md#spotify).
+- **Scrobbling:** connect Last.fm or ListenBrainz with the [scrobbling guide](docs/guide.md#set-up-scrobbling).
+- **Lock screen:** add your own [images](docs/guide.md#lock-screen); it's black until you do.
+- **Rockbox:** unzip [`rockbox.zip`](https://github.com/DiamondBond/q2-rockbox/releases) to the card's root. Hold Play/Pause while powering on to use Q2 Pod for that session. See the [setup guide](docs/setup.md) and [ported themes](https://github.com/DiamondBond/q2-rockbox-themes/releases).
+
 ## Controls
 
 | Control             | Action                                                                   |
@@ -73,38 +80,24 @@ These folders at the card's root each add their own Library entry: `Podcasts/`, 
 
 Settings, play counts, ratings and resume points are stored on the Q2 itself, so they stay put when you swap cards.
 
-## Extras
-
-- **Spotify Connect:** unzip `q2-librespot-*.zip` from [q2-librespot's latest release](https://github.com/DiamondBond/q2-librespot/releases/latest) to the card's root. Then open **Streaming → Spotify** on the Q2 and pick it in the Spotify app. [More](docs/guide.md#spotify).
-- **Scrobbling:** connect Last.fm or ListenBrainz with the [scrobbling guide](docs/guide.md#set-up-scrobbling).
-- **Lock screen:** add your own [images](docs/guide.md#lock-screen); it's black until you do.
-- **Rockbox:** unzip [`rockbox.zip`](https://github.com/DiamondBond/q2-rockbox/releases) to the card's root. Hold Play/Pause while powering on to use Q2 Pod for that session. See the [setup guide](docs/setup.md) and [ported themes](https://github.com/DiamondBond/q2-rockbox-themes/releases).
-
 ## Updating
 
 Repeat the [install steps](#install) with the newest release. Your settings, ratings and play counts are kept. The updater skips a version that's already installed, so a newer release always goes on.
 
 ## Restoring stock firmware
 
-Install the [official Shanling firmware](https://en.shanling.com/download/150) the same way. If the Q2 won't boot, copy the `recovery-update` folder from [Shanling's recovery package](https://drive.google.com/file/d/1aINQfJu6n0JTQ4hOzzD1uSpSj3TS_NJj/view?usp=drive_link) to the card, then hold **Previous** and press **Centre** to power on.
-
-## Known limitations
-
-- Update Local Music indexes up to 65,000 songs.
-- Skipping tracks can stutter on some AAC Bluetooth headphones.
-- Crossfade needs **Gapless** on and only works between different albums.
+- **Back to Shanling's firmware:** install the [official Shanling firmware](https://en.shanling.com/download/150) the same way.
+- **If the Q2 won't start up:** copy the `recovery-update` folder from [Shanling's recovery package](https://drive.google.com/file/d/1aINQfJu6n0JTQ4hOzzD1uSpSj3TS_NJj/view?usp=drive_link) to the card, then hold **previous-song** and power on with **centre**.
 
 ## Help
 
-- **Questions:** join the [Discord](https://discord.gg/pgsQpXhSQ).
-- **Bugs:** [open an issue](https://github.com/DiamondBond/q2-pod/issues) with steps to reproduce.
+- **Question or suggestion?** Please join the [Discord](https://discord.gg/pgsQpXhSQ).
+- **Bugs:** Please [open an issue](https://github.com/DiamondBond/q2-pod/issues).
 
 ## Documentation
 
-- [User guide](docs/guide.md): settings, controls, playback, media and scrobbling
-- [Setup](docs/setup.md): Q2 Pod, Rockbox and themes on a fresh Q2
-- [Changelog](docs/changelog.md): what's new in each release
-- For developers: [Building](docs/building.md) · [Releasing](docs/releasing.md) · [Internals](docs/internals.md)
+- **For users:** [User guide](docs/guide.md) · [Setup](docs/setup.md) · [Changelog](docs/changelog.md)
+- **For developers:** [Building](docs/building.md) · [Releasing](docs/releasing.md) · [Internals](docs/internals.md)
 
 ## License
 
