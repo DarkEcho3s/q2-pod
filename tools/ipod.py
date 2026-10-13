@@ -602,6 +602,8 @@ def settings_icon(name, data):
 QUIET_ICONS = AUDIT['quiet_icons']
 SETTINGS_SLIDERS = ('systemset/backlight_page.bin', 'playset/balance_page.bin',
                     'playset/maxvol_page.bin', 'playset/bootvol_page.bin')
+# Pages whose init puts an on/off switch in the toolbar (img_bootswitch, img_switch); they keep it.
+TOOLBAR_SWITCHES = ('systemset/sleepshutdown_page.bin', 'playset/bootvol_page.bin', 'systemset/screensaver_page.bin')
 
 
 def slider_plain(path, root):
@@ -662,9 +664,7 @@ def patch_asset(path, data, ipod):
     check(len(nav) == 1 and nav[0][1] in ([0, 0, 375, 50], [0, 0, 370, 50]), f'{path}: unexpected toolbar')  # 370: stream_page
     # Keep the widget (and callback lookups) alive. Children may be recreated by stock.
     playlist = path == 'localmusic/playlist_page.bin'
-    # The sleep timer's and Startup volume's on/off switches are in their toolbars, and their
-    # fields hide while they are off.
-    if path in ('systemset/sleepshutdown_page.bin', 'playset/bootvol_page.bin'):
+    if path in TOOLBAR_SWITCHES:
         slider_plain(path, root)
         return encode(root)
     if not playlist:

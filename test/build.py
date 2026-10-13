@@ -88,7 +88,7 @@ boot_check()
 def validate_assets(directory):
     import functools, json, re, struct, subprocess
     from build import sha, run, fileoff, symbols, BLUEALSA, AAC_44K1, IPOD_HOOKS, IPOD_LEAF, WM_PAINT_LEAF, HELPER, HELPER_LIKE, BOOT, BOOT_HOOK, S90PLAY, RTC_WRITE, WATCHDOG, WATCHDOG_SLEEP, DROP_CACHES, WHEEL_TS_READ, PDR
-    from ipod import (AUDIT, BOTTOM, CHEVRON_W, CONFIRM, VOLUME, QUICK_SETTINGS, QS_TOP, QS_LABEL_GAP, QS_LABEL_H,
+    from ipod import (AUDIT, TOOLBAR_SWITCHES, BOTTOM, CHEVRON_W, CONFIRM, VOLUME, QUICK_SETTINGS, QS_TOP, QS_LABEL_GAP, QS_LABEL_H,
                       QS_LABEL_W, QS_ROW_GAP, QS_PITCH, QS_BAR, QS_TOUCH, QS_EDGE, QS_SUN, HOME_LABEL_END, HOME_LIST_W, HOME_TEXT_X, HOME_TOP, PITCH, ARTIST_PAGE, HOME_PAGE, HOME_ROW, HOME_ROWS, NAVBAR_ONLY, PLAYING_PAGE, SET_ROW, SET_ROWS, SET_TOP, UI_ASSETS,
                       NP_BAR, NP_MARGIN, NP_POS_X, NP_TOP, STATUS_BAR, STATUS_HIDDEN, STATUS_LEFT, STATUS_MARGIN, STATUS_RIGHT, CLOCK_MIN, CLOCK_TEXT, corner_inset, corner_x,
                       STATUS_ICONS, status_icon, QUIET_ICONS, quiet_icon, SET_ICON, SET_STOCK_ICON, SETTINGS_ICONS, SETTINGS_SLIDERS, decode, slider_plain, imagemagick, inc, png_header, settings_icon, walk,
@@ -501,9 +501,8 @@ def validate_assets(directory):
             continue
         if short == ARTIST_PAGE:
             assert [n[2]['value'] for n in walk(root) if n[0] == 'pages'] == ['1'], 'Artist page must show Albums'
-        if short in AUDIT['slide_only'] or short in ('systemset/sleepshutdown_page.bin', 'playset/bootvol_page.bin'):
-            # nothing but the hint changes (and Startup volume's slider glyphs go); the sleep timer and
-            # Startup volume keep their toolbars, where their on/off switches are
+        if short in AUDIT['slide_only'] or short in TOOLBAR_SWITCHES:
+            # nothing but the hint changes (and Startup volume's slider glyphs go)
             root[2].pop('anim_hint')
             kept = decode(original)
             slider_plain(short, kept)
