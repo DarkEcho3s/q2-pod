@@ -56,7 +56,7 @@
 
 - **Spotify Connect:** unzip `q2-librespot-*.zip` from [q2-librespot's latest release](https://github.com/DiamondBond/q2-librespot/releases/latest) to the card's root. Then open **Streaming → Spotify** on the Q2 and pick it in the Spotify app. [More](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf).
 - **Scrobbling:** connect Last.fm or ListenBrainz with the [user guide](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf).
-- **Lock screen:** add your own images ([user guide](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf)); it's black until you do.
+- **Lock screen:** six built-in wallpapers, a large clock, or your own images ([user guide](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf)).
 - **Rockbox:** unzip [`rockbox.zip`](https://github.com/DiamondBond/q2-rockbox/releases) to the card's root. Hold Play/Pause while powering on to use Q2 Pod for that session. See the [setup guide](docs/setup.md) and [ported themes](https://github.com/DiamondBond/q2-rockbox-themes/releases).
 
 ## Controls

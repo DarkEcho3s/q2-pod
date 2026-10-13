@@ -58,6 +58,11 @@ HOOKS = {
     # Power gains Charge limit and Low power; Audio settings gains Artists (Album Artist)
     'systemset_sysset_page_init': (0x4cc4cc, 'ringnav_systemset'),
     'systemset_display_page_init': (0x4c1d04, 'ringnav_display'),
+    # Lock screen (patch/lockscreen.c): the built-in wallpapers in the picture list, the Lock screen
+    # page's Clock row and the built-ins' thumbnails, and the lock window's wallpaper and Large clock
+    'get_screensaver_image': (0x4facd4, 'lockscreen_images'),
+    'screensaver_rows': (0x4c9134, 'lockscreen_rows'),
+    'saverscreen_page_init': (0x52db70, 'lockscreen_init'),
     'save_memoryplay_info': (0x516344, 'ringnav_savequeue'),
     'mclLoadPlayList': (0x5aa8d4, 'ringnav_load'),
     'mclNextSong': (0x5adbbc, 'ringnav_next'),
@@ -102,7 +107,8 @@ TRAMPOLINES = {'pause': 'player_play_pause', 'btvol': 'mclSetBtVol', 'savequeue'
                'change': 'player_change_music', 'detail': 'load_album_detaillist',
                'artist': 'load_localartist_list', 'stream': 'stream_page_init', 'start_player': 'mclStartPlayer',
                'tidal': 'mcl_tidalStartPlayer', 'bigcover': 'bigcover_page_init',
-               'speed': 'mclSetPlaySpeed', 'open_preload': 'mcl_open_preload', 'btrows': 'btmenu_rows'}
+               'speed': 'mclSetPlaySpeed', 'open_preload': 'mcl_open_preload', 'btrows': 'btmenu_rows',
+               'saverlist': 'get_screensaver_image', 'saverrows': 'screensaver_rows', 'saver': 'saverscreen_page_init'}
 # Every audited stock PIC prologue resolves this GOT base.
 GP = 0xa26cc0
 # iPod: style_get_gradient has no PIC prologue. It is a leaf that null-checks the style and its
@@ -496,6 +502,7 @@ FUNCTIONS = {
  'scroll_view_create': ('void *', 'void *, int, int, int, int'),
  'navigator_back': ('int', 'void'),
  'write_int_config': ('int', 'int, const char *, const char *'),
+ 'toolsWriteConfig': ('int', 'const char *, const char *, const char *, const char *'),
  'toolsReadConfig': ('int', 'const char *, const char *, const char *, char *, const char *'),
  'button_create': ('void *', 'void *, int, int, int, int'),
  'widget_move_resize': ('int', 'void *, int, int, int, int'),
@@ -565,6 +572,7 @@ PRIVATE_FUNCTIONS = {
     "album_row": 0x4fc324,  # getAllAlbum's sqlite3_exec callback: id, album, songer, fileurl to a record
     "folder_refresh": 0x52176c,  # folder_page's navbar and table from p_deque_showlist (its init, back)
     "class_icon": 0x4afc14,  # a category row's picture: the head for Artists, a genre icon, else .downpic
+    "screensaver_rows": HOOKS['screensaver_rows'][0],  # the Lock screen page's rows and picture grid
 }
 GLOBALS = ['g_playspeed_mode', 'g_time24h_flag', 'g_backlight_status', 'g_lockscreen_pageflag', 'g_testmode_flag',
            'g_bluetoothflag', 'bt_linkstatus', 'g_guideflag', 'g_poweroff_state', 'g_usblink_status', 'bt__recv_pageflag',
@@ -589,7 +597,9 @@ CONTEXT_DATA = {'bt_showcoding': 4, 'g_memory_info': 3476, 'g_folder_path': 1024
                 # the battery level (0-100) and the charger's state (1, 2 charging), get_battery_capacity's
                 'artist_type': 4, 'g_power_capacity': 4, 'g_power_chargestate': 4,
                 'pdeq_albumcoverlist': 4, 'aclist_mutex': 24,
-                'tidalStreamingLevelNow': 4}  # the quality the Tidal URL thread asked for
+                'tidalStreamingLevelNow': 4,  # the quality the Tidal URL thread asked for
+                # the lock screen's picture (SYSSET SCREENSAVERPATH) and the picker's list
+                'g_screensaver_picture': 256, 'p_deque_screensaverlist': 4}
 # Windows the payload creates at runtime (window_create), so no rootfs asset names them.
 PAYLOAD_WINDOWS = {'coverflow_page', 'photos_page', 'books_page', 'mostplayed_page', 'shuffle_page', 'ratings_page', 'rated_page', 'longsongs_page', 'spotify_page',
                    'radio_page', 'radionp_page'}

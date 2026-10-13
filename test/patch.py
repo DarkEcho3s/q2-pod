@@ -7371,6 +7371,76 @@ assert texts()==['Resume on connect: On']; passed()
 m,rows,*_=settings_page('btrows','scroll_view_bluetooth',stock_rows=1,bt=0)  # just the switch
 assert rows==[]; passed()
 
+# Lock screen (docs/internals.md#lock-screen). The picture list gains the six built-ins between
+# stock's default and the card images, once however often it is rebuilt, and a picked built-in
+# survives stock's reset of a picture that is no file.
+WALLS=['q2pod:'+n for n in ('aurora','sunrise','graphite','tide','ember','black')]
+class LockMachine(QueueMachine):
+    reset=False
+    def hook(self,u,address,size,unused):
+        if self.handlers.get(address)=='stock_saverlist' and self.reset:
+            self.u.mem_write(syms['g_screensaver_picture'],b'screensaver_default\0')
+        return super().hook(u,address,size,unused)
+def lock_machine(picture='screensaver_default',config={}):
+    m=LockMachine(); m.config.update(config); m.restack=True
+    for h in ('saverlist','saverrows','saver'): m.handlers[int(manifest['patch_symbols'][f'stock_{h}_trampoline'],16)]='stock_'+h
+    m.u.mem_write(syms['g_screensaver_picture'],picture.encode()+b'\0')
+    return m
+cards=['/mnt/mmc/lockscreenimage/a.jpg','/mnt/mmc/lockscreenimage/b.png']
+m=lock_machine('q2pod:tide'); m.reset=True
+m.word(syms['p_deque_screensaverlist'],m.deque([m.string(n) for n in ['screensaver_default',*cards]],'char*'))
+listed=lambda:[m.text(e) for e in m.items(m.get(syms['p_deque_screensaverlist']))]
+for _ in range(2):
+    m.calls=[]; assert m.call(address=HOOKS['get_screensaver_image'][0],args=(0,0,0,0),gap=0)==0
+    assert listed()==['screensaver_default',*WALLS,*cards] and m.text(syms['g_screensaver_picture'])=='q2pod:tide'
+    assert [(m.text(c[2]),m.text(c[3])) for c in m.calls if c[0]=='toolsWriteConfig']==[('SYSSET','SCREENSAVERPATH')]
+m.u.mem_write(syms['g_screensaver_picture'],cards[0].encode()+b'\0'); m.reset=False; m.calls=[]
+assert m.call(address=HOOKS['get_screensaver_image'][0],args=(0,0,0,0),gap=0)==0
+assert listed()==['screensaver_default',*WALLS,*cards] and not [c for c in m.calls if c[0]=='toolsWriteConfig']; passed()
+# The Lock screen page's list: Clock right after Time show, iconless and 78 high as stock's rows,
+# Standard unless Q2POD LOCKCLOCK is 1; the built-ins' thumbnails lose their (file://) image.
+def lock_page(config={}):
+    m=lock_machine(config=config)
+    m.word(syms['p_deque_screensaverlist'],m.deque([m.string(n) for n in ['screensaver_default',*WALLS,cards[0]]],'char*'))
+    stock=[m.entry(0) for _ in range(2)]
+    thumbs=[m.node('image',f'image_{i}',image='file://x') for i in range(8)]
+    grid=[m.node('list_item','',thumbs[i:i+3]) for i in range(0,8,3)]
+    view=m.node('scroll_view','scroll_view',stock+grid)
+    for e in m.nodes[view]['children']: m.word(e+O['W_PARENT'],view)
+    m.top=m.node('window','screensaver_page',[m.node('list_view','list_view',[view])]); m.nodes[m.wm]={'children':[m.top]}
+    assert m.call(address=HOOKS['screensaver_rows'][0],args=(m.top,0,0,0),gap=0)==0 and m.calls[0][:2]==('stock_saverrows',m.top)
+    row=m.nodes[view]['children'][1]; button=m.nodes[row]['children'][0]; label=m.nodes[button]['children'][-1]
+    return m,row,button,label,thumbs
+m,row,button,label,thumbs=lock_page()
+assert len(m.nodes[named(m,m.top,'scroll_view')]['children'])==6 and m.get(row+O['W_H'])==78  # 2 stock rows, Clock, 3 grid rows
+assert len(m.nodes[button]['children'])==1 and m.get(label+O['W_X'])==10 and m.nodes[label]['text']=='Clock: Standard'
+assert [m.nodes[t]['image'] for t in thumbs]==['file://x']+['']*6+['file://x']
+def clock_click():
+    m.calls=[]; f,ctx=m.handler(button,O['EVT_CLICK']); assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0
+    return [(c[1],m.text(c[2]),m.text(c[3])) for c in m.calls if c[0]=='write_int_config']
+assert clock_click()==[(1,'Q2POD','LOCKCLOCK')] and m.nodes[label]['text']=='Clock: Large'
+m.config['LOCKCLOCK']='1'  # read back on the next click
+assert clock_click()==[(0,'Q2POD','LOCKCLOCK')] and m.nodes[label]['text']=='Clock: Standard'; passed()
+m,_,_,label,_=lock_page({'LOCKCLOCK':'1'}); assert m.nodes[label]['text']=='Clock: Large'; passed()
+# The lock window: a built-in drops stock's picture name (the wallpaper paints over it); Large lays
+# the date, battery and time out across the top; Standard and card pictures stay stock's.
+def lock_window(picture,config={}):
+    m=lock_machine(picture,config)
+    w={n:m.node(k,n) for k,n in (('image','img_screensaver'),('digit_clock','clock_time'),('digit_clock','clock_date'),
+                                   ('label','label_battery'),('image','img_battery'))}
+    m.nodes[w['img_screensaver']]['image']=picture
+    info=m.node('view','view_timeinfo',[w[n] for n in ('clock_time','label_battery','img_battery','clock_date')])
+    m.top=m.node('window','saverscreen_page',[m.node('gesture','app_gesture',[w['img_screensaver'],info])])
+    assert m.call(address=HOOKS['saverscreen_page_init'][0],args=(m.top,0,0,0),gap=0)==0
+    box=lambda n:tuple(signed(m.get(w[n]+O[k])) for k in ('W_X','W_Y','W_W','W_H'))
+    return m,w,info,box
+m,w,info,box=lock_window('q2pod:aurora',{'LOCKCLOCK':'1'})
+assert m.nodes[w['img_screensaver']]['image']=='' and box('clock_time')[::2]==(0,375) and box('clock_date')[:3]==(0,0,375)
+assert m.nodes[w['clock_time']]['style:normal:text_align_h']=='center' and m.nodes[w['clock_time']]['style:normal:font_size']>70
+assert signed(m.get(info+O['W_Y']))+box('clock_time')[1]+box('clock_time')[3]<=190 and box('img_battery')[0]+34<=375; passed()
+m,w,info,box=lock_window(cards[0])
+assert m.nodes[w['img_screensaver']]['image']==cards[0] and 'style:normal:font_size' not in m.nodes[w['clock_time']]; passed()
+
 # The power poll, on the UI loop. Charge limit: the charger stops (switch_charge_enable(0), the
 # active-low charge enable) at CHARGE_STOP, again whenever it charges meanwhile, and is handed
 # back at CHARGE_RESUME: on, or USB mode's own choice while its page is open. Every CHARGE_POLL_MS.

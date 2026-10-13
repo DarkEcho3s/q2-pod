@@ -27,6 +27,7 @@ extern void coverflow_home_art(void *top);
 extern void coverflow_home_layout(void);
 extern void coverflow_home_clip(void *w, void *canvas, int begin);
 extern int coverflow_home_back(void *top), coverflow_home_owns(void *w);
+extern void lockscreen_paint(void *w, void *canvas);
 extern void coverflow_paint(void *w, void *canvas), photos_paint(void *w, void *canvas),
     photos_open(const char *root), books_paint(void *w, void *canvas),
     books_open(const char *root, int videos), video_poll(void), video_key(unsigned key);
@@ -1242,7 +1243,7 @@ static void pull_begin(void *event) {
 
 /* A one-digit setting under section in the stock config.ini, 0 to n - 1, else 0:
  * toolsReadConfig(path, section, key, out, default) copies the value, or the default. */
-static int config_value(const char *section, const char *key, int n) {
+int config_value(const char *section, const char *key, int n) {
     char s[256] = "";
     toolsReadConfig("/mnt/data/config.ini", section, key, s, "0");
     return s[0] >= '0' && s[0] < '0' + n && !s[1] ? s[0] - '0' : 0;
@@ -1723,6 +1724,7 @@ int ringnav_paint(void *w, void *canvas) {
     if (st.pull_page && !pull_live()) pull_cancel();
     int result = stock_paint_trampoline(w, canvas);
     coverflow_paint(w, canvas);
+    lockscreen_paint(w, canvas);
     if (w == st.cf_letter_surface && st.cf_letter &&
         (unsigned)time_now_ms() - st.cf_letter_at < LETTER_MS && P(canvas, CANVAS_LCD)) {
         unsigned fill = (unsigned)I(P(canvas, CANVAS_LCD), LCD_FILL_COLOR);
@@ -1786,7 +1788,7 @@ static void *list_row_core(void *view, const char *icon, int (*click)(void *, vo
     return label;
 }
 
-static void *list_row(void *view, const char *icon, int (*click)(void *, void *), void *ctx) {
+void *list_row(void *view, const char *icon, int (*click)(void *, void *), void *ctx) {
     return list_row_core(view, icon, click, ctx, 260, 0);
 }
 

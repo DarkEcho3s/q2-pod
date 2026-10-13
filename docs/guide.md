@@ -22,7 +22,7 @@ Things people often don't know are already there:
 - **Screen waking in your pocket?** **System settings → Power → Wake: Double press**; stock's **Buttons lock** also keeps the buttons and volume still while the screen is off.
 - **Want stock's EQ presets?** **EQ → Advanced → Presets → Stock presets** has Pop, Rock, Jazz and the rest; the ten default bands work as a 10-band graphic EQ.
 - **Wheel click gone?** Key Tone is the Q2's own speaker, so it stays quiet while headphones, Bluetooth or a USB DAC are connected.
-- **Lock screen is black?** It shows your own images: see [Lock screen](#lock-screen).
+- **Lock screen look:** six built-in wallpapers and a large clock: see [Lock screen](#lock-screen).
 - **Importing an M3U playlist?** It has to be in `_explaylist_data/`: see [Playlists](#playlists).
 
 ## Display settings
@@ -296,7 +296,9 @@ Settings, play counts, resume points and book pages live on the Q2 itself (`/mnt
 
 ### Lock screen
 
-Stock's **Lock screen** shows only images you supply; with none it stays black. Put up to 5 PNG or JPG files in a **`lockscreenimage`** folder at the card's root.
+**System settings → Display → Lock screen** picks what the lock screen shows. Turn it on, then choose a picture from the grid: Shanling's own, six built-in wallpapers (Aurora, Sunrise, Graphite, Tide, Ember and plain Black), and your images. For your own, put up to 5 PNG or JPG files (375 × 320 fits the screen) in a **`lockscreenimage`** folder at the card's root.
+
+**Clock: Large**, just under **Time show**, sets the time in large type across the top of the lock screen, with the date and battery above it; **Clock: Standard** is stock's layout.
 
 ### Playlists
 

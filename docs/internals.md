@@ -38,6 +38,9 @@ Checked MIPS prologues redirect into a payload at `0xb00000`, using the final un
 | `widget_on_paint_background`          | `0x65c77c` | iPod only: selection bar, status bar fill, clock, codec fade and battery              |
 | `playing_page_init`                   | `0x52ca88` | iPod only: binds Now Playing's position, album and remaining                          |
 | `bigcover_page_init`                  | `0x5200ec` | iPod only: the full-screen art's song name and shade fade out after `BC_MS`           |
+| `get_screensaver_image`               | `0x4facd4` | Lists the built-in wallpapers, keeps one picked ([Lock screen](#lock-screen))         |
+| `screensaver_rows` (unnamed)          | `0x4c9134` | Lock screen page: the Clock row and the built-ins' thumbnails                         |
+| `saverscreen_page_init`               | `0x52db70` | The lock window's wallpaper and Large clock                                           |
 | `systemset_display_page_init`         | `0x4c1d04` | iPod only: adds the Theme, Accent, Home and Battery rows                              |
 | `on_wm_keydown_before_fun`            | `0x4e8424` | iPod only: Key Tone clicks on the row change, not the wheel press                     |
 | `style_get_color`                     | `0x649f6c` | iPod only: maps the returned color to the accent                                      |
@@ -376,6 +379,16 @@ Manual skips also call ALSA DROP. Stock acknowledges it after sending signal 6, 
 ## Clock
 
 Stock loses the time zone across a power-off. Setting the time, by hand or from the network (`toolsSetRtcTime`, `0x5bc760`), runs `date -s` and then `hwclock -w`. BusyBox 1.31.1's `hwclock` writes local time unless `/var/lib/hwclock/adjtime` says `UTC`, and the rootfs has no such file, so the RTC gets the wall time of the `TZ` the player exported (`toolsSetTimeZone`). At boot the kernel (`hctosys`) reads the RTC as UTC and the player adds the time zone again, so the clock comes back off by the zone's UTC offset until the next network sync. The build changes the literal at `0x777928`, `hwclock -w` and two NULs, to `hwclock -wu`, so the RTC holds UTC as the kernel expects. An RTC last written by stock still holds local time, so the time has to be set once after updating.
+
+## Lock screen
+
+Stock's lock window (`saverscreen_page.bin`, 375x320, fullscreen, so no status bar) shows `g_screensaver_picture` (`SYSSET SCREENSAVERPATH`): the asset `screensaver_default`, else the file if `access()` finds it, else the name as an asset again. The picker on **System settings → Display → Lock screen** (`screensaver_page`) lists `p_deque_screensaverlist`, a libcstl `char*` deque that `get_screensaver_image` fills: up to five card images from `lockscreenimage` (`toolsGetScreenSaverPic`, 375x320, 1 MB), then the default pushed in front. It also resets a picture that is neither the default nor a file. Its list builder (`0x4c9134`, rebuilt when the page's switch turns) makes Time show and About, then, with the switch on, the 3-column grid of 110x94 `image_%d` thumbnails: the default from its asset, the rest by `file://`.
+
+**Wallpapers** (`patch/lockscreen.c`). Six built-ins are drawn by the payload, since the Stock rootfs has about 25 KB to spare: Aurora, Sunrise, Graphite, Tide, Ember and Black. `wall_render` evaluates each one's colour field (inverse-distance mesh gradients, waves, glows) every 5 pixels, interpolates bilinearly and adds a 4x4 ordered dither so gradients don't band; Graphite adds a brushed per-row grain. Their names (`q2pod:aurora` … `q2pod:black`) are no files. `lockscreen_images` lists them after the default and before the card images: demo has no `deque_pop_front`, so the card images come off the back and go on again, and a rebuilt list never doubles them. When stock reset a built-in, it is put back and saved. `lockscreen_rows` clears those thumbnails' `file://` names, and `lockscreen_init` clears the lock window's picture name, so nothing is looked up on each paint. `lockscreen_paint`, from `ringnav_paint` after stock painted the widget, draws the wallpaper over it: 375x320 rendered once per lock window (Black needs none, the window is black), thumbnails on first sight. Each bitmap goes with its widget (`EVT_DESTROY`), so a stale pointer never matches.
+
+**Clock.** The Lock screen page's **Clock: Standard / Large** row (`Q2POD LOCKCLOCK`, default Standard) follows stock's Time show, 78 high as stock's rows. Large re-lays out `view_timeinfo` when the lock window opens: the date (22 px) centred on a top line at y 14 with the battery at its right end, and the time (116 px) centred across the screen under it, all above the now-playing card (y 190). Time show off still hides it all.
+
+Checks in `test/patch.py`: the list's order and the kept built-in, the row's place, text and saved value, the thumbnails, and both clock layouts. `wall_render` is plain C, so it also builds on the host (`-DPEQ_HOST`).
 
 ## Parametric EQ
 
