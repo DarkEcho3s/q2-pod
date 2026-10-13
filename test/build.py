@@ -471,13 +471,13 @@ def validate_assets(directory):
                                                      'img_playmode', 'img_fav']
             # 16px outer margins, 12px from the art to the text, the text column 165px wide; the title larger.
             # Order and favourite at the page's foot; favourite centred below More.
-            assert [n[1] for n in album] == [[16, 10, 166, 166], [39, 33, 120, 120], [194, 35, 165, 28], [194, 67, 165, 20], [194, 91, 165, 20],
+            assert [n[1] for n in album] == [[16, 10, 166, 166], [39, 33, 120, 120], [194, 31, 165, 28], [194, 65, 165, 22], [194, 93, 165, 22],
                                              [247, 136, 50, 50], [303, 136, 50, 50]]
             assert album[-1][1][0] == named['img_more'][1][0] and album[-1][1][2] == named['img_more'][1][2] == 50
-            assert album[-1][1][0] - (album[-2][1][0] + album[-2][1][2]) == 6 and 91 + 20 < 136 + 13
+            assert album[-1][1][0] - (album[-2][1][0] + album[-2][1][2]) == 6 and 93 + 22 < 136 + 13
             assert album[1][2]['opacity'] == '0'  # playback gestures retain their original target
-            assert album[2][2]['style:normal:font_size'] == '22' and album[3][2]['style:normal:font_size'] == '16'
-            for node, color in ((album[3], '#CCCCCC'), (album[4], '#AAAAAA')):
+            assert album[2][2]['style:normal:font_size'] == '22' and album[3][2]['style:normal:font_size'] == '18'
+            for node, color in ((album[3], '#CCCCCC'), (album[4], '#BBBBBB')):
                 assert {v for k, v in node[2].items() if k.endswith(':text_color')} == {color}
             assert pos[0] == NP_POS_X and album[0][1][0] == NP_MARGIN and 375 - 16 == album[2][1][0] + album[2][1][2]
             # Distinct bands: top row, art, page dots, bar (A-B markers y 250 to 260), then the times.
