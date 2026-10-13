@@ -114,6 +114,12 @@ int by_string(const void *a, const void *b);
 unsigned hash_bytes(unsigned h, const unsigned char *s, unsigned n);
 unsigned fnv(unsigned h, const unsigned char *s);
 void stop_timer(unsigned *timer), rearm(unsigned *timer, int (*fn)(const void *), unsigned ms);
+int return_key(void *event, unsigned *timer, int (*leave)(const void *)); /* a page's keyup: Return */
+int center_press(unsigned *timer, unsigned *at, int (*single)(const void *), int scrubbing);
+int config_value(const char *section, const char *key, int n); /* navigation.c: Q2POD and IPOD digits */
+int image_show(void *img, const char *url, unsigned *size);
+int album_cmp(void *a, void *b);
+void peq_attach(void); /* peq_ui.c */
 int worker_stop(unsigned long thread, int *running, volatile int *cancel, unsigned *timer);
 void ringnav_select(void *w, int id, int rows);
 int blob_io(const char *path, const char *tmp, void *buf, unsigned size, int write);

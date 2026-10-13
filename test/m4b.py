@@ -36,7 +36,7 @@ print('Installed TagLib: M4B and M4A reach the same MP4 metadata constructor.')
 
 # Cover extraction has a separate vendor dispatcher; metadata support alone is insufficient.
 from build import segments
-from m4b import TAG_C, patch_m4b_cover
+from build import TAG_C, patch_m4b_cover
 raw = subprocess.check_output(['unsquashfs', '-cat', str(pathlib.Path(sys.argv[1])/'stock.squashfs'), TAG_C])
 patched = patch_m4b_cover(raw)
 try:

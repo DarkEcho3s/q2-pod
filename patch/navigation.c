@@ -49,7 +49,7 @@ extern int scrobble_ready(void), scrobble_start(void), scrobble_poll(int *sent),
     scrobble_album_artist(void);
 extern void scrobble_append(const char *line, unsigned n);
 extern void *staged(int (*query)(void *), void *arg, int *count);
-extern int album_cmp(void *, void *), album_only(void *, void *, int), coverflow_split(void *);
+extern int album_only(void *, void *, int), coverflow_split(void *);
 extern unsigned album_id(void *r);
 extern unsigned album_dir(const char *, int);
 extern volatile unsigned library_gen;
@@ -161,8 +161,8 @@ typedef struct {
      * last_input times the screen-on idle. year_old: Year order, oldest first. resume:
      * Bluetooth's Resume on connect on. */
     int pod_read, charge_limit, low_power, wake_double, wake_pass, charge_held, cpu_off, cpu_bad,
-        cpu_marked, artist_cf, year_old, resume;
-    void *pod_label[7];
+        cpu_marked, artist_cf, year_old, resume, lock_clock;
+    void *pod_label[8];
     void *art_cf_win, *art_cf_list; /* the artist page given its Coverflow, the albums pending */
     void *art_cf_veil;              /* the artist page unseen until they show, and its anim_hint */
     char art_cf_hint[64];
@@ -403,6 +403,13 @@ void stop_timer(unsigned *timer) {
 void rearm(unsigned *timer, int (*fn)(const void *), unsigned ms) {
     stop_timer(timer);
     *timer = timer_add(fn, (void *)0, ms);
+}
+
+/* A page's keyup (Books, Photos, Radio): Return runs its leave from the next loop pass. */
+int return_key(void *event, unsigned *timer, int (*leave)(const void *)) {
+    if (I(event, EVENT_KEY) != KEY_RETURN) return 0;
+    rearm(timer, leave, 0);
+    return 11; /* RET_STOP */
 }
 
 /* A centre press on a page telling single from double presses (Now Playing, Spotify's): 1 the
@@ -1281,12 +1288,14 @@ _Static_assert(sizeof accent_names / sizeof *accent_names == ACCENT_N, "one name
 int config_digit(const char *key, int n) {
     return config_value("IPOD", key, n);
 } /* and visualizer.c's */
+/* The Display rows' settings, by ringnav_display's index: 0 Accent, 1 Home, 2 Battery, 3 Theme. */
+static const char *const setting_keys[] = { "ACCENT", "HOME", "BATTERY", "THEME" };
+static const int setting_counts[] = { ACCENT_N, 2, 4, 2 };
+static int *const setting_values[] = { &st.accent, &st.home_full, &st.battery, &st.classic };
 static int accent(void) {
     if (!st.settings_read) {
-        st.accent = config_digit("ACCENT", ACCENT_N);
-        st.home_full = config_digit("HOME", 2);
-        st.battery = config_digit("BATTERY", 4);
-        st.classic = config_digit("THEME", 2);
+        for (int i = 0; i < 4; ++i)
+            *setting_values[i] = config_digit(setting_keys[i], setting_counts[i]);
         st.settings_read = 1;
     }
     return st.classic ? st.accent : 0; /* Graphite */
@@ -1797,26 +1806,39 @@ void *list_row(void *view, const char *icon, int (*click)(void *, void *), void 
  * (ARTISTCF), Audio settings' Year order (YEAROLD, coverflow.c's year ranks) and Artists, which
  * is stock's own PLAYSET ARTISTTYPE (artist_type, the artist page's switch;
  * docs/internals.md#album-artists), and Bluetooth's Resume on connect (RESUME, so a missing key
- * holds playback; docs/internals.md#resume-on-connect). */
+ * holds playback; docs/internals.md#resume-on-connect), and the Lock screen's Clock (LOCKCLOCK,
+ * lockscreen.c; docs/internals.md#lock-screen). */
 #define STR_(x) #x
 #define STR(x) STR_(x)
-enum { POD_CHARGE, POD_LOW, POD_WAKE, POD_ARTIST_CF, POD_YEAR_OLD, POD_ARTISTS, POD_RESUME };
+enum {
+    POD_CHARGE,
+    POD_LOW,
+    POD_WAKE,
+    POD_ARTIST_CF,
+    POD_YEAR_OLD,
+    POD_ARTISTS,
+    POD_RESUME,
+    POD_LOCKCLOCK
+};
 static int *const pod_values[] = { &st.charge_limit, &st.low_power, &st.wake_double,
                                    &st.artist_cf,    &st.year_old,  0,
-                                   &st.resume };
+                                   &st.resume,       &st.lock_clock };
+_Static_assert(POD_LOCKCLOCK == 7, "lockscreen.c passes pod_rows 7");
+static const char *const pod_keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE", "ARTISTCF",
+                                        "YEAROLD",     0,          "RESUME",     "LOCKCLOCK" };
 static void pod_settings(void) {
     if (st.pod_read) return;
-    st.charge_limit = config_value("Q2POD", "CHARGELIMIT", 2);
-    st.low_power = config_value("Q2POD", "LOWPOWER", 2);
-    st.wake_double = config_value("Q2POD", "WAKEDOUBLE", 2);
-    st.artist_cf = config_value("Q2POD", "ARTISTCF", 2);
-    st.year_old = config_value("Q2POD", "YEAROLD", 2);
-    st.resume = config_value("Q2POD", "RESUME", 2);
+    for (unsigned i = 0; i < sizeof pod_keys / sizeof *pod_keys; ++i)
+        if (pod_keys[i]) *pod_values[i] = config_value("Q2POD", pod_keys[i], 2);
     st.pod_read = 1;
 }
 int ringnav_year_old(void) {
     pod_settings();
     return st.year_old;
+}
+int ringnav_lock_clock(void) {
+    pod_settings();
+    return st.lock_clock;
 }
 int ringnav_bt_resume(void) {
     pod_settings();
@@ -1841,6 +1863,7 @@ static void pod_text(int i) {
         { "Year order: Newest first", "Year order: Oldest first" },
         { "Artists: Artist", "Artists: Album Artist" },
         { "Resume on connect: Off", "Resume on connect: On" },
+        { "Clock: Standard", "Clock: Large" },
     };
     int v = i != POD_ARTISTS ? *pod_values[i] : I(artist_type, 0) == 1;
     widget_set_text_utf8(st.pod_label[i], names[i][v]);
@@ -1856,17 +1879,15 @@ static int pod_click(void *ctx, void *event) {
         I(artist_type, 0) = v;
         write_int_config(v, "PLAYSET", "ARTISTTYPE");
     } else {
-        static const char *const keys[] = { "CHARGELIMIT", "LOWPOWER", "WAKEDOUBLE", "ARTISTCF",
-                                            "YEAROLD",     0,          "RESUME" };
         int *value = pod_values[i];
         *value = !*value;
-        write_int_config(*value, "Q2POD", keys[i]);
+        write_int_config(*value, "Q2POD", pod_keys[i]);
         st.charge_at = 0;
     }
     pod_text(i);
     return 0;
 }
-static void pod_rows(void *win, const char *view_name, int first, int n, const char *const *icons) {
+void pod_rows(void *win, const char *view_name, int first, int n, const char *const *icons) {
     void *view = win ? widget_lookup(win, view_name, 1) : (void *)0;
     pod_settings();
     for (int i = 0; view && i < n; ++i) {
@@ -2760,13 +2781,9 @@ static void accent_row(void) {
  * recreated), and an open Now Playing its progress bar. */
 static int setting_click(void *ctx, void *event) {
     (void)event;
-    static const char *const keys[] = { "ACCENT", "HOME", "BATTERY", "THEME" };
-    static const int counts[] = { ACCENT_N, 2, 4, 2 };
-    int i = (int)(long)ctx; /* read by ringnav_display: 0 Accent, 1 Home, 2 Battery, 3 Theme */
-    int *const values[] = { &st.accent, &st.home_full, &st.battery, &st.classic },
-               *value = values[i];
-    *value = (*value + 1) % counts[i];
-    write_int_config(*value, "IPOD", keys[i]);
+    int i = (int)(long)ctx, *value = setting_values[i];
+    *value = (*value + 1) % setting_counts[i];
+    write_int_config(*value, "IPOD", setting_keys[i]);
     if (i == 2)
         widget_invalidate_force(*(void *const *)system_bar, (void *)0); /* bar_sync applies it */
     else if (i == 1)
@@ -2837,14 +2854,7 @@ static int boot_click(void *label, void *event) {
         return 0;
     }
     const char *value = boot_rockbox ? "q2pod" : "rockbox";
-    void *f = fopen(BOOT_TARGET ".tmp", "wb");
-    int ok = 0;
-    if (f) {
-        ok = fwrite(value, 1, strlen(value), f) == strlen(value);
-        if (fflush(f) || fsync(fileno(f))) ok = 0;
-        if (fclose(f)) ok = 0;
-    }
-    if (!ok || rename(BOOT_TARGET ".tmp", BOOT_TARGET)) {
+    if (!blob_io(BOOT_TARGET, BOOT_TARGET ".tmp", (void *)value, strlen(value), 1)) {
         unlink(BOOT_TARGET ".tmp");
         toast("Could not save boot choice");
         return 0;

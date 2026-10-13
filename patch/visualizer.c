@@ -146,7 +146,6 @@ void vis_analyze(int style, unsigned rate, float dt, unsigned now) {
 
 #ifndef PEQ_HOST
 extern int config_digit(const char *key, int n);
-extern void peq_attach(void);
 /* The accent's palette: its light tone, a dark shade of it and a bright tint, never washed to white. */
 #define DARK(tone) mix(tone, 0, 55, 100)
 #define BRIGHT(tone) mix(tone, 0xffffff, 30, 100)

@@ -14,8 +14,8 @@ extern int stock_load_trampoline(void *, int, int), stock_next_trampoline(int),
     stock_memory_trampoline(void *), stock_savequeue_trampoline(void), stock_change_trampoline(int),
     stock_speed_trampoline(int), stock_open_preload_trampoline(void);
 extern void *staged(int (*)(void *), void *, int *);
-extern int album_before(const void *, const void *), album_cmp(void *, void *),
-    folder_cmp(void *, void *), album_only(void *, void *, int);
+extern int album_before(const void *, const void *), folder_cmp(void *, void *),
+    album_only(void *, void *, int);
 
 typedef struct {
     unsigned index, group, rank;

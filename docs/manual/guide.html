@@ -345,7 +345,7 @@ p:has(+ ul), p:has(+ ol), p:has(+ table), p:has(+ pre), .task, h2, h3 { break-af
   <p>Albums have 0 to 5 hearts of their own, separate from their songs’.</p>
   <ul>
     <li><b>Rate an album:</b> in Coverflow (also an artist’s), <b>Library → Album</b> or an artist’s albums, hold <b>Play/Pause</b> on the album. <b>Add to Favourites</b> gives it five hearts, <b>Remove from Favourites</b> takes them away, and <b>Rate album</b> opens the same picker. The row shows the album’s hearts.</li>
-    <li><b>Library → Ratings → Albums</b> shows the rated albums in Coverflow, most hearts first. Its <b>Sort</b> card cycles <b>Rating</b>, <b>Album</b>, <b>Artist</b> and <b>Year</b>, and is remembered. Return goes back to Ratings.</li>
+    <li><b>Library → Ratings → Albums</b> shows the rated albums in Coverflow, most hearts first. Its <b>Sort</b> card cycles <b>Rating</b>, <b>Album</b>, <b>Artist</b> and <b>Year</b> (as <b>Year order</b>), and is remembered. Return goes back to Ratings.</li>
     <li>An album is its name with its album artist, or its folder when it has none (disc folders count as one), so a rating survives Update Local Music, but retagging or moving the album starts it unrated.</li>
   </ul>
 
@@ -369,13 +369,13 @@ p:has(+ ul), p:has(+ ol), p:has(+ table), p:has(+ pre), .task, h2, h3 { break-af
       <tr><td>Songs/Categories</td><td>Groups and their songs shuffled</td></tr>
     </tbody>
   </table>
-  <p><b>Play Single Song</b>, <b>Play Category</b> and <b>Play All Categories</b> stop after that song, group or queue. <b>Repeat Song</b>, <b>Repeat Category</b> and <b>Repeat All Categories</b> loop that scope, with a fresh shuffle cycle. Each shuffle cycle visits every song once. Next skips a single-song stop or repeat; category modes stay in the current category. Previous follows what you actually played.</p>
+  <p><b>Play Single Song</b>, <b>Play Category</b> and <b>Play All Categories</b> stop after that song, group or queue. <b>Repeat Song</b>, <b>Repeat Category</b> and <b>Repeat All Categories</b> loop that scope, with a fresh shuffle cycle. Each shuffle cycle visits every song once. Next skips a single-song stop or repeat; category modes stay in the current category. Previous follows what you actually played, and Next after Previous returns to the song you went back from.</p>
   <ul>
     <li><b>Album groups</b> tell albums apart as Coverflow does: by album name (ignoring case), then album artist. Songs without an album artist, and untagged songs, use their parent folder. Albums play in disc and track order.</li>
     <li><b>Folder groups</b> use the folder a song is in and play in path order.</li>
-    <li><b>Library → Shuffle → Shuffle Albums / Shuffle Folders</b> loads all scanned songs and shuffles those groups, which can take a while on a large library.</li>
+    <li><b>Library → Shuffle → Shuffle Albums / Shuffle Folders</b> loads all scanned songs and shuffles those groups, which can take a while on a large library. Shuffle in an album, artist, genre or folder’s hold menu still shuffles every song it collects.</li>
     <li><b>Next album / Previous album</b> in the hold menu skips the rest of the group, or returns to the start of the previously played group. Folder grouping shows <b>Next folder / Previous folder</b>.</li>
-    <li>Choosing a stock play mode clears these options, except Shuffle during Shuffle Albums or Folders, which keeps the groups.</li>
+    <li>Choosing a stock play mode clears these options, except Shuffle during Shuffle Albums or Folders, which keeps the groups. In those modes, <b>Next album / Previous album</b> (or folder) lead the hold menu.</li>
   </ul>
   <p>Your queue, options and history are restored after a restart; missing files are skipped. <b>Memory playback → Location</b> restores elapsed time, <b>Track</b> starts at the beginning, and <b>In-Vehicle mode</b> plays automatically.</p>
 
@@ -449,6 +449,7 @@ ALBUM_ARTIST=1</pre>
     <li><b>First open</b> prepares artwork once; <b>Cancel</b> keeps progress. Later opens add only new albums; <b>Refresh library</b>, the last card, rebuilds everything.</li>
     <li><b>Sort</b>, the card before it: press to switch between <b>Album</b>, <b>Artist</b> (then year), <b>Year</b> (newest or oldest first, as <b>Year order</b>), <b>Recently Added</b>, <b>Most Played</b> and <b>Random</b>. The choice is kept; Random reshuffles each time you pick it.</li>
     <li><b>An artist’s albums as Coverflow:</b> <b>System settings → Display → Artist albums: Coverflow</b> switches <b>Library → Artists → artist → Albums</b> from the default Grid to Coverflow. It contains only that artist’s albums, also when Artists is set to Album Artist. Return goes straight back to the Artists list.</li>
+    <li><b>Audiobooks</b> stay out of Coverflow: an album whose tracks are all <code>.m4b</code> files or sit under the card’s <code>Audiobooks/</code> folder. The Library’s own lists keep them.</li>
     <li><b>Artwork:</b> embedded art first, then <code>cover.jpg</code> and <code>folder.jpg</code>; otherwise a placeholder. A folder shared by several albums skips its <code>cover.jpg</code> and <code>folder.jpg</code>, since they’d be another album’s art.</li>
   </ul>
   </div>
@@ -556,7 +557,7 @@ ALBUM_ARTIST=1</pre>
       <tr><td>Return</td><td>Goes back a level</td></tr>
     </tbody>
   </table>
-  <p>Now Playing shows the station, the artist and song when the station sends them, the format and bitrate, and how long it has played. Until you play local music again, the playback buttons control radio from any page. Picking a song in the Library, playing a video or casting Spotify stops the radio. It plays on the headphone jack, Bluetooth or a USB DAC, and carries on with the screen off.</p>
+  <p>Now Playing shows the station, the artist and song when the station sends them, the format and bitrate, and how long it has played. Until you play local music again, the playback buttons control radio from any page, including local Now Playing. Picking a song in the Library, playing a video or casting Spotify stops the radio. It plays on the headphone jack, Bluetooth or a USB DAC, and carries on with the screen off.</p>
   <p>If the stream drops, it reconnects; after five failed tries it shows <b>Can’t play this station</b>. If the output itself can’t be opened, it shows <b>Can’t play:</b> and the reason; please include that text in a bug report.</p>
   <div class="sub">
   <h3>Adding your own stations</h3>
@@ -590,8 +591,8 @@ http://stream.radioparadise.com/mp3-128</pre>
   <p>Put one folder per show or book in <code>Podcasts/</code> or <code>Audiobooks/</code> at the card’s root. They always resume where you stopped and never count as plays. Playback speed is set per folder (see Chapter 3).</p>
   <div class="sub">
   <h3>M4B audiobooks</h3>
-  <p>Unprotected <code>.m4b</code> files play as they are: copy the original files onto the card, with no renaming or conversion needed. Extensions are case-insensitive. M4B files anywhere on the card resume at any duration and don’t count toward Most Played or scrobbles. <code>Audiobooks/</code> adds a Library shortcut, but is optional for M4B. Embedded artwork uses the MP4 cover reader, with folder artwork as the fallback.</p>
-  <div class="note"><p><span class="label">Note:</span> DRM-protected files and chapter navigation aren’t supported. CUE tracks don’t resume.</p></div>
+  <p>Unprotected <code>.m4b</code> files play as they are: copy the original files onto the card, with no renaming or conversion needed. Extensions are case-insensitive. M4B files anywhere on the card resume at any duration and don’t count toward Most Played or scrobbles. <code>Audiobooks/</code> adds a Library shortcut, but is optional for M4B. Embedded artwork uses the MP4 cover reader, with folder artwork as the fallback. M4B audiobooks stay out of Coverflow.</p>
+  <div class="note"><p><span class="label">Note:</span> DRM-protected files and chapter navigation aren’t supported. CUE tracks don’t resume. As with stock resume, the number of saved positions is limited and the last 30 seconds of a file aren’t resumed.</p></div>
 
   </div>
   </div>
@@ -636,6 +637,7 @@ http://stream.radioparadise.com/mp3-128</pre>
       <tr><td>Home</td><td>Split (menu beside the playing album’s cover) or Full (menu only)</td></tr>
       <tr><td>Battery</td><td>Icon (default), Percent, Icon + Percent, Percent Inside</td></tr>
       <tr><td>Artist albums</td><td>Grid (default) or Coverflow for an artist’s albums</td></tr>
+      <tr><td>Wheel sensitivity</td><td>50–200% in 10% steps, 50% by default (a seventh of a turn per tick). Higher needs less turning per step: 100% half as much, 200% a quarter. Turn the wheel or drag the slider; Centre goes back.</td></tr>
     </tbody>
   </table>
 
@@ -712,7 +714,7 @@ http://stream.radioparadise.com/mp3-128</pre>
   </div>
   <div class="sub">
   <h3>Volume</h3>
-  <p>The Q2’s volume is kept when the headset connects. After that, changing the volume on the headset updates the Q2 and its volume controls, within the configured volume limit; zero mutes. AirPlay and DLNA keep their own receiver controls.</p>
+  <p>The Q2’s volume is kept when the headset connects. After that, changing the volume on the headset updates the Q2 and its volume controls, within the configured volume limit; zero mutes. A headset that can’t take the volume gets the Q2’s own software gain instead. AirPlay and DLNA keep their own receiver controls.</p>
   </div>
   </div>
 </section>
@@ -755,7 +757,7 @@ http://stream.radioparadise.com/mp3-128</pre>
     <li><b>Q2 Pod for one session:</b> hold Play/Pause while turning the Q2 on. The next start is Rockbox again. To always start Q2 Pod, set <b>System settings → Boot to: Q2-Pod</b>.</li>
     <li><b>Copy music over USB:</b> turn on with Play/Pause held, plug in, and drag your files over.</li>
     <li><b>No card in it?</b> It starts Q2 Pod.</li>
-    <li><b>Bluetooth headphones with Rockbox:</b> shut Rockbox down (it goes to Q2 Pod), turn on Bluetooth and connect your headphones, then pick <b>Rockbox</b> on the Home menu (above Streaming). Rockbox starts and plays through the headphones. When it shuts down, you’re back in Q2 Pod.</li>
+    <li><b>Bluetooth headphones with Rockbox:</b> shut Rockbox down (it goes to Q2 Pod), turn on Bluetooth and connect your headphones, then pick <b>Rockbox</b> on the Home menu (above Streaming). Rockbox starts and plays through the headphones, with their volume raised to your maximum volume limit so Rockbox’s volume reaches full; the Q2’s own volume comes back on return. When it shuts down, you’re back in Q2 Pod.</li>
   </ul>
   </div>
   <div class="sub">
@@ -780,6 +782,7 @@ http://stream.radioparadise.com/mp3-128</pre>
     <li><b>Rate songs with hearts:</b> hold the heart on Now Playing, turn to 0–5 hearts, press Centre to save. Five hearts is My Fav; <b>Library → Ratings</b> lists them.</li>
     <li><b>Double-press the Centre button</b> to turn the screen off on any page (videos excepted); on Now Playing a single press does it.</li>
     <li><b>Hold Return</b> to jump to Now Playing from anywhere; hold it again there to go back where you were.</li>
+    <li><b>Wheel too fast or slow?</b> <b>System settings → Display → Wheel sensitivity</b>.</li>
     <li><b>Longer battery:</b> <b>System settings → Power → Low power</b> and <b>Charge limit</b>.</li>
     <li><b>Guest artists splitting albums?</b> <b>Audio settings → Artists → Album Artist</b>.</li>
     <li><b>Coverflow order:</b> the <b>Sort</b> card, just before Refresh library, switches to Artist, Year, Recently Added, Most Played or Random.</li>

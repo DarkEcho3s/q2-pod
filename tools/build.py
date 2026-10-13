@@ -275,9 +275,9 @@ def sha(b): return hashlib.sha256(b).hexdigest()
 def source_sha256():
     """Hash every build input, so a test run cannot silently use a stale output directory."""
     h = hashlib.sha256()
-    tools = [ROOT/'tools'/f for f in ('build.py', 'ipod.py', 'peq.py', 'release.py', 'm4b.py')]
     manual = [ROOT/'docs/manual'/f for f in ('build.py', 'guide.html')]
-    for path in sorted([*(p for p in ROOT.glob('assets/**/*') if p.is_file()), *ROOT.glob('patch/*'), *tools, *manual]):
+    for path in sorted([*(p for p in ROOT.glob('assets/**/*') if p.is_file()), *ROOT.glob('patch/*'),
+                        *ROOT.glob('tools/*.py'), *manual]):
         h.update(str(path.relative_to(ROOT)).encode() + b'\0')
         h.update(path.read_bytes())
     return h.hexdigest()
@@ -661,6 +661,30 @@ def append_payload(image, payload, base, memsz, label):
     image.extend(payload)
     struct.pack_into('<8I',image,nulls[0][0],1,off,base,base,len(payload),memsz,7,65536)
 
+TAG_C = 'usr/lib/libtag_c.so.2.0.1'
+TAG_C_SHA = 'b00f06c20b33b1238d095fcbcd9e9e04594e715b44e8a9e1a0aa9e3962e8b2b1'
+
+def patch_m4b_cover(raw):
+    """Extend the pinned TagLib cover dispatcher with its existing MP4 extractor."""
+    from ipod import branch
+    check(sha(raw) == TAG_C_SHA, 'Unexpected TagLib cover library')
+    image = bytearray(raw)
+    base, site, mp4, next_format, gp = 0x30000, 0x125ac, 0x126d8, 0x125b4, 0x327e0
+    # Keep M4A's successful comparison, then compare M4B before the original MP4 check.
+    # GP-relative data and PC-relative branches work at any shared-library load address.
+    words = [branch(0x10400000, base, mp4), 0,
+             0x8f998170, 0x02002025, 0x27850000 | ((base + 44 - gp) & 0xffff),
+             0x0320f809, 0,
+             branch(0x10400000, base + 28, mp4), 0x8fbc0010,
+             branch(0x10000000, base + 36, next_format), 0]
+    payload = struct.pack('<11I', *words) + b'm4b\0'
+    append_payload(image, payload, base, len(payload), 'TagLib cover')
+    struct.pack_into('<I', image, segments(image)[-1][0] + 24, 5)  # immutable code/data
+    check(struct.unpack_from('<I', raw, fileoff(raw, site))[0] == 0x1040004a,
+          'Unexpected TagLib M4A cover branch')
+    struct.pack_into('<I', image, fileoff(raw, site), branch(0x10000000, site, base))
+    return bytes(image)
+
 def patch_bluealsa(raw):
     """Offer AAC at 48 kHz only. A headset that opens the stream itself (AirPods out of the case)
     picks 44.1 kHz, and bluealsa, still fed 48 kHz, drops about 8% of the AAC frames."""
@@ -727,7 +751,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     # property of the UI asset, not the asset path, so check the stock rootfs assets directly:
     # a prefix-trimmed typo cannot silently disable a screen this way.
     from ipod import (AUDIT, ARTIST_ALBUMS, ARTIST_PAGE, HOME_PAGE, SETTINGS_ICONS, inc, UI_ASSETS, patch_asset,
-                      QUIET_ICONS, quiet_icon, imagemagick, patch_code, patch_style, patch_word, jal, settings_icon,
+                      QUIET_ICONS, quiet_icon, imagemagick, patch_code, patch_style, patch_word, jal, branch, settings_icon,
                       STATUS_ICONS, status_icon)
     contexts = re.findall(r'"([^"]+)"', (ROOT/'patch/contexts.inc').read_text())
     check(contexts, 'No navigation contexts audited')
@@ -789,7 +813,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     if ipod:
         # style_get_color's own bal style_get_gradient, returning to STYLE_COLOR_GRADIENT_RET, stays unmapped.
         ret = inc('STYLE_COLOR_GRADIENT_RET')
-        check(struct.unpack_from('<I', patched, fileoff(patched, ret - 8))[0] == 0x04110000 | (IPOD_LEAF[1] - ret + 4) >> 2 & 0xffff,
+        check(struct.unpack_from('<I', patched, fileoff(patched, ret - 8))[0] == branch(0x04110000, ret - 8, IPOD_LEAF[1]),
               'style_get_color: unexpected gradient call')
     # tidal_start reads the song id from $s2: set to the thread's own copy at 0x48647c, freed after
     # its only mcl_tidalStartPlayer call (lw t9; jalr; move a0, s7).
@@ -830,13 +854,13 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         patch_word(patched, address, 0x0320f809, jal(ps['ringnav_audio_extension']),
                    'recognize M4B alongside existing audio extensions')
     for address in SORT_TRIMS:
-        patch_word(patched, address, 0x04110000 | (syms['toolsTrimLeft'] - address - 4) >> 2 & 0xffff,
+        patch_word(patched, address, branch(0x04110000, address, syms['toolsTrimLeft']),
                    jal(ps['ringnav_sort_key']), 'sort without a leading article')
     for address, name in ALBUM_ART:
         patch_word(patched, address, 0x0320f809, jal(ps[name]), 'same-named albums apart in art')
     for row in ALBUM_ART_ROW:
         patch_word(patched, *row, 'same-named albums apart in art')
-    patch_word(patched, CLASS_ICON, 0x04110000 | (syms['class_icon'] - CLASS_ICON - 4) >> 2 & 0xffff,
+    patch_word(patched, CLASS_ICON, branch(0x04110000, CLASS_ICON, syms['class_icon']),
                jal(ps['ringnav_class_icon']), 'Artists rows without the head picture')
     for word in COVER_PAUSE:
         patch_word(patched, *word, 'album grids never pause the cover worker')
@@ -934,7 +958,6 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         removed.append(line.group().split()[:6])
         p = p[:line.start()]+p[line.end():]
     changed_assets = {}
-    from m4b import TAG_C, patch_m4b_cover
     for path, fix, name in ((TAG_C, patch_m4b_cover, 'libtag_c.so.2.0.1'), (FONT, font_quotes, 'default.ttf')):
         original = cat(path)
         data = fix(original)

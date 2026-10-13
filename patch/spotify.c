@@ -22,9 +22,6 @@
 #define SPOT_STEP_MS 5000  /* a scrub tick, as Now Playing's */
 #define SPOT_IDLE_MS 30000 /* not playing this long after it has played: librespot is stopped */
 
-extern int image_show(void *img, const char *url, unsigned *size),
-    center_press(unsigned *timer, unsigned *at, int (*single)(const void *), int scrubbing);
-
 /* librespot as last read; kept for the life of demo. */
 static struct {
     int launched, sock, playing, paused, local, active, played;

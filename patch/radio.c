@@ -409,9 +409,7 @@ static int np_leave(const void *unused) {
 
 static int np_keyup(void *ctx, void *event) {
     (void)ctx;
-    if (I(event, EVENT_KEY) != KEY_RETURN) return 0;
-    rearm(&np.leave, np_leave, 0);
-    return 11; /* RET_STOP */
+    return return_key(event, &np.leave, np_leave);
 }
 
 static int np_closed(void *ctx, void *event) {
@@ -714,9 +712,7 @@ static int leave(const void *unused) {
 /* Return: a list goes up a level, the menu back to Streaming. */
 static int keyup(void *ctx, void *event) {
     (void)ctx;
-    if (I(event, EVENT_KEY) != KEY_RETURN) return 0;
-    rearm(&ui.leave, leave, 0);
-    return 11; /* RET_STOP */
+    return return_key(event, &ui.leave, leave);
 }
 
 static int closed(void *ctx, void *event) {

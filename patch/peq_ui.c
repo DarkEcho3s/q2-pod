@@ -2,7 +2,6 @@
 #include "offsets.inc"
 
 extern int stock_eq_trampoline(int mode);
-extern int center_press(unsigned *timer, unsigned *at, int (*single)(const void *), int scrubbing);
 /* All calls, including restored playback, instantiate the replacement even in bypass.
  * Afterwards the flag only drives the status-bar EQ icon (systembar_showface @0x52f8b0): on
  * while 3EQ or PEQ is. */

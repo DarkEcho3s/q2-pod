@@ -14,10 +14,6 @@
 #define XF_ROW "label_xfade"    /* the Audio settings row's label, found again by name */
 #define WHEEL_ROW "label_wheel" /* and Display's Wheel sensitivity row's */
 
-extern int center_press(unsigned *timer, unsigned *at, int (*single)(const void *), int scrubbing);
-extern void peq_attach(void);
-extern int album_cmp(void *, void *);
-
 static struct {
     int read, on, seconds, attached, done, key[4];
     int wheel; /* the page is Wheel sensitivity's */
@@ -30,8 +26,7 @@ static struct {
 static void settings(void) {
     if (xf.read) return;
     char v[16] = "";
-    toolsReadConfig("/mnt/data/config.ini", "Q2POD", "XFADE", v, "0");
-    xf.on = v[0] == '1' && !v[1];
+    xf.on = config_value("Q2POD", "XFADE", 2);
     toolsReadConfig("/mnt/data/config.ini", "Q2POD", "XFADESEC", v, "0");
     int n = atoi(v);
     xf.seconds = n >= XF_MIN && n <= XF_MAX ? n : XF_DEFAULT;

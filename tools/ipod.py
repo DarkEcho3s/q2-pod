@@ -626,6 +626,11 @@ def quiet_icon(name, data):
 
 
 def jal(addr): return 0x0c000000 | addr >> 2
+def branch(op, at, target):
+    """op (beq, b, bal...) at address at, to target."""
+    delta = (target - at - 4) // 4
+    check(-32768 <= delta <= 32767, f'{at:#x}: branch out of range')
+    return op | (delta & 0xffff)
 
 
 def patch_word(data, address, old, new, purpose, changes=None):

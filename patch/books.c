@@ -650,9 +650,7 @@ static int leave(const void *unused) {
 /* Return: reader -> books -> Local Music. */
 static int keyup(void *ctx, void *event) {
     (void)ctx;
-    if (I(event, EVENT_KEY) != KEY_RETURN) return 0;
-    rearm(&bk.timer, leave, 0);
-    return 11; /* RET_STOP */
+    return return_key(event, &bk.timer, leave);
 }
 
 /* ringnav(): the reader takes the wheel (a page either way) and Centre (the caption). */

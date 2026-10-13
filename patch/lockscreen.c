@@ -136,8 +136,8 @@ int wall_render(unsigned *dst, int stride, int w, int h, int id) {
 
 extern int stock_saver_trampoline(void *, void *), stock_saverrows_trampoline(void *),
     stock_saverlist_trampoline(void);
-extern void *list_row(void *view, const char *icon, int (*click)(void *, void *), void *ctx);
-extern int config_value(const char *section, const char *key, int n);
+extern void pod_rows(void *win, const char *view_name, int first, int n, const char *const *icons);
+extern int ringnav_lock_clock(void); /* navigation.c: Q2POD LOCKCLOCK, 1 Large, else Standard */
 
 /* The built-ins' names in the picture list and SYSSET SCREENSAVERPATH, by id. None is a file:
  * stock's lock window falls back to the name as an asset, finds none and draws nothing, and these
@@ -146,7 +146,6 @@ static const char *const walls[WALLS] = { "q2pod:aurora", "q2pod:sunrise", "q2po
                                           "q2pod:tide",   "q2pod:ember",   "q2pod:black" };
 #define PICTURE ((char *)g_screensaver_picture) /* 256 bytes */
 #define PICTURES P(p_deque_screensaverlist, 0)
-#define CLOCK_ROW "label_lockclock"
 
 static struct {
     void *img, *full;                      /* the lock window's picture and its wallpaper */
@@ -158,9 +157,6 @@ static int wall_id(const char *name) {
         if (!strcmp(name, walls[i])) return i;
     return -1;
 }
-
-/* Q2POD LOCKCLOCK in config.ini: 1 Large, else Standard. */
-static int large(void) { return config_value("Q2POD", "LOCKCLOCK", 2); }
 
 static void *wall_bitmap(int w, int h, int id) {
     void *bm = bitmap_create_ex((unsigned)w, (unsigned)h, (unsigned)w * 4, 1 /* RGBA8888 */);
@@ -248,32 +244,19 @@ int lockscreen_init(void *win, void *ctx) {
         lk.full = id == WALLS - 1 ? 0 : wall_bitmap(I(img, W_W), I(img, W_H), id); /* Black: the window's own */
         widget_on(img, EVT_DESTROY, forget, img);
     }
-    if (large()) big_clock(win);
+    if (ringnav_lock_clock()) big_clock(win);
     return result;
 }
 
-static void clock_text(void *label, int big) {
-    widget_set_text_utf8(label, big ? "Clock: Large" : "Clock: Standard");
-}
-static int clock_click(void *ctx, void *event) {
-    (void)ctx, (void)event;
-    int big = !large();
-    write_int_config(big, "Q2POD", "LOCKCLOCK");
-    void *label = widget_lookup(window_manager(), CLOCK_ROW, 1);
-    if (label) clock_text(label, big);
-    return 0;
-}
-
 /* The Lock screen page's list (stock 0x4c9134), rebuilt whole when its switch turns: Time show and
- * About, then the picture grid with the switch on. Clock follows Time show, 78 high as stock's
- * rows, and the built-ins' thumbnails are found for lockscreen_paint. */
+ * About, then the picture grid with the switch on. Clock (navigation.c's POD_LOCKCLOCK) follows
+ * Time show, 78 high as stock's rows, and the built-ins' thumbnails are found for lockscreen_paint. */
 int lockscreen_rows(void *win) {
+    static const char *const icons[] = { 0 };
     int result = stock_saverrows_trampoline(win);
     void *view = widget_lookup(win, "scroll_view", 1);
     if (!view || widget_count_children(view) < 2) return result;
-    void *label = list_row(view, 0, clock_click, 0);
-    widget_set_name(label, CLOCK_ROW);
-    clock_text(label, large());
+    pod_rows(win, "scroll_view", 7 /* POD_LOCKCLOCK */, 1, icons);
     void *row = widget_get_child(view, widget_count_children(view) - 1);
     widget_resize(row, I(row, W_W), 78);
     widget_restack(row, 1);
