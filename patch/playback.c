@@ -32,6 +32,10 @@ typedef struct {
     unsigned *groups, *seen, *history;
 } playback;
 static playback s __attribute__((section(".scratch")));
+/* Stock Shuffle's Previous plays the last track, but the track it left stays unplayed in the pool,
+ * so stock's Next draws a random one instead: ringnav_shuffle returns to it (playback_back).
+ * back_to is that index + 1, back_at where Previous landed. */
+static int back_to __attribute__((section(".scratch"))), back_at __attribute__((section(".scratch")));
 /* The wheel's ticks. Stock's encoder thread looks at the wheel once per 80 ms (200 ms after
  * touching) and ticks at most once a look, dropping any travel past its threshold: on the device
  * a tick took 27 units of travel against a threshold of 12, a fast half turn gave a single tick,
@@ -465,6 +469,7 @@ int ringnav_load(void *q, int at, int type) {
     if (s.restoring == 2) type = M(MCL_TYPE);
     close_preload();
     int result = stock_load_trampoline(q, at, type);
+    back_to = 0;
     if (s.restoring == 2)
         s.restoring = 0;
     else if (!s.restoring) {
@@ -531,8 +536,18 @@ int ringnav_next(int automatic) {
     M(MCL_POS) = next;
     return mclStartPlayer();
 }
+int playback_back(void) {
+    int to = back_to - 1;
+    back_to = 0;
+    return to >= 0 && M(MCL_POS) == back_at && queue() && (unsigned)to < deque_size(queue()) ? to : -1;
+}
 int ringnav_prev(void) {
-    if (!s.active) return stock_prev_trampoline();
+    if (!s.active) {
+        int left = M(MCL_POS), result = stock_prev_trampoline();
+        back_to = M(MCL_MODE) == 2 && M(MCL_POS) != left ? left + 1 : 0;
+        back_at = M(MCL_POS);
+        return result;
+    }
     if (s.hn < 2) return 1;
     s.resume_key = s.resume_pending = 0;
     --s.hn;

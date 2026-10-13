@@ -2852,7 +2852,9 @@ class QueueMachine(Machine):
             self.nodes[a].setdefault('handlers',[]).append((b,c,d)); ret=1
             if b==O['EVT_CLICK']:
                 em=self.alloc(4); it=self.alloc(0x28); self.word(a+O['W_EMITTER'],em); self.word(em,it); self.word(it+O['EMIT_TYPE'],b)
-        elif name=='mcl_shuffle_pick': self.picks.append(a); self.word(O['MCL_POS'],len(self.names())-1); ret=1
+        elif name=='mcl_shuffle_pick':  # as stock: back to the previous index once, else forward from it
+            self.picks.append(a); last=self.mcl('MCL_LASTPOS'); self.word(O['MCL_LASTPOS'],-1 if not a else self.mcl('MCL_POS'))
+            self.word(O['MCL_POS'],last if not a and last!=-1 else len(self.names())-1); ret=1
         elif name=='calloc@GLIBC_2.0': ret=self.alloc(a*b+4)  # the album ratings' table
         elif name=='fopen@GLIBC_2.2': ret=0  # no ratings file
         else:  # the album/folder queries fill the staging deque
@@ -3329,6 +3331,13 @@ for light,want in ((1,[]),(0,[O['SCREEN_OFF_SLEEP_MS']])):
 for want in (1,3):
     m.call(address=syms['mclNextSong'],args=(0,0,0,0),gap=0)
     assert m.picks[-1]==1 and m.mcl('MCL_POS')==want and any(c[0]=='mclStartPlayer' for c in m.calls)
+passed()
+# Previous then Next in stock Shuffle returns to the track Previous left, not a new random pick.
+m=QueueMachine(mode=2); m.mock('pthread_mutex_lock@GLIBC_2.0','pthread_mutex_unlock@GLIBC_2.0')
+m.call(address=syms['mclNextSong'],args=(0,0,0,0),gap=0); m.word(O['MCL_POS'],1)
+m.call(address=syms['mclPrevSong'],args=(0,0,0,0),gap=0); assert m.picks[-1]==0 and m.mcl('MCL_POS')==0
+for want in (1,2):
+    m.call(address=syms['mclNextSong'],args=(0,0,0,0),gap=0); assert m.mcl('MCL_POS')==want
 passed()
 # Update Local Music: the stock scanner, nested folders and all, checks ringnav_scan_room (65,000
 # songs; stock 20,000) before each entry. Only the folder listing, paths and database insert are mocked.

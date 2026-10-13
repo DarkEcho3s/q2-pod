@@ -5066,7 +5066,8 @@ int ringnav_keylong(void *ctx, void *event) {
 /* Replaces mclNextSong's shuffle pick call: stock picks and bookkeeps, then a pending Play next
  * becomes the next track if it is still at its index. */
 int ringnav_shuffle(int forward) {
-    int result = mcl_shuffle_pick(forward);
+    int back = playback_back(), result = mcl_shuffle_pick(forward);
+    if (back >= 0) MCL(MCL_POS) = back; /* after Previous, Next returns to the track it left */
     void *queue = P(mcl_pdeqplaylist, 0);
     unsigned at = st.qm_forced - 1;
     st.qm_forced = 0;

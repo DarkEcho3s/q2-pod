@@ -5,6 +5,7 @@ unsigned rand_below(unsigned n);
 int playback_set(int kind, int value);
 int playback_groups(void *all, int folder);
 int playback_group_skip(int forward);
+int playback_back(void); /* the track stock Shuffle's Previous left, once; else -1 */
 void playback_insert(unsigned at, unsigned n, int next);
 void playback_poll(void);
 void playback_speed_start(void);
