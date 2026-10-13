@@ -509,6 +509,7 @@ FUNCTIONS = {
  'bitmap_destroy': ('int', 'void *'),
  'bitmap_lock_buffer_for_read': ('const unsigned char *', 'void *'),
  'canvas_draw_image': ('int', 'void *, void *, const void *, const void *'),
+ 'widget_on_paint_children': ('int', 'void *, void *'),  # a wallpaper thumbnail's check badge (lockscreen.c)
  'slide_menu_set_spacer': ('int', 'void *, int'),
  'playing_timer_start': ('int', 'void *'),
  'playing_timer_clear': ('int', 'void *'),

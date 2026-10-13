@@ -7446,7 +7446,8 @@ def lock_window(picture,config={}):
 m,w,info,box=lock_window('q2pod:aurora',{'LOCKCLOCK':'1'})
 assert m.nodes[w['img_screensaver']]['image']=='' and box('clock_time')[::2]==(0,375) and box('clock_date')[:3]==(0,0,375)
 assert m.nodes[w['clock_time']]['style:normal:text_align_h']=='center' and m.nodes[w['clock_time']]['style:normal:font_size']>70
-assert signed(m.get(info+O['W_Y']))+box('clock_time')[1]+box('clock_time')[3]<=190 and box('img_battery')[0]+34<=375; passed()
+assert signed(m.get(info+O['W_Y']))+box('clock_time')[1]+box('clock_time')[3]<=190 and not m.nodes[w['img_battery']]['visible']
+assert box('label_battery')[2]>=60 and box('label_battery')[0]+box('label_battery')[2]<=375; passed()
 m,w,info,box=lock_window(cards[0])
 assert m.nodes[w['img_screensaver']]['image']==cards[0] and 'style:normal:font_size' not in m.nodes[w['clock_time']]; passed()
 

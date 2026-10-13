@@ -213,8 +213,9 @@ int lockscreen_images(void) {
     return result;
 }
 
-/* The Large clock: the date (22 px) centred on a top line at y 14 with the battery at its right end,
- * the time (116 px) across the screen under it, all above the now-playing card (y 190). */
+/* The Large clock: the date (22 px) centred on a top line at y 14 with the battery percent at its
+ * right end, wide enough for "100%" (the icon hides; stock never shows it again), the time (116 px)
+ * across the screen under it, all above the now-playing card (y 190). */
 static void big_clock(void *win) {
     void *info = widget_lookup(win, "view_timeinfo", 1), *time = widget_lookup(win, "clock_time", 1),
          *date = widget_lookup(win, "clock_date", 1), *pct = widget_lookup(win, "label_battery", 1),
@@ -223,8 +224,8 @@ static void big_clock(void *win) {
     widget_move_resize(info, 0, 14, 375, 150);
     widget_move_resize(date, 0, 0, 375, 30);
     widget_move_resize(time, 0, 26, 375, 124);
-    widget_move_resize(pct, 282, 1, 42, 24);
-    widget_move_resize(batt, 326, 3, 34, 20);
+    widget_move_resize(pct, 296, 3, 64, 24);
+    widget_set_visible(batt, 0, 0);
     widget_set_prop_int(date, "style:normal:font_size", 22);
     widget_set_prop_int(time, "style:normal:font_size", 116);
     widget_set_prop_str(date, "style:normal:text_align_h", "center");
@@ -275,7 +276,8 @@ int lockscreen_rows(void *win) {
 }
 
 /* ringnav_paint (the border hook, after stock painted the widget) calls this for every widget:
- * over a built-in picture it draws the wallpaper; thumbnails render on first sight. */
+ * over a built-in picture it draws the wallpaper; thumbnails render on first sight. Stock painted
+ * the children (a thumbnail's img_choice, the check badge) first, so they are painted again on top. */
 void lockscreen_paint(void *w, void *canvas) {
     void *bm = 0;
     if (!w) return;
@@ -285,5 +287,6 @@ void lockscreen_paint(void *w, void *canvas) {
     if (!bm) return;
     int r[4] = { 0, 0, I(w, W_W), I(w, W_H) };
     canvas_draw_image(canvas, bm, r, r);
+    widget_on_paint_children(w, canvas);
 }
 #endif
