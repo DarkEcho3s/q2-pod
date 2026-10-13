@@ -85,7 +85,8 @@ NP_MARGIN = 16
 NP_POS_X = max(NP_MARGIN, corner_x(30 + (NP_TOP - 16) // 2, 16)) + 6  # "3 of 12", 16px text
 NP_ICONS_END = 375 - corner_x(30, NP_TOP)  # the 50px icon images fill the row's height
 NP_TEXT_W = 165
-NP_TITLE_PX = 22                 # the title over the 16px artist and album, as Apple's hierarchy
+NP_TITLE_PX = inc('NP_TITLE_PX')  # the title over the NP_META_PX artist and album, as Apple's hierarchy
+NP_META_PX = inc('NP_META_PX')
 NP_ART = 375 - 2 * NP_MARGIN - 12 - NP_TEXT_W
 NP_SLIDE_H = 186                 # the swipeable art, lyrics and info pages; the dots sit below
 NP_BAR_X = max(MARGIN, corner_x(30 + 251, 8))
@@ -394,16 +395,19 @@ def playing_page(root):
     for name, x in (('img_playmode', fav_x - NP_ICON - 6), ('img_fav', fav_x)):
         buttons[3].remove(named[name])
         named[name][1] = [x, icons_y, NP_ICON, NP_ICON]
-    top = art_y + (icons_y - art_y - (28 + 4 + 20 + 4 + 20)) // 2
-    title[1] = [NP_TEXT_X, top, text_w, 28]
+    top = art_y + (icons_y - art_y - (32 + 4 + 24 + 4 + 24)) // 2
+    title[1] = [NP_TEXT_X, top, text_w, 32]
     title[2].update({'style': 's_scrlabel_white20l', 'style:normal:font_size': str(NP_TITLE_PX)})
-    artist[1] = [NP_TEXT_X, top + 32, text_w, 20]
+    artist[1] = [NP_TEXT_X, top + 36, text_w, 24]
+    artist[2]['style:normal:font_size'] = str(NP_META_PX)
     for key in artist[2]:
         if key.endswith(':text_color'): artist[2][key] = NP_GREY
         if key.endswith(':text_align_h'): artist[2][key] = 'left'
     album = copy.deepcopy(artist)
-    album[1] = [NP_TEXT_X, top + 56, text_w, 20]
+    album[1] = [NP_TEXT_X, top + 64, text_w, 24]
     album[2].update(name='label_ipod_album', text='')
+    for key in album[2]:
+        if key.endswith(':text_color'): album[2][key] = f'#{inc("NP_ALBUM_RGB"):06X}'
     for key in artist[2]:
         if key.endswith(':text_color'): artist[2][key] = f'#{inc("NP_ARTIST_RGB"):06X}'
     named['img_cover'][1] = [NP_MARGIN, art_y, NP_ART, NP_ART]

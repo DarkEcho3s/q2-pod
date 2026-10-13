@@ -378,13 +378,13 @@ pixels below it, the page dots 12 pixels under the art, the bar with the stock A
 The art's corners are rounded at 12 pixels (`NP_ART_RADIUS`), the radius of stock's own
 placeholder cover at this size, so real art and the placeholder match. The payload paints them
 over the image in the page's black, with an anti-aliased
-edge pixel. The title is 22 pixels
-white (`NP_TITLE_PX`); the artist is `#CCCCCC` (`NP_ARTIST_RGB`), while the album, "3 of 12"
-and both times remain `#AAAAAA`. Spotify uses the same hierarchy in the iPod build; Stock
+edge pixel. The title is 26 pixels
+white (`NP_TITLE_PX`) over the 20-pixel (`NP_META_PX`) artist, `#CCCCCC` (`NP_ARTIST_RGB`), and
+album, `#BBBBBB` (`NP_ALBUM_RGB`); "3 of 12" and both times remain `#AAAAAA`. Spotify uses the same hierarchy in the iPod build; Stock
 keeps its existing artist color. Long lines scroll, as stock.
 
-**Theme: Minimal** draws the album in Sudo Music's small capitals (`NP_CAPS_PX`, 13 pixels,
-`SUDO_MUTED`, `SUDO_TRACK` apart, `paint_caps`) over its label's transparent ink; Classic shows
+**Theme: Minimal** draws the album in Sudo Music's small capitals (`NP_CAPS_PX`, 17 pixels,
+`NP_ALBUM_RGB`, `SUDO_TRACK` apart, `paint_caps`) over its label's transparent ink; Classic shows
 the label. There is no on-screen transport row: the buttons play, pause and skip.
 
 The art, title, artist and album are the slide_view's first page, so a swipe replaces all of them

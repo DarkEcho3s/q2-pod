@@ -1572,7 +1572,7 @@ static void paint_caps(void *w, void *canvas) {
         int room = I(a, W_W) - NP_CAPS_INSET;
         st.np_over = draw_spaced(canvas, widget_get_text(a), I(a, W_X) + NP_CAPS_INSET - st.np_off,
                                  I(a, W_Y) + (I(a, W_H) - NP_CAPS_PX) / 2, NP_CAPS_PX,
-                                 RGBA(SUDO_MUTED), room + st.np_off) -
+                                 RGBA(NP_ALBUM_RGB), room + st.np_off) -
                      SUDO_TRACK - room;
         canvas_set_clip_rect(canvas, old);
         if (st.np_over > 0 && !st.np_marquee)
@@ -4909,10 +4909,11 @@ static int qm_open(const void *unused) {
      * Go to is left out where its single-instance page is already open, or the album is the page.
      */
     unsigned char acts[12], n = 0;
-    if (st.qm_kind == QM_PLAYING && st.rate_win) acts[n++] = QA_RATE; /* the heart's hold */
     /* Shuffle Albums/Folders: skipping the group comes first */
     int group_first = st.qm_kind == QM_PLAYING && playback_option(0) >= 3;
+    /* Rate (the heart's hold) follows Next/Previous album */
     if (group_first) acts[n++] = QA_NEXT_GROUP, acts[n++] = QA_PREV_GROUP;
+    if (group_first && st.rate_win) acts[n++] = QA_RATE;
     acts[n++] = QA_NEXT;
     acts[n++] = QA_ADD;
     if (!song) acts[n++] = QA_SHUFFLE;
@@ -4933,6 +4934,7 @@ static int qm_open(const void *unused) {
         acts[n++] = QA_REPEAT;
         acts[n++] = QA_GROUP;
         if (!group_first) acts[n++] = QA_NEXT_GROUP, acts[n++] = QA_PREV_GROUP;
+        if (!group_first && st.rate_win) acts[n++] = QA_RATE;
     }
     static const char *const rows[] = { "Play next",
                                         "Add to queue",

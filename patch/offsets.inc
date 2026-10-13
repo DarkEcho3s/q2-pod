@@ -210,10 +210,15 @@
 #define EDIT_OK_PX 18 /* the date, time and sleep timer pages' OK label, on that card */
 /* Minimal's Now Playing album is NP_CAPS_PX capitals, NP_CAPS_INSET in from its label's edge as
  * stock hscroll_label insets the title and artist (margin_left, default 2, 0x5e8378). */
-#define NP_CAPS_PX 13
+#define NP_CAPS_PX 17
 #define NP_CAPS_INSET 2
 #define PAGE_SLIDE_MS 120
 #define NP_ARTIST_RGB 0xcccccc
+/* Now Playing's text (local, Spotify and Radio): the title over the artist and album, the album
+ * lighter than the other grey text so it reads at a glance. */
+#define NP_TITLE_PX 26
+#define NP_META_PX 20
+#define NP_ALBUM_RGB 0xbbbbbb
 /* Spotify's and Internet Radio's Now Playing layout (tools/ipod.py NP_*, which checks they match):
  * the art and the text 16px from the sides, 12 apart, the bar and times clear of the glass's corners. */
 #define SPOT_ART_X 16

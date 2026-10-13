@@ -4187,7 +4187,7 @@ if variant=='ipod':
         if not minimal: assert not letters; passed(); return
         assert ''.join(l['text'] for l in letters)=='KID A' and len({l['y'] for l in letters})==1
         assert letters[0]['x']==194+O['NP_CAPS_INSET']
-        assert {l['color'] for l in letters}=={color_t(O['SUDO_MUTED'])} and m.font==('default',O['NP_CAPS_PX']); passed()
+        assert {l['color'] for l in letters}=={color_t(O['NP_ALBUM_RGB'])} and m.font==('default',O['NP_CAPS_PX']); passed()
         # Wider than its label (5 letters, 58 px, in 40 past the inset), the album holds, scrolls 2 px a step to its
         # end, holds there, then starts over; the canvas gets its clip back.
         m.timers.clear() # stock's own, not emulated
@@ -6244,10 +6244,10 @@ assert m.tap()==11 and m.favs=={'B'} and m.kept()==[] and m.badge() is None; pas
 assert m.tap()==11 and m.favs==set(); m.heart(); m.call(O['KEY_NEXT']); m.call(O['KEY_NEXT']); m.call(O['KEY_CENTER'])
 m2=RateMachine(m.files['/mnt/data/ringnav-ratings']); assert m2.badge()=='2'
 m2.word(O['MCL_POS'],0); m2.advance(500); assert m2.badge() is None; passed()
-# Hold Play/Pause on Now Playing: Rate first, with the hearts; its row opens the same picker.
+# Hold Play/Pause on Now Playing: Rate below Next/Previous album, with the hearts; its row opens the same picker.
 m2.word(O['MCL_POS'],1); m2.handlers[syms['navigator_to']]='q:navigator_to'; m2.press(100)
-assert m2.hold()==11 and m2.labels()[0]=='Rate  ♥♥♡♡♡' and m2.release()==0
-m2.pick(0); m2.advance(0); m2.top=m2.np; assert m2.caption()=='2 of 5' and m2.call(O['KEY_RETURN'])==11; passed()
+assert m2.hold()==11 and m2.labels()[-3:]==['Next album','Previous album','Rate  ♥♥♡♡♡'] and m2.release()==0
+m2.pick(len(m2.labels())-1); m2.advance(0); m2.top=m2.np; assert m2.caption()=='2 of 5' and m2.call(O['KEY_RETURN'])==11; passed()
 # Ratings: Top Rated (4-5), Loved (5), All Rated and Disliked (1), most hearts first, then title order.
 m=RateMachine(b''.join(struct.pack('<I',(key_of(n)&~7)|h) for n,h in (('A',1),('C',4),('E',2))).ljust(4*O['RATE_SLOTS'],b'\0'))
 m.found=[m.song(n) for n in ('A','B','C','D','E')]; m.fav_songs=[m.song('D')]
@@ -6860,7 +6860,7 @@ m.state('playing',position=10000,at=m.now+500,cover=1); m.files[STATE+'.jpg']=by
 assert m.nodes[info]['visible'] and not m.nodes[msg]['visible']
 assert m.thumbs==[(STATE+'.jpg','/tmp/q2spot.jpg',166,166)] and 'file:///tmp/q2spot.jpg' in [m.text(c[2]) for c in m.calls if c[0]=='widget_load_image']
 assert texts(info)==['Spotify','Song','A, B','LP','00:10','-03:10']
-for text, rgb in [('Song', 0xffffff), ('A, B', O['NP_ARTIST_RGB'] if variant=='ipod' else 0xaaaaaa), ('LP', 0xaaaaaa)]:
+for text, rgb in [('Song', 0xffffff), ('A, B', O['NP_ARTIST_RGB'] if variant=='ipod' else 0xaaaaaa), ('LP', O['NP_ALBUM_RGB'] if variant=='ipod' else 0xaaaaaa)]:
     label=next(w for w in m.nodes if under(w,info) and m.nodes[w].get('text')==text)
     assert m.nodes[label]['style:normal:text_color']==signed(color_t(rgb))
 m.advance(2500); assert texts(info)[4:]==['00:12','-03:08'] and len(m.thumbs)==1
