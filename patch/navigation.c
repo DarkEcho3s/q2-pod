@@ -2934,13 +2934,15 @@ static int selects(menu_t *m, void *target) {
 /* Observe actual clicks BEFORE app callbacks can navigate or destroy/rebind their widgets.
  * Do not turn pointer-down into selection: a swipe is not a tap. */
 int ringnav_dispatch(void *target, void *event) {
-    /* Native key delivery can retain the covered window's focused widget. */
+    /* Native key delivery can retain the covered window's focused widget: the Artists list under
+     * an artist's page (wheel turns queued while it loads) or under its Coverflow. */
     if (target && event && I(event, EVENT_TYPE) >= EVT_KEY_DOWN &&
         I(event, EVENT_TYPE) <= EVT_KEY_UP_BEFORE &&
         (I(event, EVENT_KEY) == KEY_PREV || I(event, EVENT_KEY) == KEY_NEXT)) {
         void *wm = window_manager(), *top = window_manager_get_top_window(wm);
+        const char *name = top ? widget_get_prop_str(top, "name", "") : "";
         if (target != wm && top &&
-            !tk_strcmp(widget_get_prop_str(top, "name", ""), "coverflow_page")) {
+            (!tk_strcmp(name, "coverflow_page") || !tk_strcmp(name, "artistinfo_page"))) {
             void *w = target;
             while (w && w != top) w = P(w, W_PARENT);
             if (!w) return STOP;

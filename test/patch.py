@@ -4476,7 +4476,14 @@ assert m.call(address=0x65f688,args=(row,m.event,0,0),event_type=O['EVT_KEY_DOWN
 assert not m.dispatched() and not any(c[0]=='reset_poweroptions_timer' for c in m.calls)
 m.top=under
 assert m.call(address=0x65f688,args=(row,m.event,0,0),event_type=O['EVT_KEY_DOWN'],gap=0)==0
-assert m.dispatched() and any(c[0]=='reset_poweroptions_timer' for c in m.calls); passed()
+assert m.dispatched() and any(c[0]=='reset_poweroptions_timer' for c in m.calls)
+# The artist page on top: the Artists list under it gets no wheel key either.
+artists=m.node('window','localclass_page'); m.word(artists+O['W_PARENT'],m.wm)
+low=m.node('list_item'); m.word(low+O['W_PARENT'],artists)
+for key in (O['KEY_PREV'],O['KEY_NEXT']):
+    assert m.call(key,address=HOOKS['widget_dispatch'][0],args=(low,m.event,0,0),event_type=O['EVT_KEY_DOWN'],gap=0)==11
+    assert not m.dispatched()
+passed()
 
 # Slow steps stay precise. Continuous 50ms ticks cross the 300ms threshold and jump groups.
 m=CoverflowMachine(albums=10)
