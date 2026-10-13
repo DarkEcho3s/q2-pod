@@ -93,13 +93,7 @@ IPOD_HOOKS = {'playlist_rebuild': (0x4b2dac, 'ringnav_playlist', 'playlist'),
               'style_get_color': (0x649f6c, 'ringnav_style_color', 'color'),
               'image_manager_add': (0x6445d4, 'ringnav_image_add', 'image')}
 # The payload's stock_<name>_trampoline, the hooks' third element, resumes each hook past its 3-word PIC
-# prologue. The stubs go in this order, which fixes their addresses in the payload.
-TRAMPOLINES = ['pause', 'btvol', 'savequeue', 'load', 'next', 'prev', 'mode', 'preload', 'memory', 'playlist', 'keyup',
-               'touch', 'paint', 'dispatch', 'keylong', 'eq', 'home', 'localmusic', 'localclass', 'paint_bg', 'playing',
-               'systemset', 'display', 'color', 'image', 'keydown', 'scan_all', 'scan_folder', 'delete_song', 'sleep',
-               'about', 'folder', 'folder_back', 'input', 'buzzer', 'power', 'audioset', 'change', 'detail', 'artist',
-               'stream', 'start_player', 'tidal', 'bigcover', 'speed', 'open_preload', 'btrows', 'saverlist',
-               'saverrows', 'saver']
+# prologue.
 # Every audited stock PIC prologue resolves this GOT base.
 GP = 0xa26cc0
 # iPod: style_get_gradient has no PIC prologue. It is a leaf that null-checks the style and its
@@ -625,9 +619,9 @@ def compile_payload(out, ipod=False):
     run('clang',*FLAGS,f'-DIPOD={int(ipod)}','-I',out,'-c',ROOT/'patch/navigation.c','-o',out/'navigation.o')
     asm = ['.set noreorder', '.text']
     resume = {x: address for address, _, x in (HOOKS | IPOD_HOOKS).values() if x}
-    for x in TRAMPOLINES:
+    for x, address in resume.items():
         asm += [f'.globl stock_{x}_trampoline', f'stock_{x}_trampoline:', f'lui $gp, {GP >> 16}',
-                f'ori $gp, $gp, {GP & 65535}', f'j 0x{resume[x] + 12:x}', 'nop']
+                f'ori $gp, $gp, {GP & 65535}', f'j 0x{address + 12:x}', 'nop']
     (out/'trampoline.S').write_text('\n'.join(asm)+'\n')
     run('clang',*FLAGS,'-c',out/'trampoline.S','-o',out/'trampoline.o')
     run('ld.lld','-m','elf32ltsmip','--gc-sections','-T',ROOT/'patch/link.ld','-e','ringnav',

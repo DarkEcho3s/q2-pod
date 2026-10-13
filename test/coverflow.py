@@ -323,7 +323,7 @@ int toolsQueryDbTable(const char *db, const char *sql, void *row, int sort) {
         int music = strstr(sql, "fileurl not like") != 0;
         for (int i = 0; i < albums; ++i) {
             const char *path = *(const char **)(records[i] + REC_PATH);
-            if (music && (!strncasecmp(path, "/mnt/mmc/audiobooks/", 19) ||
+            if (music && (!strncasecmp(path, "/mnt/mmc/audiobooks/", 20) ||
                           (strlen(path) >= 4 && !strcasecmp(path + strlen(path) - 4, ".m4b")))) continue;
             d->at[d->n++] = records[i];
         }

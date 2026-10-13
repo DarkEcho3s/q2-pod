@@ -52,8 +52,7 @@ static void wall_field(int id, float u, float v, float aspect, float *rgb) {
     case 2: { /* Graphite: dark machined aluminium with one soft diagonal sheen */
         float base = 0.19f - 0.10f * v, d = (u * aspect + 0.7f * v - 0.75f) / 0.42f;
         rgb[0] = rgb[1] = base, rgb[2] = base + 0.012f;
-        float s = clamp01(1 - d * d);
-        s *= s;
+        float s = glow(d, 0, 1);
         rgb[0] += 0.11f * s, rgb[1] += 0.11f * s, rgb[2] += 0.12f * s;
         break;
     }
