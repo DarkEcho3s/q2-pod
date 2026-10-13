@@ -119,7 +119,7 @@ def upload(out, repo=REPO, publish=False):
     existing = next((r for r in releases if r['tagName'] == VERSION), None)
     if existing:
         check(existing['isDraft'], 'Refusing to overwrite a published release')
-        run(*gh, 'edit', VERSION, '--draft', '--title', VERSION, '--notes-file', out/'release-notes.md')
+        run(*gh, 'edit', VERSION, '--draft', '--target', record['revision'], '--title', VERSION, '--notes-file', out/'release-notes.md')
     else:
         run(*gh, 'create', VERSION, '--draft', '--target', record['revision'], '--title', VERSION,
             '--notes-file', out/'release-notes.md')
