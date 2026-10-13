@@ -246,13 +246,22 @@ static int scrobble_lastfm(const entry_t *e, int n, const char *sk, buf_t *b, re
 }
 
 /* Moves the first done bytes' scrobbles to .sent and keeps the rest under the header. The log is
- * only appended to meanwhile, so those bytes are the ones uploaded. */
+ * only appended to meanwhile, so those bytes are the ones uploaded. The new log is written first, so
+ * a full card fails before .sent gains anything; .sent is synced before the rename drops them. */
 static int retire(unsigned done) {
     pthread_mutex_lock(up.lock);
     unsigned size;
     char *p = read_all(LOG_FILE, &size);
-    void *sent = p && size >= done ? fopen(LOG_FILE ".sent", "ab") : 0;
-    int ok = sent != 0;
+    void *f = p && size >= done ? fopen(LOG_FILE ".tmp", "wb") : 0;
+    int ok = f != 0;
+    if (f) {
+        ok = fwrite(header, sizeof header - 1, 1, f) == 1 &&
+                 (size == done || fwrite(p + done, size - done, 1, f) == 1);
+        if (fflush(f) || fsync(fileno(f))) ok = 0;
+        if (fclose(f)) ok = 0;
+    }
+    void *sent = ok ? fopen(LOG_FILE ".sent", "ab") : 0;
+    ok = sent != 0;
     for (unsigned i = 0, j; ok && i < done; i = j) {
         for (j = i; j < done && p[j++] != '\n';) {}
         if (p[i] != '#') ok = fwrite(p + i, j - i, 1, sent) == 1;
@@ -261,15 +270,7 @@ static int retire(unsigned done) {
         if (fflush(sent) || fsync(fileno(sent))) ok = 0;
         if (fclose(sent)) ok = 0;
     }
-    void *f = ok ? fopen(LOG_FILE ".tmp", "wb") : 0;
-    if (f) {
-        ok = fwrite(header, sizeof header - 1, 1, f) == 1 &&
-                 (size == done || fwrite(p + done, size - done, 1, f) == 1);
-        if (fflush(f) || fsync(fileno(f))) ok = 0;
-        if (fclose(f)) ok = 0;
-        if (ok) ok = !rename(LOG_FILE ".tmp", LOG_FILE);
-    }
-    else ok = 0;
+    if (ok) ok = !rename(LOG_FILE ".tmp", LOG_FILE);
     free(p);
     pthread_mutex_unlock(up.lock);
     return ok;

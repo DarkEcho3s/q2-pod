@@ -1278,6 +1278,7 @@ void check_styles(void) {
 SCROBBLE = r"""
 #include <assert.h>
 #include <stdarg.h>
+#include <sys/stat.h>
 #include "peq.h"
 int scrobble_ready(void), scrobble_start(void), scrobble_poll(int *), scrobble_album_artist(void);
 void scrobble_append(const char *, unsigned);
@@ -1415,9 +1416,13 @@ int main(void) {
     cfg[1] = 0, no_key = 0; /* An old card CA file is ignored: firmware supplies trust. */
     fclose(fopen(ROOT "/mnt/mmc/.scrobble.pem", "w"));
     assert(run(&sent) == 1 && sent == 10 && !strcmp(slurp(LOG), HEADER));
+    /* A log rewrite that fails (a full card) keeps the listens to resend, and .sent gains none. */
+    assert(!mkdir(LOG ".tmp", 0755));
+    write_log(1); strcpy(before, slurp(LOG));
+    assert(run(&sent) == -1 && sent == 1 && !strcmp(slurp(LOG), before) && lines(slurp(LOG ".sent")) == 184);
+    rmdir(LOG ".tmp");
     /* A full archive must never discard the source listens after network success. */
     unlink(LOG ".sent"); assert(!symlink("/dev/full", LOG ".sent"));
-    write_log(1); strcpy(before, slurp(LOG));
     assert(run(&sent) == -1 && sent == 1 && !strcmp(slurp(LOG), before));
     unlink(LOG ".sent");
     fclose(dump);
@@ -1472,7 +1477,7 @@ def scrobble_check(tmp):
             assert p[f'artist[{j}]'] == artist(i) and p[f'track[{j}]'] == f'Title {i}' and p[f'duration[{j}]'] == str(200 + i)
             assert p.get(f'album[{j}]') == ('Alb/um' if i % 10 else None)
         fm_sizes.append(n)
-    assert lb_sizes == [50, 50, 20, 50, 10, 10, 1] and fm_sizes == [50, 50, 20, 50]
+    assert lb_sizes == [50, 50, 20, 50, 10, 10, 1, 1] and fm_sizes == [50, 50, 20, 50]
     assert [v for _, _, v, _ in requests] == ['1'] * len(requests)
     print('Scrobble upload: config, batching, JSON and form escaping, Last.fm signatures, log rewrite and failures passed.')
 
