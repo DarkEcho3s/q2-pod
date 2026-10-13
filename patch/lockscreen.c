@@ -19,10 +19,6 @@ static void mesh(const wall_point *p, int n, float u, float v, float aspect, flo
     for (int i = 0; i < 3; ++i) rgb[i] = c[i] / sum;
 }
 static float clamp01(float x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
-static float smooth(float e0, float e1, float x) {
-    x = clamp01((x - e0) / (e1 - e0));
-    return x * x * (3 - 2 * x);
-}
 /* A soft round falloff: 1 at the centre, 0 from radius r. */
 static float glow(float dx, float dy, float r) {
     float t = clamp01(1 - (dx * dx + dy * dy) / (r * r));
@@ -68,7 +64,8 @@ static void wall_field(int id, float u, float v, float aspect, float *rgb) {
         for (int k = 0; k < 4; ++k) {
             float crest = 0.40f + 0.15f * (float)k +
                           0.055f * sinf(6.2832f * (u * (0.9f + 0.15f * (float)k) + 0.27f * (float)k));
-            float t = smooth(crest - 0.02f, crest + 0.035f, v);
+            float t = clamp01((v - crest + 0.02f) / 0.055f);
+            t = t * t * (3 - 2 * t);
             blend(rgb, bands[k][0], bands[k][1], bands[k][2], t);
             float lip = clamp01(1 - (v - crest) * (v - crest) / 0.0009f); /* a faint bright crest */
             blend(rgb, 0.70f, 0.85f, 1.0f, 0.12f * lip * lip);
@@ -242,7 +239,7 @@ static void big_clock(void *win) {
  * stock's (lockscreen_paint), and Large lays the clock out again. */
 int lockscreen_init(void *win, void *ctx) {
     int result = stock_saver_trampoline(win, ctx);
-    void *img = win ? widget_lookup(win, "img_screensaver", 1) : (void *)0;
+    void *img = widget_lookup(win, "img_screensaver", 1);
     int id = wall_id(PICTURE);
     if (img && id >= 0) {
         image_base_set_image(img, ""); /* nothing to look up on every paint */
@@ -251,7 +248,7 @@ int lockscreen_init(void *win, void *ctx) {
         lk.full = id == WALLS - 1 ? 0 : wall_bitmap(I(img, W_W), I(img, W_H), id); /* Black: the window's own */
         widget_on(img, EVT_DESTROY, forget, img);
     }
-    if (win && large()) big_clock(win);
+    if (large()) big_clock(win);
     return result;
 }
 
@@ -272,7 +269,7 @@ static int clock_click(void *ctx, void *event) {
  * rows, and the built-ins' thumbnails are found for lockscreen_paint. */
 int lockscreen_rows(void *win) {
     int result = stock_saverrows_trampoline(win);
-    void *view = win ? widget_lookup(win, "scroll_view", 1) : (void *)0;
+    void *view = widget_lookup(win, "scroll_view", 1);
     if (!view || widget_count_children(view) < 2) return result;
     void *label = list_row(view, 0, clock_click, 0);
     widget_set_name(label, CLOCK_ROW);
