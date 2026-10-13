@@ -197,12 +197,13 @@ void xfade_poll(int next) {
     unsigned pos = (unsigned)I(MCL_POS, 0), n = q ? deque_size(q) : 0;
     if (!xf.flag && (next < 0 || pos >= n)) return; /* nothing playing on: no config read yet */
     settings();
-    int key[4] = { (int)pos, next, xf.on ? xf.seconds : 0, *(volatile unsigned char *)MCL_GAPLESS };
+    int in = next >= 0 && pos < n && (unsigned)next < n; /* records, not positions: a new queue */
+    int key[4] = { xf.on ? xf.seconds : 0, *(volatile unsigned char *)MCL_GAPLESS,
+                   in ? (int)deque_at(q, pos) : 0, in ? (int)deque_at(q, (unsigned)next) : 0 };
     if (xf.done && !memcmp(key, xf.key, sizeof key)) return;
     memcpy(xf.key, key, sizeof key);
-    int ms = key[2] && key[3] && next >= 0 && pos < n && (unsigned)next < n && (unsigned)next != pos &&
-                     album_cmp(deque_at(q, pos), deque_at(q, (unsigned)next))
-                 ? key[2] * 1000
+    int ms = key[0] && key[1] && key[2] != key[3] && album_cmp((void *)key[2], (void *)key[3])
+                 ? key[0] * 1000
                  : 0;
     xf.done = 0; /* until the player is told: a file that cannot be made yet is tried next pass */
     if (!xf.flag && ms) {
