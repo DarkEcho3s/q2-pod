@@ -413,12 +413,12 @@ int spot_open(void *ctx, void *event) {
     image_set_draw_type(ui.art, 4); /* as Coverflow's covers */
     image_base_set_image(ui.art, "default_album_big");
     ui.title =
-        label(ui.info, SPOT_TEXT_X, SPOT_ART_Y + 39, SPOT_TEXT_W, 32, "s_scrlabel_white20l", NP_TITLE_PX, 0xffffffffu);
+        label(ui.info, SPOT_TEXT_X, SPOT_ART_Y + 41, SPOT_TEXT_W, 28, "s_scrlabel_white20l", NP_TITLE_PX, 0xffffffffu);
     ui.artist =
-        label(ui.info, SPOT_TEXT_X, SPOT_ART_Y + 75, SPOT_TEXT_W, 24, "s_scrlabel_white20l", NP_META_PX,
+        label(ui.info, SPOT_TEXT_X, SPOT_ART_Y + 75, SPOT_TEXT_W, 22, "s_scrlabel_white20l", NP_META_PX,
               IPOD ? (0xff000000u | NP_ARTIST_RGB) : SPOT_GREY);
     ui.album =
-        label(ui.info, SPOT_TEXT_X, SPOT_ART_Y + 103, SPOT_TEXT_W, 24, "s_scrlabel_white20l", NP_META_PX,
+        label(ui.info, SPOT_TEXT_X, SPOT_ART_Y + 103, SPOT_TEXT_W, 22, "s_scrlabel_white20l", NP_META_PX,
               IPOD ? (0xff000000u | NP_ALBUM_RGB) : SPOT_GREY);
     ui.bar = widget_factory_create_widget(f, "view", ui.info, SPOT_BAR_X, SPOT_BAR_Y, SPOT_BAR_W,
                                           SPOT_BAR_H);

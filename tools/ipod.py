@@ -395,21 +395,24 @@ def playing_page(root):
     for name, x in (('img_playmode', fav_x - NP_ICON - 6), ('img_fav', fav_x)):
         buttons[3].remove(named[name])
         named[name][1] = [x, icons_y, NP_ICON, NP_ICON]
-    top = art_y + (icons_y - art_y - (32 + 4 + 24 + 4 + 24)) // 2
-    title[1] = [NP_TEXT_X, top, text_w, 32]
-    title[2].update({'style': 's_scrlabel_white20l', 'style:normal:font_size': str(NP_TITLE_PX)})
-    artist[1] = [NP_TEXT_X, top + 36, text_w, 24]
-    artist[2]['style:normal:font_size'] = str(NP_META_PX)
+    top = art_y + (icons_y - art_y - (28 + 6 + 22 + 6 + 22)) // 2
+    title[1] = [NP_TEXT_X, top, text_w, 28]
+    # every state: the labels are disabled (enable false), so a lone normal size would not apply
+    title[2].update({'style': 's_scrlabel_white20l', **{f'style:{s}:font_size': str(NP_TITLE_PX) for s in ('normal', 'disable', 'focused')}})
+    artist[1] = [NP_TEXT_X, top + 34, text_w, 22]
     for key in artist[2]:
+        if key.endswith(':font_size'): artist[2][key] = str(NP_META_PX)
         if key.endswith(':text_color'): artist[2][key] = NP_GREY
         if key.endswith(':text_align_h'): artist[2][key] = 'left'
     album = copy.deepcopy(artist)
-    album[1] = [NP_TEXT_X, top + 64, text_w, 24]
+    album[1] = [NP_TEXT_X, top + 62, text_w, 22]
     album[2].update(name='label_ipod_album', text='')
     for key in album[2]:
         if key.endswith(':text_color'): album[2][key] = f'#{inc("NP_ALBUM_RGB"):06X}'
     for key in artist[2]:
         if key.endswith(':text_color'): artist[2][key] = f'#{inc("NP_ARTIST_RGB"):06X}'
+    for n, px in ((title, NP_TITLE_PX), (artist, NP_META_PX), (album, NP_META_PX)):
+        check({v for k, v in n[2].items() if k.endswith(':font_size')} == {str(px)}, 'Now Playing text keeps a state size')
     named['img_cover'][1] = [NP_MARGIN, art_y, NP_ART, NP_ART]
     named['img_playstate'][1] = [NP_MARGIN + (NP_ART - 120) // 2, art_y + (NP_ART - 120) // 2, 120, 120]
     named['img_playstate'][2]['opacity'] = '0'  # retain stock gesture target without a transport glyph

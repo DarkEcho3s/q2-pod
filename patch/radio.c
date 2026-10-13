@@ -439,10 +439,10 @@ static void np_open(void) {
     image_set_draw_type(art, IMAGE_DRAW_SCALE_DOWN);
     image_base_set_image(art, "stream_radio");
     np.station =
-        label(page, SPOT_TEXT_X, SPOT_ART_Y + 39, SPOT_TEXT_W, 32, "s_scrlabel_white20l", NP_TITLE_PX, 0xffffffffu);
-    np.artist = label(page, SPOT_TEXT_X, SPOT_ART_Y + 75, SPOT_TEXT_W, 24, "s_scrlabel_white20l", NP_META_PX,
+        label(page, SPOT_TEXT_X, SPOT_ART_Y + 41, SPOT_TEXT_W, 28, "s_scrlabel_white20l", NP_TITLE_PX, 0xffffffffu);
+    np.artist = label(page, SPOT_TEXT_X, SPOT_ART_Y + 75, SPOT_TEXT_W, 22, "s_scrlabel_white20l", NP_META_PX,
                       IPOD ? (0xff000000u | NP_ARTIST_RGB) : SPOT_GREY);
-    np.song = label(page, SPOT_TEXT_X, SPOT_ART_Y + 103, SPOT_TEXT_W, 24, "s_scrlabel_white20l", NP_META_PX,
+    np.song = label(page, SPOT_TEXT_X, SPOT_ART_Y + 103, SPOT_TEXT_W, 22, "s_scrlabel_white20l", NP_META_PX,
               IPOD ? (0xff000000u | NP_ALBUM_RGB) : SPOT_GREY);
     np.info = label(page, SPOT_TIME_X, SPOT_TIMES_Y, 375 - 2 * SPOT_TIME_X - 80, 16, "s_scrlabel_white20l", 14, SPOT_GREY);
     np.elapsed = label(page, 375 - SPOT_TIME_X - 80, SPOT_TIMES_Y, 80, 16, "s_scrlabel_white20r",
