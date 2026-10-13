@@ -148,25 +148,12 @@ int video_start(const char *file, int radio); /* books.c */
 void *edit_create(void *item, const char *input_type); /* peq_ui.c */
 const char *output_device(char *vol);         /* books.c */
 void dac_take(void);                          /* books.c */
-/* Spotify's and Internet Radio's Now Playing layout (tools/ipod.py NP_*): the art and the text
- * 16px from the sides, 12 apart, the bar and times clear of the glass's corners. */
-#define SPOT_ART_X 16
-#define SPOT_ART_Y 50
-#define SPOT_ART_PX 166
-#define SPOT_TEXT_X 194
-#define SPOT_TEXT_W 165
-#define SPOT_BAR_X 21
-#define SPOT_BAR_Y 251
-#define SPOT_BAR_W 333
-#define SPOT_BAR_H 8 /* the bar's view; iPod's Minimal paints its 4px line at the top (np_bar_h) */
 #if IPOD
 int ipod_classic(void); /* navigation.c: Theme: Classic */
 #define np_bar_h() (ipod_classic() ? NP_BAR_CLASSIC : NP_BAR_MINIMAL)
 #else
 #define np_bar_h() SPOT_BAR_H
 #endif
-#define SPOT_TIMES_Y 265
-#define SPOT_TIME_X 46
 #define SPOT_GREY 0xffaaaaaau
 void radio_search(void);       /* radio.c */
 void toast(const char *text); /* navigation.c */

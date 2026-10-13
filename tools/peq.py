@@ -2,6 +2,7 @@
 import re
 import struct
 from build import ROOT, FLAGS, GP, FUNCTIONS, GLOBALS, PRIVATE_FUNCTIONS, append_payload, check, fileoff, run, sha, symbols
+from ipod import patch_word
 
 PLAYER_SHA = '9c3f8c6d01f1ba62392622f6098b06a36b3e4f022a5468eaca6a5803e74f8e11'
 PLAYER_BASE = 0xe10000  # stock final LOAD ends at 0xe03b58
@@ -145,15 +146,10 @@ def patch_player(raw, out):
     data = bytearray(raw)
     off = fileoff(raw, EQ_OPEN_SLOT)
     data[off:off+4] = struct.pack('<I', ps['peq_open'])
-    off = fileoff(raw, VBR_SCAN)
-    data[off:off+4] = bytes(4)  # nop; was bnez $v0, 0x491de0
+    patch_word(data, VBR_SCAN, 0x144008a8, 0, 'VBR scan')  # bnez $v0, 0x491de0 -> nop
     for address, stock, patched in EQ_RATE_GATES:
-        off = fileoff(raw, address)
-        check(struct.unpack_from('<I', raw, off)[0] == stock, 'Equalizer rate gate mismatch')
-        data[off:off+4] = struct.pack('<I', patched)
-    off = fileoff(raw, SEEK_SLOT)
-    check(struct.unpack_from('<I', raw, off)[0] == STOCK_SEEK, 'Audio demuxer seek slot mismatch')
-    data[off:off+4] = struct.pack('<I', ps['mp3_seek'])
+        patch_word(data, address, stock, patched, 'Equalizer rate gate')
+    patch_word(data, SEEK_SLOT, STOCK_SEEK, ps['mp3_seek'], 'Audio demuxer seek slot')
     append_payload(data, payload, PLAYER_BASE, max(len(payload), ps['__end']-PLAYER_BASE), 'player')
     (out/'hciplayer').write_bytes(data)
     return dict(stock_sha256=PLAYER_SHA, sha256=sha(data), payload_sha256=sha(payload))

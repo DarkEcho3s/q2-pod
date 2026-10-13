@@ -85,16 +85,6 @@ def boot_check():
     print('Dual boot: Rockbox by default, one-session Q2 Pod, stale choice ignored, card fallback and Home Rockbox row passed.')
 boot_check()
 
-# Spotify's and Internet Radio's Now Playing (peq.h SPOT_*) is the iPod's (tools/ipod.py NP_*).
-def spot_layout_check():
-    import re
-    from ipod import NP_ART, NP_BAR, NP_MARGIN, NP_TEXT_W, NP_TEXT_X, NP_TIME_X, NP_TIMES_Y
-    spot = {m[1]: int(m[2]) for m in re.finditer(r'^#define SPOT_(\w+) (\d+)', (ROOT/'patch/peq.h').read_text(), re.M)}
-    assert [spot[k] for k in ('ART_X', 'ART_PX', 'TEXT_X', 'TEXT_W', 'BAR_X', 'BAR_W', 'TIMES_Y', 'TIME_X')] == [
-        NP_MARGIN, NP_ART, NP_TEXT_X, NP_TEXT_W, NP_BAR[0], NP_BAR[2], NP_TIMES_Y, NP_TIME_X], spot
-    print('Spotify/Radio Now Playing geometry matches iPod NP_* checks passed.')
-spot_layout_check()
-
 def validate_assets(directory):
     import functools, json, re, struct, subprocess
     from build import sha, run, fileoff, symbols, BLUEALSA, AAC_44K1, IPOD_HOOKS, IPOD_LEAF, WM_PAINT_LEAF, HELPER, HELPER_LIKE, BOOT, BOOT_HOOK, S90PLAY, RTC_WRITE, WATCHDOG, WATCHDOG_SLEEP, DROP_CACHES, WHEEL_TS_READ, PDR
@@ -129,7 +119,7 @@ def validate_assets(directory):
         assert demo[off:off+12] == want
     # iPod alone jumps from these entry points to its payload (build.py pins the leaf's words);
     # Stock keeps all of them stock.
-    for address, name in [*IPOD_HOOKS.values(), IPOD_LEAF[1:3]]:
+    for address, name in [*(h[:2] for h in IPOD_HOOKS.values()), IPOD_LEAF[1:3]]:
         off = fileoff(stock, address)
         want = stock[off:off+8]
         if ipod: want = (0x08000000 | symbols(directory/'patch.elf')[name] >> 2).to_bytes(4, 'little') + bytes(4)

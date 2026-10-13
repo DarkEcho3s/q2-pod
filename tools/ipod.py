@@ -93,6 +93,8 @@ NP_BAR = [NP_BAR_X, 253, 375 - 2 * NP_BAR_X, 4]
 NP_TIMES_Y = 265  # 14px text in a 16px label, clear of the 10px A-B markers
 NP_TIME_X = max(MARGIN, corner_x(30 + NP_TIMES_Y + 1, 14))
 NP_TEXT_X = NP_MARGIN + NP_ART + 12
+check([NP_MARGIN, NP_ART, NP_TEXT_X, NP_TEXT_W, *NP_BAR[::2], NP_TIMES_Y, NP_TIME_X] ==  # Spotify's and Radio's
+      [inc('SPOT_' + n) for n in 'ART_X ART_PX TEXT_X TEXT_W BAR_X BAR_W TIMES_Y TIME_X'.split()], 'SPOT_* != NP_*')
 NP_GREY = '#AAAAAA'              # stock secondary text (s_scrlabel_gray24l)
 # The track is TRACK_COLOR; the fill is Graphite's light tone until ringnav_playing sets the
 # accent's (3.3:1 or more on the track for every preset).
@@ -623,6 +625,9 @@ def quiet_icon(name, data):
                       '-extent', '28x28', *PNG_OUT, data=data)
 
 
+def jal(addr): return 0x0c000000 | addr >> 2
+
+
 def patch_word(data, address, old, new, purpose, changes=None):
     off = fileoff(data, address)
     check(struct.unpack_from('<I', data, off)[0] == old, f'{address:#x}: unexpected instruction')
@@ -747,7 +752,7 @@ def patch_code(data, symbols):
     group = AUDIT['row_layout_calls']
     for address, instruction in group['sites']:
         word(int(address, 16), int(instruction, 16),
-             0x0c000000 | (symbols['compact_set_row_layout'] >> 2), group['purpose'])
+             jal(symbols['compact_set_row_layout']), group['purpose'])
     word(0x522410, 0x0320f809, 0, 'folder rebind retains the width owned by its row layouter')
     # Playlist page's Import/Export tiles: no icon (0 wide), the label spans the 164px tile in
     # stock's centred s_scrlabel_white24c (0x769220) instead of 91px after the icon.
@@ -760,6 +765,6 @@ def patch_code(data, symbols):
     word(inc('LIST_VIEW_LAYOUT_SLOT'), inc('LIST_VIEW_LAYOUT'), symbols['ipod_list_layout'],
          'settings lists stack SET_ROW rows and map their children')
     # home_page_init's memory-play resume opens Now Playing; outside car mode it runs the page's player_start alone.
-    word(0x523de0, 0x0320f809, 0x0c000000 | (symbols['ringnav_boot'] >> 2),
+    word(0x523de0, 0x0320f809, jal(symbols['ringnav_boot']),
          'boot resume restores the queue paused and stays on Home')
     return changes

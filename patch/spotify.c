@@ -11,8 +11,6 @@
 #define SPOT_DIR "/mnt/mmc/.spotify"
 #define SPOT_BIN SPOT_DIR "/librespot"
 #define SPOT_RUN "/bin/sh " SPOT_DIR "/run" /* backgrounds itself, once per boot */
-#define SPOT_DEBUG SPOT_DIR "/debug"        /* present: SPOT_LOG records every hand-over */
-#define SPOT_LOG SPOT_DIR "/q2pod.log"
 #define SPOT_STATE "/tmp/q2-librespot.state" /* the fork's --status-file */
 #define SPOT_COVER SPOT_STATE ".jpg"
 #define SPOT_SOCK "/tmp/q2-librespot.sock" /* its --control-socket */
@@ -29,7 +27,7 @@ extern int image_show(void *img, const char *url, unsigned *size),
 
 /* librespot as last read; kept for the life of demo. */
 static struct {
-    int launched, debug, sock, playing, paused, local, active, played;
+    int launched, sock, playing, paused, local, active, played;
     unsigned polled, idle_at, duration, position, cover;
     unsigned long long at;
     char raw[1536]; /* the file as last read, behind a '\n' so every key follows one */
@@ -52,19 +50,6 @@ unsigned long long now_ms(void) { /* shared with radio.c; not now_ns() / 1e6: no
     return (unsigned long long)(unsigned)ts[0] * 1000 + (unsigned)ts[1] / 1000000;
 }
 
-/* With SPOT_DEBUG on the card, one line a hand-over step: the step and two numbers. */
-static void spot_log(const char *what, int a, int b) {
-    if (!sp.debug) return;
-    char line[160];
-    int n = tk_snprintf(line, sizeof line, "%u %s %d %d play=%d dacoff=%d light=%d\n",
-                        time_now_ms() / 1000, what, a, b, mclGetPlayStatus(), I(g_dacoff_time, 0),
-                        g_backlight_status);
-    void *f = fopen(SPOT_LOG, "a");
-    if (!f) return;
-    fwrite(line, 1, (unsigned)n, f);
-    fclose(f);
-}
-
 /* c to the datagram socket at path, *sock opened on first use. Shared with radio.c. */
 void dgram_send(int *sock, const char *path, const char *c, unsigned n) {
     if (*sock <= 0) *sock = socket(1, 1, 0); /* AF_UNIX, SOCK_DGRAM (MIPS numbering) */
@@ -74,11 +59,6 @@ void dgram_send(int *sock, const char *path, const char *c, unsigned n) {
     } to = { 1, { 0 } };
     memcpy(to.path, path, strlen(path) + 1);
     sendto(*sock, c, n, 0x40, &to, sizeof to); /* MSG_DONTWAIT */
-}
-
-static void spot_send(const char *path, const char *c, unsigned n) {
-    dgram_send(&sp.sock, path, c, n);
-    spot_log("send", c[0], (int)n);
 }
 
 /* The value of key in raw into out (n bytes), "" without one. Shared with radio.c. */
@@ -131,7 +111,6 @@ static unsigned spot_position(void) {
  * (spot_output). */
 static void spot_take(void) {
     headset_manual();
-    spot_log("take", g_headset_output, mclGetOutputWay());
     radio_stop(); /* Internet Radio's q2video holds the PCM */
     if (mclGetPlayStatus() != 1) player_stop(); /* 1 stopped */
     dac_take();
@@ -151,7 +130,7 @@ static void spot_output(void) {
     void *f = dev ? fopen(SPOT_OUT ".tmp", "w") : 0;
     if (f) fwrite(out, 1, strlen(out), f), fclose(f), rename(SPOT_OUT ".tmp", SPOT_OUT);
     if (!dev) unlink(SPOT_OUT);
-    spot_send(SPOT_SINK, v, 2);
+    dgram_send(&sp.sock, SPOT_SINK, v, 2);
 }
 
 static void spot_parse(void) {
@@ -169,8 +148,6 @@ static void spot_parse(void) {
 static void spot_launch(void) {
     if (sp.launched || access(SPOT_BIN, 0)) return;
     sp.launched = 1;
-    sp.debug = !access(SPOT_DEBUG, 0);
-    spot_log("launch", 0, 0);
     system(SPOT_RUN);
 }
 
@@ -178,7 +155,7 @@ static void scrub_commit(void) {
     char c[16];
     int n = tk_snprintf(c, sizeof c, "S%d", ui.scrub_ms);
     ui.scrub = 0;
-    spot_send(SPOT_SOCK, c, (unsigned)n);
+    dgram_send(&sp.sock, SPOT_SOCK, c, (unsigned)n);
 }
 
 static void spot_refresh(void);
@@ -187,7 +164,6 @@ static void spot_refresh(void);
  * does, and the keys local music's. Streaming's Spotify row starts it again. */
 static void spot_stop(void) {
     int sock = sp.sock;
-    spot_log("stop", 0, 0);
     system(SPOT_KILL);
     memset(&sp, 0, sizeof sp);
     sp.sock = sock;
@@ -214,8 +190,6 @@ void spot_poll(void) {
         sp.playing = 1;
         spot_take();
     }
-    if (playing != sp.playing || sp.paused != !strcmp(sp.state, "paused"))
-        spot_log(sp.state, (int)sp.position, sp.local);
     sp.playing = playing;
     sp.paused = !strcmp(sp.state, "paused");
     if (playing) {
@@ -239,7 +213,7 @@ void spot_yield(void) {
     if (!sp.playing) return;
     sp.local = 1;
     sp.active = 0;
-    spot_send(SPOT_SOCK, "s", 1);
+    dgram_send(&sp.sock, SPOT_SOCK, "s", 1);
     char raw[sizeof sp.raw], state[12] = "playing";
     unsigned start = time_now_ms();
     while (!strcmp(state, "playing") && time_now_ms() - start < SPOT_YIELD_MS) {
@@ -248,7 +222,6 @@ void spot_yield(void) {
         field(raw, "state", state, sizeof state);
     }
     sp.playing = !strcmp(state, "playing"); /* the next track's start need not ask again */
-    spot_log("yield", (int)(time_now_ms() - start), 0);
 }
 
 /* ringnav(), any page, after stock's key-lock filter: while Spotify is the last thing played,
@@ -260,7 +233,7 @@ int spot_media(unsigned key) {
                                           : 0;
     if (!c || !sp.active) return 0;
     headset_manual();
-    spot_send(SPOT_SOCK, c, 1);
+    dgram_send(&sp.sock, SPOT_SOCK, c, 1);
     return 1;
 }
 
@@ -479,7 +452,7 @@ int spot_status(void) {
 unsigned spot_session(void) { return fnv(FNV_SEED, (const unsigned char *)sp.track); }
 void spot_set_playing(int playing) {
     if (sp.active && playing != (spot_status() == 2)) {
-        spot_send(SPOT_SOCK, playing ? "P" : "s", 1);
+        dgram_send(&sp.sock, SPOT_SOCK, playing ? "P" : "s", 1);
         control.until = time_now_ms();
         control.playing = playing;
     }

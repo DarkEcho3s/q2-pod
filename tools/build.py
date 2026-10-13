@@ -24,91 +24,82 @@ BASE = 0xb00000
 SCRATCH = 0xb40000
 RING_STEP = 48
 HOOKS = {
-    'on_wm_keydown_before_fun': (0x4e8424, 'ringnav_keydown'),
-    'on_wm_keyup_before_fun': (0x4e85c8, 'ringnav'),
-    'on_wm_tsdown_before_fun': (0x4e8bd0, 'ringnav_touch'),
-    'widget_on_paint_border': (0x6596a0, 'ringnav_paint'),
-    'widget_dispatch': (0x65e0ec, 'ringnav_dispatch'),
-    'on_wm_keylong_fun': (0x4e873c, 'ringnav_keylong'),
-    'playset_equalizer_page_init': (0x4b642c, 'peq_page_init'),
-    'set_equalizer_value': (0x4f9230, 'peq_stock_eq'),
-    'home_page_init': (0x523c84, 'coverflow_home'),
-    'localmusic_page_init': (0x524424, 'ringnav_localmusic'),
+    'on_wm_keydown_before_fun': (0x4e8424, 'ringnav_keydown', 'keydown'),
+    'on_wm_keyup_before_fun': (0x4e85c8, 'ringnav', 'keyup'),
+    'on_wm_tsdown_before_fun': (0x4e8bd0, 'ringnav_touch', 'touch'),
+    'widget_on_paint_border': (0x6596a0, 'ringnav_paint', 'paint'),
+    'widget_dispatch': (0x65e0ec, 'ringnav_dispatch', 'dispatch'),
+    'on_wm_keylong_fun': (0x4e873c, 'ringnav_keylong', 'keylong'),
+    'playset_equalizer_page_init': (0x4b642c, 'peq_page_init', None),
+    'set_equalizer_value': (0x4f9230, 'peq_stock_eq', 'eq'),
+    'home_page_init': (0x523c84, 'coverflow_home', 'home'),
+    'localmusic_page_init': (0x524424, 'ringnav_localmusic', 'localmusic'),
     # Library lists: an Unknown row with no songs is dropped
-    'load_localclass_list': (0x5088cc, 'ringnav_localclass'),
+    'load_localclass_list': (0x5088cc, 'ringnav_localclass', 'localclass'),
     # An Albums row: the album it opens keeps only that album's songs
-    'load_album_detaillist': (0x508efc, 'ringnav_album_detail'),
+    'load_album_detaillist': (0x508efc, 'ringnav_album_detail', 'detail'),
     # An artist's tabs: its albums' art keys (navigation.c ringnav_artist_list)
-    'load_localartist_list': (0x5093ac, 'ringnav_artist_list'),
+    'load_localartist_list': (0x5093ac, 'ringnav_artist_list', 'artist'),
     # The three songtable writers; Coverflow keeps its album list until one runs.
-    'scanAllMusicFile': (0x4fc788, 'coverflow_scan_all'),
-    'scanSpecFolder': (0x4fc964, 'coverflow_scan_folder'),
-    'deleteMusicFromMusicDb': (0x500b5c, 'coverflow_delete_song'),
-    'player_play_pause': (0x515728, 'ringnav_play_pause'),
-    'mclSetBtVol': (0x5accec, 'ringnav_btvol'),
-    'main_loop_sleep_default': (0x648f00, 'ringnav_sleep'),
-    'systemset_about_page_init': (0x4bc80c, 'ringnav_about'),
+    'scanAllMusicFile': (0x4fc788, 'coverflow_scan_all', 'scan_all'),
+    'scanSpecFolder': (0x4fc964, 'coverflow_scan_folder', 'scan_folder'),
+    'deleteMusicFromMusicDb': (0x500b5c, 'coverflow_delete_song', 'delete_song'),
+    'player_play_pause': (0x515728, 'ringnav_play_pause', 'pause'),
+    'mclSetBtVol': (0x5accec, 'ringnav_btvol', 'btvol'),
+    'main_loop_sleep_default': (0x648f00, 'ringnav_sleep', 'sleep'),
+    'systemset_about_page_init': (0x4bc80c, 'ringnav_about', 'about'),
     # Podcasts and Audiobooks: folder_page opened at their folder, and Back there leaving it
-    'folder_page_init': (0x523330, 'ringnav_folder'),
-    'folder_back': (0x507ac8, 'ringnav_folder_back'),
+    'folder_page_init': (0x523330, 'ringnav_folder', 'folder'),
+    'folder_back': (0x507ac8, 'ringnav_folder_back', 'folder_back'),
     # Videos: no input reaches the UI while q2video plays
-    'window_manager_dispatch_input_event': (0x66d49c, 'ringnav_input'),
+    'window_manager_dispatch_input_event': (0x66d49c, 'ringnav_input', 'input'),
     # Key Tone: no click while music plays, and none on the buzzer while headphones or Bluetooth listen
-    'buzzeer_switch': (0x4f3cc8, 'ringnav_buzzer'),
+    'buzzeer_switch': (0x4f3cc8, 'ringnav_buzzer', 'buzzer'),
     # Power gains Charge limit and Low power; Audio settings gains Artists (Album Artist)
-    'systemset_sysset_page_init': (0x4cc4cc, 'ringnav_systemset'),
-    'systemset_display_page_init': (0x4c1d04, 'ringnav_display'),
+    'systemset_sysset_page_init': (0x4cc4cc, 'ringnav_systemset', 'systemset'),
+    'systemset_display_page_init': (0x4c1d04, 'ringnav_display', 'display'),
     # Lock screen (patch/lockscreen.c): the built-in wallpapers in the picture list, the Lock screen
     # page's Clock row and the built-ins' thumbnails, and the lock window's wallpaper and Large clock
-    'get_screensaver_image': (0x4facd4, 'lockscreen_images'),
-    'screensaver_rows': (0x4c9134, 'lockscreen_rows'),
-    'saverscreen_page_init': (0x52db70, 'lockscreen_init'),
-    'save_memoryplay_info': (0x516344, 'ringnav_savequeue'),
-    'mclLoadPlayList': (0x5aa8d4, 'ringnav_load'),
-    'mclNextSong': (0x5adbbc, 'ringnav_next'),
-    'mclPrevSong': (0x5ada98, 'ringnav_prev'),
-    'mclSetPlayMode': (0x5ab25c, 'ringnav_mode'),
-    'mclSetPlaySpeed': (0x5ab2ec, 'ringnav_speed'),
-    'mcl_open_preload': (0x5a8948, 'ringnav_open_preload'),
+    'get_screensaver_image': (0x4facd4, 'lockscreen_images', 'saverlist'),
+    'screensaver_rows': (0x4c9134, 'lockscreen_rows', 'saverrows'),
+    'saverscreen_page_init': (0x52db70, 'lockscreen_init', 'saver'),
+    'save_memoryplay_info': (0x516344, 'ringnav_savequeue', 'savequeue'),
+    'mclLoadPlayList': (0x5aa8d4, 'ringnav_load', 'load'),
+    'mclNextSong': (0x5adbbc, 'ringnav_next', 'next'),
+    'mclPrevSong': (0x5ada98, 'ringnav_prev', 'prev'),
+    'mclSetPlayMode': (0x5ab25c, 'ringnav_mode', 'mode'),
+    'mclSetPlaySpeed': (0x5ab2ec, 'ringnav_speed', 'speed'),
+    'mcl_open_preload': (0x5a8948, 'ringnav_open_preload', 'open_preload'),
     # Manual Next/Prev: at the queue ends stock wraps or loads the next folder without mclNextSong
-    'player_change_music': (0x51503c, 'ringnav_change'),
-    'mcl_preload': (0x5a8c1c, 'ringnav_preload'),
-    'memeory_startplayer': (0x5164e0, 'ringnav_memory'),
-    'systemset_powermanager_page_init': (0x4c72d0, 'ringnav_powermanager'),
-    'playset_playset_page_init': (0x4b98d8, 'ringnav_audioset'),
+    'player_change_music': (0x51503c, 'ringnav_change', 'change'),
+    'mcl_preload': (0x5a8c1c, 'ringnav_preload', 'preload'),
+    'memeory_startplayer': (0x5164e0, 'ringnav_memory', 'memory'),
+    'systemset_powermanager_page_init': (0x4c72d0, 'ringnav_powermanager', 'power'),
+    'playset_playset_page_init': (0x4b98d8, 'ringnav_audioset', 'audioset'),
     # Bluetooth's list, rebuilt on every search and link change, gains Resume on connect
-    'btmenu_rows': (0x4bee90, 'ringnav_btrows'),
+    'btmenu_rows': (0x4bee90, 'ringnav_btrows', 'btrows'),
     # Spotify (patch/spotify.c): Streaming's row, and local music letting librespot go first
-    'stream_page_init': (0x52efdc, 'ringnav_stream'),
-    'mclStartPlayer': (0x5ad6ac, 'ringnav_start_player'),
+    'stream_page_init': (0x52efdc, 'ringnav_stream', 'stream'),
+    'mclStartPlayer': (0x5ad6ac, 'ringnav_start_player', 'start_player'),
     # Tidal cache (patch/tidal.c): the stream URL thread's player start, with its song id in $s2
-    'mcl_tidalStartPlayer': (0x5ad240, 'tidal_start'),
+    'mcl_tidalStartPlayer': (0x5ad240, 'tidal_start', 'tidal'),
     # Ratings (navigation.c rate_bind): Now Playing's heart, held, opens the picker
-    'playing_page_init': (0x52ca88, 'ringnav_playing'),
+    'playing_page_init': (0x52ca88, 'ringnav_playing', 'playing'),
 }
 # Hooked in iPod builds only, so Stock keeps these entry points stock.
-IPOD_HOOKS = {'playlist_rebuild': (0x4b2dac, 'ringnav_playlist'),
-              'widget_on_paint_background': (0x65c77c, 'ringnav_paint_bg'),
-              'bigcover_page_init': (0x5200ec, 'ringnav_bigcover'),
-              'style_get_color': (0x649f6c, 'ringnav_style_color'),
-              'image_manager_add': (0x6445d4, 'ringnav_image_add')}
-# The payload's stock_<name>_trampoline resumes each hook past its 3-word PIC prologue, in this order.
-TRAMPOLINES = {'pause': 'player_play_pause', 'btvol': 'mclSetBtVol', 'savequeue': 'save_memoryplay_info', 'load': 'mclLoadPlayList', 'next': 'mclNextSong', 'prev': 'mclPrevSong',
-               'mode': 'mclSetPlayMode', 'preload': 'mcl_preload', 'memory': 'memeory_startplayer', 'playlist': 'playlist_rebuild', 'keyup': 'on_wm_keyup_before_fun', 'touch': 'on_wm_tsdown_before_fun', 'paint': 'widget_on_paint_border',
-               'dispatch': 'widget_dispatch', 'keylong': 'on_wm_keylong_fun', 'eq': 'set_equalizer_value',
-               'home': 'home_page_init', 'localmusic': 'localmusic_page_init', 'localclass': 'load_localclass_list',
-               'paint_bg': 'widget_on_paint_background', 'playing': 'playing_page_init',
-               'systemset': 'systemset_sysset_page_init', 'display': 'systemset_display_page_init', 'color': 'style_get_color', 'image': 'image_manager_add',
-               'keydown': 'on_wm_keydown_before_fun', 'scan_all': 'scanAllMusicFile', 'scan_folder': 'scanSpecFolder',
-               'delete_song': 'deleteMusicFromMusicDb', 'sleep': 'main_loop_sleep_default',
-               'about': 'systemset_about_page_init', 'folder': 'folder_page_init', 'folder_back': 'folder_back',
-               'input': 'window_manager_dispatch_input_event', 'buzzer': 'buzzeer_switch',
-               'power': 'systemset_powermanager_page_init', 'audioset': 'playset_playset_page_init',
-               'change': 'player_change_music', 'detail': 'load_album_detaillist',
-               'artist': 'load_localartist_list', 'stream': 'stream_page_init', 'start_player': 'mclStartPlayer',
-               'tidal': 'mcl_tidalStartPlayer', 'bigcover': 'bigcover_page_init',
-               'speed': 'mclSetPlaySpeed', 'open_preload': 'mcl_open_preload', 'btrows': 'btmenu_rows',
-               'saverlist': 'get_screensaver_image', 'saverrows': 'screensaver_rows', 'saver': 'saverscreen_page_init'}
+IPOD_HOOKS = {'playlist_rebuild': (0x4b2dac, 'ringnav_playlist', 'playlist'),
+              'widget_on_paint_background': (0x65c77c, 'ringnav_paint_bg', 'paint_bg'),
+              'bigcover_page_init': (0x5200ec, 'ringnav_bigcover', 'bigcover'),
+              'style_get_color': (0x649f6c, 'ringnav_style_color', 'color'),
+              'image_manager_add': (0x6445d4, 'ringnav_image_add', 'image')}
+# The payload's stock_<name>_trampoline, the hooks' third element, resumes each hook past its 3-word PIC
+# prologue. The stubs go in this order, which fixes their addresses in the payload.
+TRAMPOLINES = ['pause', 'btvol', 'savequeue', 'load', 'next', 'prev', 'mode', 'preload', 'memory', 'playlist', 'keyup',
+               'touch', 'paint', 'dispatch', 'keylong', 'eq', 'home', 'localmusic', 'localclass', 'paint_bg', 'playing',
+               'systemset', 'display', 'color', 'image', 'keydown', 'scan_all', 'scan_folder', 'delete_song', 'sleep',
+               'about', 'folder', 'folder_back', 'input', 'buzzer', 'power', 'audioset', 'change', 'detail', 'artist',
+               'stream', 'start_player', 'tidal', 'bigcover', 'speed', 'open_preload', 'btrows', 'saverlist',
+               'saverrows', 'saver']
 # Every audited stock PIC prologue resolves this GOT base.
 GP = 0xa26cc0
 # iPod: style_get_gradient has no PIC prologue. It is a leaf that null-checks the style and its
@@ -566,7 +557,7 @@ PRIVATE_FUNCTIONS = {
     "slide_menu_item_width": 0x5f3040,
     "slide_menu_on_scroll_done": 0x5f3654,
     "mcl_preload": HOOKS['mcl_preload'][0],
-    "mcl_open_preload": 0x5a8948,
+    "mcl_open_preload": HOOKS['mcl_open_preload'][0],
     "btmenu_rows": HOOKS['btmenu_rows'][0],  # systemset_bluetooth_page's list: rows, paired, found
     "mcl_shuffle_pick": 0x5a8120,
     "album_row": 0x4fc324,  # getAllAlbum's sqlite3_exec callback: id, album, songer, fileurl to a record
@@ -632,13 +623,14 @@ def compile_payload(out, ipod=False):
     extra = compile_common(out, out/'stock-demo', ipod=ipod)  # also writes the libc/libcstl imports navigation.c uses
     run('clang',*FLAGS,f'-DIPOD={int(ipod)}','-I',out,'-c',ROOT/'patch/navigation.c','-o',out/'navigation.o')
     asm = ['.set noreorder', '.text']
-    for x, hook in TRAMPOLINES.items():
+    resume = {x: address for address, _, x in (HOOKS | IPOD_HOOKS).values() if x}
+    for x in TRAMPOLINES:
         asm += [f'.globl stock_{x}_trampoline', f'stock_{x}_trampoline:', f'lui $gp, {GP >> 16}',
-                f'ori $gp, $gp, {GP & 65535}', f'j 0x{(HOOKS | IPOD_HOOKS)[hook][0] + 12:x}', 'nop']
+                f'ori $gp, $gp, {GP & 65535}', f'j 0x{resume[x] + 12:x}', 'nop']
     (out/'trampoline.S').write_text('\n'.join(asm)+'\n')
     run('clang',*FLAGS,'-c',out/'trampoline.S','-o',out/'trampoline.o')
     run('ld.lld','-m','elf32ltsmip','--gc-sections','-T',ROOT/'patch/link.ld','-e','ringnav',
-        *[f'--undefined={name}' for _, name in hooks(ipod).values()], *[f'--undefined={IPOD_LEAF[2]}'] * ipod,
+        *[f'--undefined={name}' for _, name, _ in hooks(ipod).values()], *[f'--undefined={IPOD_LEAF[2]}'] * ipod,
         f'--undefined={WM_PAINT_LEAF[2]}', '--undefined=ringnav_audio_extension', '--undefined=ringnav_bootmode', '--undefined=ringnav_ts_read',
         out/'navigation.o',out/'trampoline.o',*extra,'-o',out/'patch.elf')
     run('llvm-objcopy','-O','binary',out/'patch.elf',out/'patch.bin')
@@ -735,7 +727,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     # property of the UI asset, not the asset path, so check the stock rootfs assets directly:
     # a prefix-trimmed typo cannot silently disable a screen this way.
     from ipod import (AUDIT, ARTIST_ALBUMS, ARTIST_PAGE, HOME_PAGE, SETTINGS_ICONS, inc, UI_ASSETS, patch_asset,
-                      QUIET_ICONS, quiet_icon, imagemagick, patch_code, patch_style, patch_word, settings_icon,
+                      QUIET_ICONS, quiet_icon, imagemagick, patch_code, patch_style, patch_word, jal, settings_icon,
                       STATUS_ICONS, status_icon)
     contexts = re.findall(r'"([^"]+)"', (ROOT/'patch/contexts.inc').read_text())
     check(contexts, 'No navigation contexts audited')
@@ -780,7 +772,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     check(ps['__scratch_end'] <= SCRATCH + 0x10000, 'Scratch state exceeds its page')
     patched = bytearray(raw_demo)
     def jump(off, name): patched[off:off+8] = struct.pack('<II', 0x08000000 | (ps[name] >> 2), 0)
-    for name, (address, replacement) in hooks(ipod).items():
+    for name, (address, replacement, _) in hooks(ipod).items():
         check(syms[name] == address, f'{name}: callback address mismatch')
         off = fileoff(patched, address)
         prolog = struct.unpack_from('<III', patched, off)
@@ -808,7 +800,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     ret = inc('INITCONFIG_MODE_RET')
     check(struct.unpack_from('<II', patched, fileoff(patched, ret - 12)) == (0x8f99b77c, 0x0320f809),
           'player_initconfig: unexpected mclSetPlayMode call')
-    patch_word(patched, 0x4f999c, 0x0411e992, 0x0c000000 | (ps['ringnav_bootmode'] >> 2),
+    patch_word(patched, 0x4f999c, 0x0411e992, jal(ps['ringnav_bootmode']),
                'config_init preserves the saved queue when applying the boot play mode')
     from peq import patch_player
     raw_player = cat('usr/bin/hciplayer')
@@ -818,41 +810,41 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     (out/'watchdog').write_bytes(cat(WATCHDOG).replace(*WATCHDOG_SLEEP))
     for address, old, new in ARTIST_ALBUMS:
         patch_word(patched, address, old, new, 'artist detail opens on Albums')
-    patch_word(patched, *SHUFFLE_CALL, 0x0c000000 | (ps['ringnav_shuffle'] >> 2),
+    patch_word(patched, *SHUFFLE_CALL, jal(ps['ringnav_shuffle']),
                'shuffle honours Play next')
-    patch_word(patched, *HOLD_RETURN, 0x0c000000 | (ps['compact_now_playing'] >> 2),
+    patch_word(patched, *HOLD_RETURN, jal(ps['compact_now_playing']),
                'long Return destination after stock input gates')
     patch_word(patched, *STANDBY_WAKE, 'Standby resume stays dark')
-    patch_word(patched, *BT_CONNECT_START, 0x0c000000 | (ps['ringnav_bt_connect_start'] >> 2),
+    patch_word(patched, *BT_CONNECT_START, jal(ps['ringnav_bt_connect_start']),
                'Bluetooth: Resume on connect')
     scan, load, limit, count = SCAN_LIMIT
-    patch_word(patched, scan, load, 0x0c000000 | (ps['ringnav_scan_room'] >> 2), 'scan up to 65,000 songs')
+    patch_word(patched, scan, load, jal(ps['ringnav_scan_room']), 'scan up to 65,000 songs')
     patch_word(patched, scan + 4, limit, count, 'scan up to 65,000 songs')
     patch_word(patched, *DROP_CACHES, 'keep the page cache')
     for address, old, new in LDAC_HQ:
         patch_word(patched, address, old, new, 'LDAC HQ sends 990 kbps')
-    patch_word(patched, WHEEL_TS_READ[0], WHEEL_TS_READ[1], 0x0c000000 | ps['ringnav_ts_read'] >> 2, 'wheel ticks')
+    patch_word(patched, WHEEL_TS_READ[0], WHEEL_TS_READ[1], jal(ps['ringnav_ts_read']), 'wheel ticks')
     for address in AUDIO_EXTENSION_CALLS:
         check(struct.unpack_from('<I', raw_demo, fileoff(raw_demo, address-8))[0] == 0x8f99f950,
               'audio extension: expected strstr import')
-        patch_word(patched, address, 0x0320f809, 0x0c000000 | ps['ringnav_audio_extension'] >> 2,
+        patch_word(patched, address, 0x0320f809, jal(ps['ringnav_audio_extension']),
                    'recognize M4B alongside existing audio extensions')
     for address in SORT_TRIMS:
         patch_word(patched, address, 0x04110000 | (syms['toolsTrimLeft'] - address - 4) >> 2 & 0xffff,
-                   0x0c000000 | (ps['ringnav_sort_key'] >> 2), 'sort without a leading article')
+                   jal(ps['ringnav_sort_key']), 'sort without a leading article')
     for address, name in ALBUM_ART:
-        patch_word(patched, address, 0x0320f809, 0x0c000000 | (ps[name] >> 2), 'same-named albums apart in art')
+        patch_word(patched, address, 0x0320f809, jal(ps[name]), 'same-named albums apart in art')
     for row in ALBUM_ART_ROW:
         patch_word(patched, *row, 'same-named albums apart in art')
     patch_word(patched, CLASS_ICON, 0x04110000 | (syms['class_icon'] - CLASS_ICON - 4) >> 2 & 0xffff,
-               0x0c000000 | (ps['ringnav_class_icon'] >> 2), 'Artists rows without the head picture')
+               jal(ps['ringnav_class_icon']), 'Artists rows without the head picture')
     for word in COVER_PAUSE:
         patch_word(patched, *word, 'album grids never pause the cover worker')
     for word in ARTIST_COVER_ROW:
         patch_word(patched, *word, "an artist's albums request the covers in view")
     # Local art completion: pass the worker's copied key, then validate the row under aclist_mutex.
     patch_word(patched, 0x4edd9c, 0x8f99b6d4, 0x27a61688, 'cover completion key')
-    patch_word(patched, 0x4edda0, 0x0411ff44, 0x0c000000 | ps['ringnav_cover_done'] >> 2,
+    patch_word(patched, 0x4edda0, 0x0411ff44, jal(ps['ringnav_cover_done']),
                'discard stale cover completion')
     # The folder-cover path branched past the key (b 0x4edda0); it enters at the key as the others do.
     patch_word(patched, 0x4eeddc, 0x1000fbf0, 0x1000fbef, 'folder cover completion key')
@@ -943,16 +935,12 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         p = p[:line.start()]+p[line.end():]
     changed_assets = {}
     from m4b import TAG_C, patch_m4b_cover
-    original = cat(TAG_C)
-    data = patch_m4b_cover(original)
-    (out/'libtag_c.so.2.0.1').write_bytes(data)
-    p = swap_inode(p, TAG_C.encode(), out/'libtag_c.so.2.0.1')
-    changed_assets[TAG_C] = dict(original_sha256=sha(original), sha256=sha(data))
-    original = cat(FONT)
-    data = font_quotes(original)
-    (out/'default.ttf').write_bytes(data)
-    p = swap_inode(p, FONT.encode(), out/'default.ttf')
-    changed_assets[FONT] = dict(original_sha256=sha(original), sha256=sha(data))
+    for path, fix, name in ((TAG_C, patch_m4b_cover, 'libtag_c.so.2.0.1'), (FONT, font_quotes, 'default.ttf')):
+        original = cat(path)
+        data = fix(original)
+        (out/name).write_bytes(data)
+        p = swap_inode(p, path.encode(), out/name)
+        changed_assets[path] = dict(original_sha256=sha(original), sha256=sha(data))
     assets = ['ui/'+rel for rel in (UI_ASSETS if ipod else [ARTIST_PAGE, HOME_PAGE])] + ['strings/en_US.bin']
     if ipod:
         assets += ['styles/'+rel for rel in AUDIT['styles']]
@@ -997,7 +985,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         demo_sha256=sha(patched), patch_sha256=sha(payload), update_sha256=sha((out/'update.tar').read_bytes()),
         rootfs_sha256=sha(newsq.read_bytes()), kernel_sha256=sha(blobs['recovery-update/xImage']),
         patch_bytes=len(payload), ring_step_pixels=RING_STEP,
-        audio_extension_calls=[dict(address=hex(a), original='0x0320f809', replacement=hex(0x0c000000 | ps['ringnav_audio_extension'] >> 2)) for a in AUDIO_EXTENSION_CALLS],
+        audio_extension_calls=[dict(address=hex(a), original='0x0320f809', replacement=hex(jal(ps['ringnav_audio_extension']))) for a in AUDIO_EXTENSION_CALLS],
         version=version, variant=variant, dev=dev, peq=audio, bluealsa_sha256=sha(bluealsa), q2video_sha256=sha((out/'q2video').read_bytes()), q2boot_sha256=sha((out/'q2boot').read_bytes()), compact_code=code_changes, changed_assets=changed_assets, logo_sha256=sha(logo_data),
         patch_symbols={n:hex(v) for n,v in ps.items() if n.startswith('stock_')},
         tools={t:run(t,'--version').splitlines()[0] for t in ['clang','ld.lld','llvm-objcopy']} |

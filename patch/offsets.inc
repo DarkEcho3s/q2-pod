@@ -214,6 +214,19 @@
 #define NP_CAPS_INSET 2
 #define PAGE_SLIDE_MS 120
 #define NP_ARTIST_RGB 0xcccccc
+/* Spotify's and Internet Radio's Now Playing layout (tools/ipod.py NP_*, which checks they match):
+ * the art and the text 16px from the sides, 12 apart, the bar and times clear of the glass's corners. */
+#define SPOT_ART_X 16
+#define SPOT_ART_Y 50
+#define SPOT_ART_PX 166
+#define SPOT_TEXT_X 194
+#define SPOT_TEXT_W 165
+#define SPOT_BAR_X 21
+#define SPOT_BAR_Y 251
+#define SPOT_BAR_W 333
+#define SPOT_BAR_H 8 /* the bar's view; iPod's Minimal paints its 4px line at the top (np_bar_h) */
+#define SPOT_TIMES_Y 265
+#define SPOT_TIME_X 46
 /* iPod settings rows (docs/ipod.md#settings): the list starts SET_TOP below the status bar and
  * holds SET_ROWS complete SET_ROW rows. Stock builds each row as a list_item holding a
  * SET_STOCK_W x SET_STOCK_BODY button at x SET_STOCK_X with a SET_STOCK_ICON icon, a label and a
