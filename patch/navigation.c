@@ -4900,8 +4900,13 @@ static int qm_open(const void *unused) {
     unsigned cls = st.qm_cls;
     int song = st.qm_kind == QM_SONG || st.qm_kind == QM_COVERFLOW || st.qm_kind == QM_PLAYING;
     const char *album = P(r, REC_ALBUM), *artist = P(r, REC_ARTIST);
+    /* a song by its title: the player's parse names a folder play's untagged record */
+    char name[512];
+    const char *tag = song ? now_tag(r, REC_TITLE) : (void *)0;
     const char *title = (st.qm_kind == QM_ALBUM || st.qm_kind == QM_COVERALBUM) ? album
                         : st.qm_kind == QM_GROUP ? P(r, qm_by[(cls & 0xf) - 4])
+                        : tag && *tag            ? tag
+                        : song                   ? track_name(name, sizeof name, r)
                                                  : P(r, REC_NAME);
     widget_set_text_utf8(widget_lookup(dialog, "scrlabel_title", 1), title ? title : "");
     widget_destroy_children(view);

@@ -2964,6 +2964,12 @@ for state in (3,2):  # paused and playing both expose the same actions
     m.press(6000); assert m.hold()==11 and m.labels()==SONG_MENU+["Shuffle","Repeat","Group by: Album","Next album","Previous album"]
     assert m.nodes[m.title]['text']=='B' and m.release()==0
     m.press(7000); assert m.release()==1 and m.get(0xa3beac)==state; passed()
+# A tagged song's menu is titled by its tag, not its file name.
+m=playing_menu(); m.word(m.items(m.get(syms['mcl_pdeqplaylist']))[1]+O['REC_TITLE'],m.string('Bee'))
+m.press(6000); assert m.hold()==11 and m.nodes[m.title]['text']=='Bee'; passed()
+# A folder play's untagged record: the player's parsed title once it has parsed that file.
+m=playing_menu(); id3=syms['g_play_id3_info']; m.u.mem_write(id3,b'/p/B\0'); m.u.mem_write(id3+O['ID3_TITLE'],b'Parsed\0')
+m.press(6000); assert m.hold()==11 and m.nodes[m.title]['text']=='Parsed'; passed()
 for action,expected in ((0,['A','B','B','C']),(1,['A','B','C','B'])):
     m=playing_menu(); assert m.run(action) is None and m.names()==expected and not m.playback(); passed()
 m=playing_menu(); assert m.run(2)=='Added to Favourites'
