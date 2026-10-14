@@ -37,6 +37,16 @@
 - **AirPods:** stem controls, ear detection and two-way volume sync.
 - **Battery:** an optional 80% charge limit and Low Power mode.
 
+<details>
+<summary><b>Screenshots</b></summary>
+<br>
+<p align="center">
+  <img src="assets/screenshots/home-split.png" alt="Home: the menu beside the playing album's cover" width="45%">
+  &nbsp;
+  <img src="assets/screenshots/now-playing.png" alt="Now Playing: the cover beside the title, artist and album, with the progress bar below" width="45%">
+</p>
+</details>
+
 ## Install
 
 **Requirements:** Q2 with microSD card and USB-C cable.

@@ -107,6 +107,7 @@ pre { background: #f1f2f3; padding: 7pt 10pt; font: 8.4pt/1.45 "DejaVu Sans Mono
 .icons img { width: 0.42in; height: 0.42in; }
 .icons figure { margin: 0; text-align: center; font-size: 7.6pt; color: #666; }
 .icons figure img { display: block; margin: 0 auto 3pt; }
+.shot { display: block; width: 2.6in; margin: 0.08in auto 0.18in; border-radius: 0.12in; }
 .legal { margin-top: 0.4in; padding-top: 0.12in; border-top: 0.6pt solid #b9bec2; font-size: 7.6pt; color: #777; }
 .m { position: absolute; font-size: 1px; color: #fff; }
 
@@ -115,7 +116,7 @@ pre { background: #f1f2f3; padding: 7pt 10pt; font: 8.4pt/1.45 "DejaVu Sans Mono
    block that's taller than a whole page. */
 p, li, td { orphans: 3; widows: 3; }
 p { break-inside: avoid; }
-ul, ol, table, pre, .note, .icons, .glance { break-inside: avoid; }
+ul, ol, table, pre, .note, .icons, .glance, .shot { break-inside: avoid; }
 p:has(+ ul), p:has(+ ol), p:has(+ table), p:has(+ pre), .task, h2, h3 { break-after: avoid; }
 /* Keep each section, and each sub-section, on one page when it fits; a
    section longer than a page still flows, breaking only between its blocks. */
@@ -278,8 +279,9 @@ p:has(+ ul), p:has(+ ol), p:has(+ table), p:has(+ pre), .task, h2, h3 { break-af
   </div>
   <div class="sec">
   <h2 id="ui">Finding your way around</h2>
+  <img class="shot" src="../../assets/screenshots/home-split.png" alt="Home in the Split layout: Now Playing, Library, Coverflow, Folder, Favorites, Streaming and Settings on the left, the playing album’s cover on the right">
   <ul>
-    <li><b>Home:</b> a list (Now Playing, Library, Coverflow, Folder, Rockbox when it’s on the card, Streaming, Settings) beside the playing track’s cover. <b>Settings</b> slides in <b>Playback</b> and <b>System</b> in the list’s place, as an iPod’s submenu, with the cover still beside it; Return goes back.</li>
+    <li><b>Home:</b> a list (Now Playing, Library, Coverflow, Folder, a shortcut, Streaming, Settings) beside the playing track’s cover. The shortcut is Rockbox when it’s on the card, otherwise Favorites; <b>System settings → Display → Shortcut</b> changes it, and <b>Home: Full</b> drops the cover and widens the list. <b>Settings</b> slides in <b>Playback</b> and <b>System</b> in the list’s place, as an iPod’s submenu, with the cover still beside it; Return goes back.</li>
     <li><b>Lists:</b> four rows per screen with a full-width accent bar; <b>&gt;</b> marks rows that open another list.</li>
     <li><b>Status bar:</b> play state, EQ, time, Bluetooth, Wi-Fi and battery. The Bluetooth codec (AAC, LDAC…) shows briefly on connect.</li>
     <li><b>Page slides:</b> pages slide in from the right and back out on Return.</li>
@@ -421,7 +423,8 @@ ALBUM_ARTIST=1</pre>
 
   <div class="sec">
   <h2 id="np">The Now Playing screen</h2>
-  <p>Now Playing shows “3 of 12”, a large rounded cover beside the title, artist and album, and a slim accent progress capsule.</p>
+  <img class="shot" src="../../assets/screenshots/now-playing.png" alt="Now Playing: “25 of 40” at the top, the album cover beside the title, artist and album, the play mode and heart buttons, four page dots, and the progress bar with elapsed and remaining time">
+  <p>Now Playing shows the track’s place in the queue (“25 of 40”), a large rounded cover beside the title, artist and album, the play mode and heart buttons, and a progress bar with the elapsed and remaining time. In Classic the bar is a capsule in the accent colour. Tap the cover to see it full screen. Swipe for lyrics, the track’s details and the visualizer; the dots show which page you’re on.</p>
   <ul>
     <li><b>Options:</b> hold <b>Play/Pause</b> for the queue, favourites, playlists, shuffle and repeat. During Shuffle Albums or Folders it also has <b>Next Album / Previous Album</b>.</li>
     <li><b>Rate:</b> hold the heart, turn to 0–5 hearts, and press Centre to save.</li>
@@ -637,7 +640,7 @@ http://stream.radioparadise.com/mp3-128</pre>
       <tr><td>Home</td><td>Split (menu beside the playing album’s cover) or Full (menu only)</td></tr>
       <tr><td>Battery</td><td>Icon (default), Percent, Icon + Percent, Percent Inside</td></tr>
       <tr><td>Artist Albums</td><td>Grid (default), Coverflow or List (names only, no artwork) for an artist’s albums</td></tr>
-      <tr><td>Shortcut</td><td>What Home’s Rockbox row opens: Rockbox (default), Artists, Albums or Favorites</td></tr>
+      <tr><td>Shortcut</td><td>What Home’s shortcut row opens: Rockbox (default when it’s on the card, otherwise Favorites), Artists, Albums or Favorites</td></tr>
       <tr><td>Wheel Sensitivity</td><td>50–200% in 10% steps, 50% by default (a seventh of a turn per tick). Higher needs less turning per step: 100% half as much, 200% a quarter. Turn the wheel or drag the slider; Centre goes back.</td></tr>
     </tbody>
   </table>
