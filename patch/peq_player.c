@@ -257,7 +257,66 @@ int mp3_toc(const unsigned char *h, unsigned n, double t, double *frac, double *
     return 1;
 }
 
+/* An ID3v2 TXXX frame's body f (n bytes) as "description\0value" in out (cap bytes, ASCII; other
+ * characters become '?'). Latin-1, UTF-8 and UTF-16 with or without a BOM. Returns the characters
+ * written, the description's NUL included. */
+unsigned id3_txxx(const unsigned char *f, unsigned n, char *out, unsigned cap) {
+    if (!n || f[0] > 3 || !cap) return 0;
+    unsigned w = f[0] == 1 || f[0] == 2 ? 2 : 1, be = f[0] == 2, k = 0;
+    for (unsigned i = 1; i + w <= n && k + 1 < cap; i += w) {
+        unsigned c = w == 1 ? f[i] : be ? (unsigned)f[i] << 8 | f[i + 1] : (unsigned)f[i + 1] << 8 | f[i];
+        if (c == 0xfeff) continue;
+        if (c == 0xfffe) { be = !be; continue; } /* a BOM the other way round */
+        out[k++] = c < 0x80 ? (char)c : '?';
+    }
+    out[k] = 0;
+    return k;
+}
+
 #ifndef PEQ_HOST
+/* MP3 ReplayGain (docs/internals.md#mp3-replaygain). demux_audio_open hands the stream, just past a
+ * leading ID3v2 header, to the vendor's frame walker (0x48e6b0), which stops after 2 KB of frames, reads
+ * ID3v2.4's syncsafe sizes as plain ones and keeps a UTF-8 frame's encoding byte in its description,
+ * so cover art, a long frame or a UTF-8 TXXX (most 2.4 taggers) hides the gains. This
+ * runs it, then walks the whole tag again through the stream's fd, as mp3_seek reads, puts each TXXX
+ * into a dictionary and gives it to stock's ff_replaygain_export, as the walker does. That stores
+ * the gains only when it finds one, for the replaygain filter's next setup. */
+#define STOCK_ID3 ((void (*)(void *, int))0x48e6b0u)
+#define AV_DICT_SET ((int (*)(void **, const char *, const char *, int))0x6ea744u)
+#define AV_DICT_FREE ((void (*)(void **))0x6eabfcu)
+#define RG_EXPORT ((int (*)(void *, void *))0x538764u)
+#define AT(p, o, type) (*(type *)((char *)(p) + (o)))
+static unsigned id3_int(const unsigned char *p, int syncsafe) {
+    return syncsafe ? (p[0] & 127u) << 21 | (p[1] & 127u) << 14 | (p[2] & 127u) << 7 | (p[3] & 127u)
+                    : (unsigned)p[0] << 24 | p[1] << 16 | p[2] << 8 | p[3];
+}
+void id3_gain(void *s, int size) {
+    long long at = AT(s, 0x30, long long) + AT(s, 0x28, int) - AT(s, 0x2c, int) - 10; /* stream_tell */
+    STOCK_ID3(s, size);
+    int fd = AT(s, 0x14, int);
+    long long back = lseek64(fd, 0, 1);
+    unsigned char h[10], f[256];
+    char t[256];
+    void *dict = 0;
+    if (back >= 0 && lseek64(fd, at, 0) == at && read(fd, h, 10) == 10 && !memcmp(h, "ID3", 3) &&
+        (h[3] == 3 || h[3] == 4)) {
+        int v4 = h[3] == 4;
+        long long end = at + 10 + id3_int(h + 6, 1);
+        at += 10;
+        if (h[5] & 0x40 && read(fd, h, 4) == 4) at += v4 ? id3_int(h, 1) : 4 + id3_int(h, 0); /* extended header */
+        while (at + 10 <= end && lseek64(fd, at, 0) == at && read(fd, h, 10) == 10 && h[0]) {
+            unsigned n = id3_int(h + 4, v4), k, key;
+            if (!memcmp(h, "TXXX", 4) && n <= sizeof f && read(fd, f, n) == (int)n &&
+                (k = id3_txxx(f, n, t, sizeof t)) > (key = strlen(t)) + 1)
+                AV_DICT_SET(&dict, t, t + key + 1, 0);
+            at += 10 + n;
+        }
+        RG_EXPORT(0, dict);
+        AV_DICT_FREE(&dict);
+    }
+    if (back >= 0) lseek64(fd, back, 0);
+}
+
 /* demux_audio_seek (0x48d1ac, the audio demuxer's seek slot). For an MP3 (priv->frmt 1, priv at
  * demuxer+0xc70) without hr_mp3_seek, stock lands at movi_start + seconds * average bytes per
  * second and sets priv->next_pts (a double at +8) from that place. With a Xing table this seeks to
@@ -268,7 +327,6 @@ int mp3_toc(const unsigned char *h, unsigned n, double t, double *frac, double *
  * in tools/peq.py. */
 #define STOCK_SEEK ((void (*)(void *, float, float, int))0x48d1acu)
 #define HR_MP3_SEEK (*(volatile int *)0xb152b8u)
-#define AT(p, o, type) (*(type *)((char *)(p) + (o)))
 void mp3_seek(void *demuxer, float rel, float delay, int flags) {
     unsigned char h[192];
     void *priv = AT(demuxer, 0xc70, void *), *s = AT(demuxer, 0x20, void *);

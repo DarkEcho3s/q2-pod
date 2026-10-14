@@ -2,7 +2,7 @@
 import re
 import struct
 from build import ROOT, FLAGS, GP, FUNCTIONS, GLOBALS, PRIVATE_FUNCTIONS, append_payload, check, fileoff, run, sha, symbols
-from ipod import patch_word
+from ipod import jal, patch_word
 
 PLAYER_SHA = '9c3f8c6d01f1ba62392622f6098b06a36b3e4f022a5468eaca6a5803e74f8e11'
 PLAYER_BASE = 0xe10000  # stock final LOAD ends at 0xe03b58
@@ -10,6 +10,8 @@ PLAYER_BASE = 0xe10000  # stock final LOAD ends at 0xe03b58
 VBR_SCAN = 0x48fb3c
 # The audio demuxer's seek slot (demuxer_desc_audio at 0x89fd90) holds demux_audio_seek; see docs/internals.md.
 SEEK_SLOT, STOCK_SEEK = 0x89fdbc, 0x48d1ac
+# demux_audio_open's calls to the ID3v2 frame walker (0x48e6b0) that feeds ReplayGain; see docs/internals.md.
+ID3_CALLS, STOCK_ID3 = (0x48f704, 0x4923d8), 0x48e6b0
 # The equalizer filter's descriptor (pinned) and its open slot, which becomes peq_open.
 EQ_DESC, EQ_OPEN_SLOT = 0x893df8, 0x893e0c
 # Stock skips the equalizer above 48 kHz (address, stock word, patched word); see docs/internals.md.
@@ -138,7 +140,7 @@ def patch_player(raw, out):
                       '.data : { *(.data*) *(.sdata*) } .bss : { *(.bss*) *(.sbss*) } '
                       '__end = .; /DISCARD/ : { *(.comment) *(.note*) *(.pdr) *(.mdebug*) '
                       '*(.MIPS.abiflags) *(.reginfo) } }')
-    run('ld.lld', '-m', 'elf32ltsmip', '--gc-sections', '-T', script, '-e', 'peq_open', '--undefined=mp3_seek',
+    run('ld.lld', '-m', 'elf32ltsmip', '--gc-sections', '-T', script, '-e', 'peq_open', '--undefined=mp3_seek', '--undefined=id3_gain',
         *objects, '-o', out/'peq.elf')
     run('llvm-objcopy', '-O', 'binary', out/'peq.elf', out/'peq.bin')
     ps = symbols(out/'peq.elf')
@@ -150,6 +152,8 @@ def patch_player(raw, out):
     for address, stock, patched in EQ_RATE_GATES:
         patch_word(data, address, stock, patched, 'Equalizer rate gate')
     patch_word(data, SEEK_SLOT, STOCK_SEEK, ps['mp3_seek'], 'Audio demuxer seek slot')
+    for address in ID3_CALLS:
+        patch_word(data, address, jal(STOCK_ID3), jal(ps['id3_gain']), 'MP3 ReplayGain')
     append_payload(data, payload, PLAYER_BASE, max(len(payload), ps['__end']-PLAYER_BASE), 'player')
     (out/'hciplayer').write_bytes(data)
     return dict(stock_sha256=PLAYER_SHA, sha256=sha(data), payload_sha256=sha(payload))

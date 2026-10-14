@@ -47,12 +47,13 @@ python3 test/peq.py                        # PEQ parser, storage, DSP, EQ page (
 python3 test/peq.py --captures /tmp/eq --font BUILD/default.ttf  # the same, plus the EQ page's Simple tab in both iPod themes as PNGs
 python3 test/coverflow.py                  # Coverflow art cache and depth renderer (host cc -m32, pthreads)
 python3 test/coverflow.py --captures /tmp/cf  # the same, plus the renderer's frames as PNGs
-python3 test/mp3.py                        # native Xing seek bounds, CRC and truncated headers
+python3 test/mp3.py                        # native Xing seek bounds, CRC and truncated headers; TXXX encodings
 python3 test/build.py                      # JPEG header checks; no emulator required
 python3 test/build.py 'Q2 Firmware V1.32.zip'   # packaging checks (custom logo, quoted paths)
 python3 test/playback.py /tmp/q2-build     # grouped traversal, snapshots and the wheel's ticks
 python3 test/patch.py /tmp/q2-build        # the patched MIPS payload, wheel and UI scenarios
 python3 test/m4b.py /tmp/q2-build          # native TagLib M4B/MP4 metadata dispatch
+python3 test/id3.py /tmp/q2-build          # the built player's MP3 ReplayGain on ID3v2.3/2.4 tags
 python3 test/ldac.py /tmp/q2-build         # shipped LDAC intermediate rates and native adaptive controller
 python3 test/headset_io.py /tmp/q2-build   # real MIPS headset worker with simulated kernel I/O
 python3 test/alsa.py BUILD QEMU_MIPSEL     # ALSA startup lock regression (see internals.md)
