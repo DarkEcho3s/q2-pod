@@ -5284,7 +5284,7 @@ if variant=='ipod':
             want=ACCENTS[preset][3 if name.endswith('text_color') else 2]
             assert style_color(m,red,name)[1]==(red if preset==O['CRIMSON'] else color_t(want)),(config,name)
         assert style_color(m,grey)[1]==grey
-        assert len(m.config_reads)==6  # every key, once, on first use
+        assert len(m.config_reads)==5  # every key, once, on first use
         passed()
     # Real paint order, no persistent widget styles: normal, metadata, disabled alpha,
     # recycled text, touch hiding, Home siblings, and every accent.
@@ -5317,7 +5317,7 @@ if variant=='ipod':
     end(m,labels[1]); end(m,view); passed()
 
     m=Machine(); style_color(m,red)
-    assert m.config_reads==[('/mnt/data/config.ini','IPOD',key,'0') for key in ('ACCENT','HOME','BATTERY','THEME','SHORTCUT','COLORCOVERS')]; passed()
+    assert m.config_reads==[('/mnt/data/config.ini','IPOD',key,'0') for key in ('ACCENT','HOME','BATTERY','THEME','SHORTCUT')]; passed()
 
     # Gradients: the leaf's null checks, then the caller's stops mapped (nr @8, stops @0xc).
     def gradient(config,stops,same_out=True,vt_get=True,style=True):
@@ -5372,11 +5372,10 @@ if variant=='ipod':
     # The confirm pop-up's red discs take the dark CONFIRM_SURFACE under every accent, Crimson too:
     # the stock OK disc (#FF1448, white glyph) and Cancel's tint (#FF4871 with a #FFE4EA glyph) keep
     # their glyphs at 4.5:1 or more; the pressed images darken; other images keep the accent's tone.
-    def rgba(config,name,pixels_,fmt=3,width=None):
+    def rgba(config,name,pixels_,fmt=3):
         m=Machine(); m.config=config; m.handlers[tramp['image']]='stock_image'
         bm=m.alloc(0x60); data=m.alloc(4*len(pixels_))
-        width = width or len(pixels_)
-        m.word(bm,width); m.word(bm+4,len(pixels_)//width); m.word(bm+8,4*width); m.u.mem_write(bm+0xe,struct.pack('<H',fmt)); m.word(bm+0x14,data)
+        m.word(bm,len(pixels_)); m.word(bm+4,1); m.word(bm+8,4*len(pixels_)); m.u.mem_write(bm+0xe,struct.pack('<H',fmt)); m.word(bm+0x14,data)
         at=((0,1,2,3),(3,2,1,0),(2,1,0,3),(1,2,3,0))[fmt-1]
         def packed(c,a):
             p=bytearray(4)
@@ -5388,15 +5387,6 @@ if variant=='ipod':
         return [(raw[4*i+at[0]]<<16|raw[4*i+at[1]]<<8|raw[4*i+at[2]],raw[4*i+at[3]]) for i in range(len(pixels_))]
     def pixels(config,name,colors):
         return [c for c,_ in rgba(config,name,[(c,255) for c in colors])]
-    # Optional vinyl replaces only built-in placeholders and preserves transparency in every format.
-    sample=[(0x777777,128)]*(9*9)
-    for fmt in (1,2,3,4):
-        assert rgba({},'default_album_big',sample,fmt,width=9)==sample
-        vinyl=rgba({'COLORCOVERS':'1'},'default_album_big',sample,fmt,width=9)
-        assert vinyl != sample and all(a==128 for c,a in vinyl)
-        assert len({c for c,a in vinyl})>3
-        assert rgba({'COLORCOVERS':'1'},'/mnt/mmc/cover.jpg',sample,fmt,width=9)==sample
-    passed()
     S=O['CONFIRM_SURFACE']
     for preset in range(len(ACCENTS)):
         config={'ACCENT':str(preset),'THEME':'1'}
@@ -5534,9 +5524,9 @@ if variant=='ipod':
         kids=m.nodes[view]['children'][3:]
         return [next(r for r in kids if lab(r).startswith(k)) for k in ('Accent','Home','Battery','Theme')]
     m,view,rows=display({})
-    kids=m.nodes[view]['children'][3:]; cf,shortcut,colors,wheel=kids[3],kids[5],kids[6],kids[7]
-    assert kids==[rows[3],rows[0],rows[1],cf,rows[2],shortcut,colors,wheel] and m.nodes[rows[0]]['visible']==0  # Theme, hidden Accent, Home, Artist albums, Battery, Wheel sensitivity
-    assert m.icons_set==['system_display','system_display','playset_covermode','playset_covermode','system_powermanager','playset_covermode','playset_covermode','system_display'] and all(m.nodes[r]['type']=='list_item' and m.nodes[r]['style']=='s_listitem_black' for r in rows)
+    kids=m.nodes[view]['children'][3:]; cf,shortcut,wheel=kids[3],kids[5],kids[6]
+    assert kids==[rows[3],rows[0],rows[1],cf,rows[2],shortcut,wheel] and m.nodes[rows[0]]['visible']==0  # Theme, hidden Accent, Home, Artist albums, Battery, Shortcut, Wheel sensitivity
+    assert m.icons_set==['system_display','system_display','playset_covermode','playset_covermode','system_powermanager','playset_covermode','system_display'] and all(m.nodes[r]['type']=='list_item' and m.nodes[r]['style']=='s_listitem_black' for r in rows)
     buttons=[m.nodes[r]['children'][0] for r in rows]; labels=[m.nodes[b]['children'][1] for b in buttons]
     for b,l in zip(buttons,labels):
         icon=m.nodes[b]['children'][0]  # stock's 0x4c19bc icon geometry, which the row layouter maps
@@ -5589,7 +5579,7 @@ if variant=='ipod':
     writes=click(3); assert [(w[0],m.text(w[1]),m.text(w[2])) for w in writes]==[(1,'IPOD','THEME')]
     assert ('image_manager_unload_all',0x1000500) in [c[:2] for c in m.calls] and ('widget_invalidate_force',m.wm) in [c[:2] for c in m.calls]
     kids=m.nodes[view]['children'][3:]
-    assert kids==[rows[3],rows[0],rows[1],cf,rows[2],shortcut,colors,wheel] and m.nodes[rows[0]]['visible']==1
+    assert kids==[rows[3],rows[0],rows[1],cf,rows[2],shortcut,wheel] and m.nodes[rows[0]]['visible']==1
     assert texts()==['Accent: Graphite','Home: Split','Battery: Icon','Theme: Classic']; home_bounds(False,True); passed()
     # The Accent row changed the list's count, which would drop the selection: Theme (after the three
     # stock rows) keeps it, painted.
@@ -5606,7 +5596,7 @@ if variant=='ipod':
     writes=click(3); assert [(w[0],m.text(w[2])) for w in writes]==[(0,'THEME')] and texts()[3]=='Theme: Minimal'
     m.paint(view); assert m.selected(view)==3
     kids=m.nodes[view]['children'][3:]
-    assert kids==[rows[3],rows[0],rows[1],cf,rows[2],shortcut,colors,wheel] and m.nodes[rows[0]]['visible']==0 and texts()[1]=='Home: Split'
+    assert kids==[rows[3],rows[0],rows[1],cf,rows[2],shortcut,wheel] and m.nodes[rows[0]]['visible']==0 and texts()[1]=='Home: Split'
     home_bounds(False)
     m.paint(view); assert not m.bands and m.rounded[0]['color']==color_t(0xeeeeec); passed()
     bar=m.node('window','system_bar'); m.word(syms['system_bar'],bar)
@@ -5748,12 +5738,12 @@ if variant=='ipod':
     # shows it; then the next layout places it right after Theme as a whole settings row (mapped at
     # 0x0 it was an empty gap on the device), and hiding it again leaves no gap. However often Theme
     # flips, the wheel and Centre reach the row after Theme, and a tap selects it.
-    CONFIG.clear(); m,view=settings('display'); items=m.nodes[view]['children']; theme,accent=items[-8:-6]  # then Artist albums, Home, Battery, Shortcut, Unknown Covers, Wheel sensitivity
+    CONFIG.clear(); m,view=settings('display'); items=m.nodes[view]['children']; theme,accent=items[-7:-5]  # then Artist albums, Home, Battery, Shortcut, Wheel sensitivity
     button=lambda i: m.nodes[i]['children'][0]
     for classic in (0,1,0,1,0,1):
         if m.nodes[accent]['visible']!=classic:
             f,ctx=m.nodes[button(theme)]['click']; assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0
-        assert lay(m,view)==0 and m.nodes[view]['children'][-8:-6]==[theme,accent] and m.nodes[accent]['visible']==classic
+        assert lay(m,view)==0 and m.nodes[view]['children'][-7:-5]==[theme,accent] and m.nodes[accent]['visible']==classic
         shown=[i for i in items if m.nodes[i]['visible']]; after=shown[shown.index(theme)+1]
         assert (after==accent)==bool(classic)
         assert [geometry(m,i)[1] for i in shown]==[SET['ROW']*k for k in range(len(shown))]

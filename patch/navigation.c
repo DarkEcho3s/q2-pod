@@ -218,8 +218,8 @@ typedef struct {
     unsigned lyric_timer; /* runs while the wheel holds the lyrics and stock's timer is stopped */
     /* The Display settings, read from config.ini on first use, and the display page's value labels.
      */
-    int settings_read, accent, home_full, battery, home_rockbox, classic, shortcut, color_covers;
-    void *setting_label[6];
+    int settings_read, accent, home_full, battery, home_rockbox, classic, shortcut;
+    void *setting_label[5];
     unsigned tone_key; /* the wheel key whose press ringnav_keydown silenced, 0 when none */
     int greeted;       /* the first reachable list got its boot repaint */
 #endif
@@ -1293,12 +1293,12 @@ int config_digit(const char *key, int n) {
     return config_value("IPOD", key, n);
 } /* and visualizer.c's */
 /* The Display rows' settings, by ringnav_display's index: 0 Accent, 1 Home, 2 Battery, 3 Theme. */
-static const char *const setting_keys[] = { "ACCENT", "HOME", "BATTERY", "THEME", "SHORTCUT", "COLORCOVERS" };
-static const int setting_counts[] = { ACCENT_N, 2, 4, 2, 4, 2 };
-static int *const setting_values[] = { &st.accent, &st.home_full, &st.battery, &st.classic, &st.shortcut, &st.color_covers };
+static const char *const setting_keys[] = { "ACCENT", "HOME", "BATTERY", "THEME", "SHORTCUT" };
+static const int setting_counts[] = { ACCENT_N, 2, 4, 2, 4 };
+static int *const setting_values[] = { &st.accent, &st.home_full, &st.battery, &st.classic, &st.shortcut };
 static int accent(void) {
     if (!st.settings_read) {
-        for (int i = 0; i < 6; ++i)
+        for (int i = 0; i < 5; ++i)
             *setting_values[i] = config_digit(setting_keys[i], setting_counts[i]);
         st.settings_read = 1;
     }
@@ -2742,33 +2742,6 @@ int ringnav_image_add(void *manager, const char *name, void *bitmap) {
     static const unsigned char at[4][4] = BITMAP_RGBA_AT;
     unsigned format = bitmap ? *(unsigned short *)((char *)bitmap + 0xe) - 1u : 4,
              preset = accent();
-    /* Generated only for built-in missing-art images, once per image-cache load. */
-    if (st.color_covers && name && format < 4 &&
-        (!tk_strcmp(name, "default_album_big") || !tk_strcmp(name, "default_album_home") ||
-         !tk_strcmp(name, "play_defaultcover") || !tk_strcmp(name, "default_album"))) {
-        unsigned char *px = bitmap_lock_buffer_for_write(bitmap);
-        int w = I(bitmap, 0), h = I(bitmap, 4), size = w < h ? w : h;
-        if (px && size > 0) {
-            const unsigned char *o = at[format];
-            for (int y = 0; y < h; ++y)
-                for (int x = 0; x < w; ++x) {
-                    int dx = (2 * x - w + 1) * 128 / size, dy = (2 * y - h + 1) * 128 / size;
-                    int r = dx * dx + dy * dy;
-                    unsigned c = 0x181820;
-                    if (r < 118 * 118) {
-                        int marble = ((dx + dy + dx * dy / 32) % 64 + 64) % 64;
-                        c = mix(0x16b9ae, 0x793ec8, marble, 63);
-                        if (r % 700 < 160) c = mix(c, 0, 18, 100);
-                        if (r < 30 * 30) c = 0xf0d9ad;
-                        if (r < 6 * 6) c = 0x181820;
-                    }
-                    unsigned char *p = px + y * bitmap_get_line_length(bitmap) + 4 * x;
-                    p[o[0]] = c >> 16; p[o[1]] = c >> 8; p[o[2]] = c;
-                }
-        }
-        if (px) bitmap_unlock_buffer(bitmap);
-        return stock_image_trampoline(manager, name, bitmap);
-    }
     unsigned char *data = (void *)0;
     const char *s = name;
     int dark = s && tk_str_start_with(s, CONFIRM_IMAGE);
@@ -2902,7 +2875,7 @@ static void setting_text(int i) {
                              *const theme[] = { "Theme: Minimal", "Theme: Classic" };
     accent(); /* reads the settings */
     const char *const names[] = { accent_names[st.accent], home[st.home_full], battery[st.battery],
-                                  theme[st.classic], 0, st.color_covers ? "Unknown Covers: Colored Vinyl" : "Unknown Covers: Standard" };
+                                  theme[st.classic] };
     char shortcut[64];
     if (i == 4) {
         tk_snprintf(shortcut, sizeof shortcut, "Shortcut: %s", ipod_home_shortcut());
@@ -3023,8 +2996,6 @@ int ringnav_display(void *win, void *ctx) {
     if (view) {
         st.setting_label[4] = list_row(view, "playset_covermode", setting_click, (void *)4);
         setting_text(4);
-        st.setting_label[5] = list_row(view, "playset_covermode", setting_click, (void *)5);
-        setting_text(5);
         accent_row();
     }
 #else
