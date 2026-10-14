@@ -800,7 +800,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     # a prefix-trimmed typo cannot silently disable a screen this way.
     from ipod import (AUDIT, ARTIST_ALBUMS, ARTIST_PAGE, HOME_PAGE, SETTINGS_ICONS, inc, UI_ASSETS, patch_asset,
                       QUIET_ICONS, quiet_icon, imagemagick, patch_code, patch_style, patch_word, jal, branch, settings_icon,
-                      STATUS_ICONS, status_icon)
+                      STATUS_ICONS, status_icon, row_icon)
     contexts = re.findall(r'"([^"]+)"', (ROOT/'patch/contexts.inc').read_text())
     check(contexts, 'No navigation contexts audited')
     windows = set()
@@ -990,6 +990,10 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     for n in ('spotify', 'radio'):  # Streaming's Spotify and Internet Radio rows
         icons[f'stream_{n}.png'] = ('list_tidal.png', (ROOT/'assets/icons'/f'stream_{n}.png').read_bytes())
     icons['stream_airplay.png'] = ('list_tidal.png', cat(xx+'netservice_airplay.png'))  # iPod resizes stock's
+    if ipod:  # Streaming's rows draw them at SET_ICON
+        for n in ('spotify', 'radio', 'airplay'):
+            like, data = icons[f'stream_{n}.png']
+            icons[f'stream_{n}.png'] = (like, row_icon(data))
     if ipod:  # Home's placeholder, drawn at the art panel's 290px
         icons['default_album_home.png'] = ('default_album_big.png', (ROOT/'assets/icons/default_album_home.png').read_bytes())
     added = []

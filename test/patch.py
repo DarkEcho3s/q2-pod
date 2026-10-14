@@ -760,7 +760,8 @@ else:
     # The codec badge and the Battery setting (bar_sync, on each bar paint): stock sets img_bt's image
     # each second; a new badge shows CODEC_MS, fades out and BT_GLYPH fades in over CODEC_STEPS steps
     # each way, and BT_GLYPH then replaces the badge stock sets again. The battery shows the icon, the
-    # percentage or view_battery, and the icon while the group's ink would reach past BATT_ROOM.
+    # percentage or both in view_battery, and the icon while the group's ink would reach past BATT_ROOM.
+    # The percentage is sized to its digits once the first paint measured them (10 px each here).
     def battery_checks():
         def battery_bar(mode):
             b=Machine(); b.config={'BATTERY':str(mode)}
@@ -785,13 +786,13 @@ else:
             b.advance(O['CODEC_STEP_MS'] if steps else 1); steps.append((alpha(b,w),b.nodes[w['img_bt']]['image']))
         n=O['CODEC_STEPS']
         assert steps==[(255*abs(n-k)//n,'bar_ldac' if k<n else O_GLYPH) for k in range(1,2*n+1)] and not b.timers, steps
-        paint(); assert shown(b,w)==['label_battery']; passed()
+        paint(); assert shown(b,w)==['view_battery'] and b.get(w['view_battery']+O['W_W'])==O['BATT_PCT_W']; passed()
         # Stock's next tick sets the badge again: the glyph goes straight back, with no new fade.
         b.nodes[w['img_bt']]['image']='bar_ldac'; paint()
-        assert b.nodes[w['img_bt']]['image']==O_GLYPH and not b.timers and shown(b,w)==['label_battery']; passed()
+        assert b.nodes[w['img_bt']]['image']==O_GLYPH and not b.timers and shown(b,w)==['view_battery']; passed()
         # A new codec flashes again; AAC's narrow badge leaves room, so the percentage stays.
         b.nodes[w['img_bt']]['image']='bar_aac'; paint()
-        assert b.nodes[w['img_bt']]['image']=='bar_aac' and len(b.timers)==1 and shown(b,w)==['label_battery']; passed()
+        assert b.nodes[w['img_bt']]['image']=='bar_aac' and len(b.timers)==1 and shown(b,w)==['view_battery']; passed()
         # Bluetooth off ends the flash; a reconnect with the same codec flashes again.
         b.nodes[w['img_bt']]['visible']=0; paint(); assert not b.timers and alpha(b,w)==255
         b.nodes[w['img_bt']]['visible']=1; paint(); assert len(b.timers)==1; passed()
@@ -804,6 +805,7 @@ else:
         paint(); assert shown(b,w)==['view_battery']; before=lcd()
         def slot(): b.bands=[]; b.letters=[]; paint(w['view_battery']); assert lcd()==before; return b.bands,b.letters
         bw,bh,y=O['BATT_BODY_W'],O['BATT_BODY_H'],(30+1-O['BATT_BODY_H'])//2-O['BATT_PCT_DY']
+        measured=False
         for image,value,rgb,text in (('bar_battery',0,0xffffff,'0'),('bar_battery',1,0xffffff,'1'),('bar_battery',50,0xffffff,'50'),('bar_battery',100,0xffffff,'100'),('bar_battery',88,0xffffff,'88'),('bar_charge',63,O['BATT_CHARGE_RGB'],'63'),('bar_charge',100,O['BATT_CHARGE_RGB'],'100'),
                                      ('bar_lowcharge',5,O['BATT_LOW_RGB'],'5')):
             # the level is label_battery's text: stock zeroes progress_battery while charging
@@ -811,13 +813,23 @@ else:
             b.nodes[w['progress_battery']]['value']=0 if image=='bar_charge' else value
             b.calls=[]; paint(); assert ('widget_invalidate_force',w['view_battery']) in [c[:2] for c in b.calls]
             b.calls=[]; paint(); assert ('widget_invalidate_force',w['view_battery']) not in [c[:2] for c in b.calls]
-            bands,letters=slot()
+            pct=10*len(text)+10 if measured else O['BATT_PCT_W']
+            assert b.get(w['view_battery']+O['W_W'])==bw+O['BATT_NUB_W']+O['BATT_GAP']+pct
+            bands,letters=slot(); measured=True
             fill=bw-4 if image=='bar_charge' else (bw-4)*value//100
             expected=[(1,y,bw-2,1,color_t(rgb)),(1,y+bh-1,bw-2,1,color_t(rgb)),(0,y+1,1,bh-2,color_t(rgb)),
                       (bw-1,y+1,1,bh-2,color_t(rgb)),(bw,y+(bh-O['BATT_NUB_H'])//2,O['BATT_NUB_W'],O['BATT_NUB_H'],color_t(rgb)),
                       (2,y+2,fill,bh-4,color_t(rgb))]
             assert [x[:5] for x in bands]==expected
-            assert [(l['text'],l['rect'],l['color'],l['font'],l['align']) for l in letters]==[(text+'%',(bw+O['BATT_NUB_W']+O['BATT_GAP'],0,O['BATT_PCT_W'],30),color_t(rgb),('default',O['BATT_PX']),(1,1))]
+            assert [(l['text'],l['rect'],l['color'],l['font'],l['align']) for l in letters]==[(text+'%',(bw+O['BATT_NUB_W']+O['BATT_GAP'],0,pct,30),color_t(rgb),('default',O['BATT_PX']),(1,1))]
+        # Percent: the digits alone, in a slot their width, the charge colour, after the first paint.
+        b,bar,w,paint=battery_bar(1); b.nodes[w['img_bt']]['visible']=0
+        for image,value,rgb in (('bar_battery',100,0xffffff),('bar_battery',88,0xffffff),('bar_charge',7,O['BATT_CHARGE_RGB'])):
+            b.nodes[w['img_battery']]['image']=image; b.nodes[w['label_battery']]['text']=f'{value}%'
+            paint(); paint(w['view_battery']); paint(); before=lcd(); bands,letters=slot()
+            pct=10*len(str(value))+10
+            assert b.get(w['view_battery']+O['W_W'])==pct and not bands
+            assert [(l['text'],l['rect'],l['color']) for l in letters]==[(f'{value}%',(0,0,pct,30),color_t(rgb))]
 
         # Percent Inside: compact rounded body and dark digits, including 100, in every state.
         for theme in (0,1):
@@ -854,8 +866,8 @@ else:
                     b.nodes[w['img_wifi']]['visible']=wifi
                     b.nodes[w['label_battery']]['text']='100%'
                     paint()
-                    assert shown(b,w)==(['label_battery'] if mode==1 else ['view_battery'])
-                    assert b.get(w['view_battery']+O['W_W'])==(O['BATT_INSIDE_W'] if mode==3 else O['BATT_BODY_W'])+O['BATT_NUB_W']+(O['BATT_GAP']+O['BATT_PCT_W'] if mode==2 else 0)
+                    assert shown(b,w)==['view_battery']
+                    assert b.get(w['view_battery']+O['W_W'])==(O['BATT_PCT_W'] if mode==1 else (O['BATT_INSIDE_W'] if mode==3 else O['BATT_BODY_W'])+O['BATT_NUB_W']+(O['BATT_GAP']+O['BATT_PCT_W'] if mode==2 else 0))
         passed()
     battery_checks()
 assert m.confirm()==11 and m.dispatched()[0][1]==entries[0]; passed()
@@ -7534,6 +7546,11 @@ assert m.nodes[w['img_screensaver']]['image']=='' and box('clock_time')[::2]==(0
 assert m.nodes[w['clock_time']]['style:normal:text_align_h']=='center' and m.nodes[w['clock_time']]['style:normal:font_size']>70
 assert signed(m.get(info+O['W_Y']))+box('clock_time')[1]+box('clock_time')[3]<=190 and not m.nodes[w['img_battery']]['visible']
 assert box('label_battery')[2]>=60 and box('label_battery')[0]+box('label_battery')[2]<=375; passed()
+# Battery: Icon keeps the percentage off the Large clock; every percentage mode shows it.
+for mode in range(4):
+    CONFIG.update(BATTERY=str(mode)); m,w,_,_=lock_window('q2pod:aurora',{'LOCKCLOCK':'1'}); CONFIG.clear()
+    assert m.nodes[w['label_battery']]['visible']==(mode!=0) and not m.nodes[w['img_battery']]['visible']
+passed()
 m,w,info,box=lock_window(cards[0])
 assert m.nodes[w['img_screensaver']]['image']==cards[0] and 'style:normal:font_size' not in m.nodes[w['clock_time']]; passed()
 

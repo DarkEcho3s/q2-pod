@@ -144,11 +144,15 @@ stock font at 16 pixels.
 **Battery.** The Battery setting (see [Display settings](#display-settings)) offers four modes at the right end; the layout skips hidden widgets:
 
 - Icon: a clean 16×11 charge-level outline and a 2-pixel nub, drawn in `view_battery`.
-- Percent: stock's `label_battery`, 16 px, right-aligned in a 42-pixel slot.
-- Icon + Percent: the same charge-level icon with a 16 px percentage beside it, in a 62-pixel slot.
+- Percent: the 16 px percentage alone, drawn in `view_battery`.
+- Icon + Percent: the same charge-level icon with a 16 px percentage beside it.
+
+The percentage's slot is as wide as its digits (measured once in the stock font, which has tabular
+digits), so every mode ends on the icons' margin with the same 4-pixel gap to Wi-Fi; `BATT_PCT_W`
+(42, "100%") stands in until the first paint has measured them.
 - Percent Inside (`BATTERY=3`): a compact 32×16 solid battery with softly rounded corners and a 2×6 terminal. Centred 13 px dark digits show the percentage without a percent sign. The body turns green while charging and red when low.
 
-The playback, Bluetooth and Wi-Fi glyphs share smooth edges, rounded ends and a consistent visual weight. Four-pixel spacing keeps the enlarged numbers clear of connectivity icons. Wi-Fi retains all five signal states.
+The playback, Bluetooth and Wi-Fi glyphs share smooth edges, rounded ends and a consistent visual weight. Four-pixel spacing keeps the enlarged numbers clear of connectivity icons. Wi-Fi's arcs are concentric round its dot and stand the battery's 11 pixels tall; it retains all five signal states.
 
 In Icon and Icon + Percent, charging fills the icon solid green (`BATT_CHARGE_RGB`); low battery always uses
 `BATT_LOW_RGB` (`#FF1448`) under every accent. Saved Battery values keep their existing meanings.

@@ -190,6 +190,7 @@ typedef struct {
     void *bar_bt, *bar_wifi, *bar_pct, *bar_slot, *bar_icon, *bar_idle, *bar_state, *bar_eq;
     int codec, codec_step, batt_mode;
     unsigned codec_timer, batt_key;
+    int pct_digit, pct_sign; /* BATT_PX advances of '0' and '%', measured on the first paint */
     unsigned letter_timer; /* the fast-scroll letter shows while this runs */
     /* Now Playing's window and payload-filled widgets, and the sources they last showed. */
     void *np_win, *np_pos, *np_album, *np_slider, *np_remain, *np_elapsed, *np_cover;
@@ -1312,6 +1313,10 @@ int ipod_home_full(void) {
     accent();
     return st.home_full;
 }
+int ipod_battery(void) {
+    accent();
+    return st.battery;
+} /* lockscreen.c's Large clock */
 /* 1 when Home shows its Rockbox row (coverflow_home_layout): the card has Rockbox. */
 int ipod_home_rockbox(void) {
     accent();
@@ -2069,10 +2074,17 @@ static int codec_fade(const void *info) {
     return 0;
 }
 
-/* The status bar's codec badge, then the Battery setting (docs/ipod.md#status-bar-and-clock): one
- * of the charge-level icon, stock's percentage or icon plus percentage shows, and the icon
- * wherever the group's ink would reach more than BATT_ROOM (a wide badge while it shows).
- * widget_set_visible does nothing for an unchanged state and relayouts the view for a new one. */
+/* The percentage's width at BATT_PX: digits are tabular; BATT_PCT_W until the first paint measures. */
+static int pct_width(unsigned level) {
+    if (!st.pct_digit) return BATT_PCT_W;
+    return (level >= 100 ? 3 : level >= 10 ? 2 : 1) * st.pct_digit + st.pct_sign;
+}
+
+/* The status bar's codec badge, then the Battery setting (docs/ipod.md#status-bar-and-clock):
+ * view_battery paints the charge-level icon, the percentage, both, or the percentage inside, sized
+ * to its ink so every gap is STATUS_GAP, and the icon wherever the group's ink would reach more
+ * than BATT_ROOM (a wide badge while it shows). widget_set_visible does nothing for an unchanged
+ * state and relayouts the view for a new one. */
 static void bar_sync(void *bar) {
     if (!st.bar_bt) {
         st.bar_bt = widget_lookup(bar, "img_bt", 1);
@@ -2116,15 +2128,8 @@ static void bar_sync(void *bar) {
         if (reach > BATT_ROOM) mode = 0;
     }
     widget_set_visible(st.bar_icon, 0, 0);
-    int width = (mode == 3 ? BATT_INSIDE_W : BATT_BODY_W) + BATT_NUB_W +
-                (mode == 2 ? BATT_GAP + BATT_PCT_W : 0);
-    int resized = I(st.bar_slot, W_W) != width;
-    widget_resize(st.bar_slot, width, 30);
-    widget_set_visible(st.bar_pct, mode == 1, 0);
-    widget_set_visible(st.bar_slot, mode != 1, 0);
-    /* Resize only relayouts the slot's own children; the right-aligned row must
-     * position it again even when Icon + Percent -> Icon keeps it visible. */
-    if (resized) widget_layout_children(P(st.bar_slot, W_PARENT));
+    widget_set_visible(st.bar_pct, 0, 0);
+    widget_set_visible(st.bar_slot, 1, 0);
 
     /* the level from label_battery's "88%" (stock zeroes progress_battery while charging), then
      * charging (bar_charge) and low (bar_lowcharge), as stock picks the icon */
@@ -2138,16 +2143,23 @@ static void bar_sync(void *bar) {
                        << 2 |
                    (unsigned)(icon && !tk_strcmp(icon, "bar_charge")) << 1 |
                    (unsigned)(icon && !tk_strcmp(icon, "bar_lowcharge"));
-    unsigned color = RGBA(key & 2 ? BATT_CHARGE_RGB : key & 1 ? BATT_LOW_RGB : 0xffffff);
-    widget_set_prop_int(st.bar_pct, "style:normal:text_color", (int)color);
-    if (key == st.batt_key && mode == st.batt_mode) return;
+    int pct = pct_width(key >> 2);
+    int width = mode == 1 ? pct
+                          : (mode == 3 ? BATT_INSIDE_W : BATT_BODY_W) + BATT_NUB_W +
+                                (mode == 2 ? BATT_GAP + pct : 0);
+    int resized = I(st.bar_slot, W_W) != width;
+    widget_resize(st.bar_slot, width, 30);
+    /* Resize only relayouts the slot's own children; the right-aligned row must
+     * position it again even when Icon + Percent -> Icon keeps it visible. */
+    if (resized) widget_layout_children(P(st.bar_slot, W_PARENT));
+    if (key == st.batt_key && mode == st.batt_mode && !resized) return;
     st.batt_mode = mode;
     st.batt_key = key;
     widget_invalidate_force(st.bar_slot, (void *)0);
 }
 
-/* Mode 3 uses a compact solid battery with dark digits; mode 2 puts the percentage beside
- * the charge-level icon. Restore canvas state. */
+/* Mode 1 is the percentage alone; mode 3 uses a compact solid battery with dark digits; mode 2
+ * puts the percentage beside the charge-level icon. Restore canvas state. */
 static void paint_battery(void *w, void *canvas) {
     void *lcd = P(canvas, CANVAS_LCD);
     if (!lcd) return;
@@ -2156,6 +2168,18 @@ static void paint_battery(void *w, void *canvas) {
     int inside = st.batt_mode == 3;
     if (!inside) s[n++] = '%';
     unsigned color = RGBA(key & 2 ? BATT_CHARGE_RGB : key & 1 ? BATT_LOW_RGB : 0xffffff);
+    if (!inside && !st.pct_digit) {
+        unsigned c = '0';
+        canvas_set_font(canvas, (void *)0, BATT_PX);
+        st.pct_digit = (int)(canvas_measure_text(canvas, &c, 1) + 0.5f);
+        c = '%';
+        st.pct_sign = (int)(canvas_measure_text(canvas, &c, 1) + 0.5f);
+    }
+    if (st.batt_mode == 1) {
+        rect_t r = { 0, 0, I(w, W_W), I(w, W_H) };
+        draw_centred(canvas, s, n, &r, BATT_PX, color);
+        return;
+    }
     const int bw = inside ? BATT_INSIDE_W : BATT_BODY_W, bh = inside ? BATT_INSIDE_H : BATT_BODY_H,
               nh = inside ? BATT_INSIDE_NUB_H : BATT_NUB_H,
               y = (I(w, W_H) + 1 - bh) / 2 - BATT_PCT_DY * (st.batt_mode == 2);
@@ -2178,7 +2202,8 @@ static void paint_battery(void *w, void *canvas) {
     canvas_fill_rect(canvas, bw, y + (bh - nh) / 2, BATT_NUB_W, nh);
     canvas_fill_rect(canvas, 2, y + 2, (bw - 4) * (key & 2 ? 100 : level) / 100, bh - 4);
     if (st.batt_mode == 2) {
-        rect_t r = { bw + BATT_NUB_W + BATT_GAP, 0, BATT_PCT_W, I(w, W_H) };
+        int x = bw + BATT_NUB_W + BATT_GAP;
+        rect_t r = { x, 0, I(w, W_W) - x, I(w, W_H) };
         draw_centred(canvas, s, n, &r, BATT_PX, color);
     }
     canvas_set_fill_color(canvas, fill);
