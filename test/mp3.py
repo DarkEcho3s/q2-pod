@@ -5,10 +5,7 @@ import subprocess
 import tempfile
 
 source = (Path(__file__).resolve().parents[1] / 'patch/peq_player.c').read_text()
-start = source.index('int mp3_toc(')
-parser = source[start:source.index('\n}\n', start) + 2]
-start = source.index('unsigned id3_txxx(')
-parser += source[start:source.index('\n}\n', start) + 2]
+parser = ''.join(source[(s := source.index(n)):source.index('\n}\n', s) + 2] for n in ('int mp3_toc(', 'unsigned id3_txxx('))
 check = r'''
 #include <assert.h>
 #include <math.h>

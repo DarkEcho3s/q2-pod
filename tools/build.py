@@ -327,11 +327,11 @@ def load_elf(u, b, load=0):
         start = v & ~4095
         u.mem_map(start, ((v+m+4095) & ~4095) - start)
         u.mem_write(v, b[o:o+f])
-def machine(raw, scratch):
-    """A little-endian MIPS Unicorn with raw's LOAD segments and 64 KB of scratch at scratch."""
+def machine(raw, scratch, load=0):
+    """A little-endian MIPS Unicorn with raw's LOAD segments (at +load) and 64 KB of scratch at scratch."""
     from unicorn import Uc, UC_ARCH_MIPS, UC_MODE_MIPS32, UC_MODE_LITTLE_ENDIAN
     u = Uc(UC_ARCH_MIPS, UC_MODE_MIPS32 | UC_MODE_LITTLE_ENDIAN)
-    load_elf(u, raw)
+    load_elf(u, raw, load)
     u.mem_map(scratch, 0x10000)
     return u
 def fileoff(b, a):

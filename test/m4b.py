@@ -2,8 +2,8 @@
 """Exercise the installed TagLib's native MP4 dispatch, without decoding audio or flashing."""
 import pathlib, struct, subprocess, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]/'tools'))
-from build import machine, fileoff, load_elf, segments, TAG_C, patch_m4b_cover
-from unicorn import Uc, UC_ARCH_MIPS, UC_MODE_MIPS32, UC_MODE_LITTLE_ENDIAN, UC_HOOK_CODE
+from build import machine, fileoff, segments, TAG_C, patch_m4b_cover
+from unicorn import UC_HOOK_CODE
 from unicorn.mips_const import *
 raw = subprocess.check_output(['unsquashfs','-cat',str(pathlib.Path(sys.argv[1])/'stock.squashfs'),'usr/lib/libtag.so.2.0.1'])
 # Pin the native resolver: M4A and M4B compare in the same chain and branch to MP4's constructor.
@@ -49,13 +49,11 @@ slots = dict(mp3=-0x7d1c, m4a=-0x7cb8, wma=-0x7e24, wav=-0x7f38,
 helpers = {struct.unpack_from('<I', raw, fileoff(raw, gp+slot))[0]: name for name, slot in slots.items()}
 
 def cover_dispatch(data, ext, load, readable=True):
-    u = Uc(UC_ARCH_MIPS, UC_MODE_MIPS32 | UC_MODE_LITTLE_ENDIAN)
-    load_elf(u, data, load)
+    u = machine(data, 0x2000000, load)
     # Model the loader's rebasing of the GOT entries used by the dispatcher.
     for slot in (-0x7c64, -0x7da8, -0x7e90, -0x7fd8, *slots.values()):
         val = struct.unpack_from('<I', raw, fileoff(raw, gp+slot))[0]
         u.mem_write(load+gp+slot, struct.pack('<I', load+val))
-    u.mem_map(0x2000000, 0x10000)
     path, dst, stop = 0x2000100, 0x2000300, 0x2000800
     u.mem_write(path, ('/books/book.'+ext+'\0').encode())
     def string(p):
