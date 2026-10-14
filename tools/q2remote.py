@@ -156,7 +156,7 @@ def input_action(kind, args):
         try: ms = int(args[1]) if len(args) > 1 else 80
         except ValueError: raise ValueError("key duration must be an integer number of milliseconds")
         if not 1 <= ms <= 60000: raise ValueError("key duration must be 1..60000 ms")
-        shell(event_writer(path, key_events(code), ms * 1000))
+        shell("sh", event_writer(path, key_events(code), ms * 1000).encode())
     elif kind == "tap":
         try: x, y = map(int, args)
         except ValueError: raise ValueError("tap coordinates must be integers")
@@ -165,7 +165,7 @@ def input_action(kind, args):
         px, py = touch_xy(x, y)
         batches = [event(EV_ABS, ABS_X, px) + event(EV_ABS, ABS_Y, py) + event(EV_ABS, ABS_PRESSURE, 1) + event(EV_KEY, BTN_TOUCH, 1) + event(EV_SYN, 0, 0),
                    event(EV_ABS, ABS_PRESSURE, 0) + event(EV_KEY, BTN_TOUCH, 0) + event(EV_SYN, 0, 0)]
-        shell(event_writer(path, batches))
+        shell("sh", event_writer(path, batches).encode())
     elif kind == "wheel":
         try: ticks = int(args[0])
         except ValueError: raise ValueError("wheel travel must be an integer")
@@ -178,7 +178,7 @@ def input_action(kind, args):
         batches.extend(event(EV_ABS, ABS_X, x) + event(EV_ABS, ABS_Y, 100 + i % 2) + event(EV_SYN, 0, 0)
                        for i, x in enumerate(wheel_positions(ticks, units)))
         batches.append(event(EV_ABS, ABS_PRESSURE, 0) + event(EV_KEY, BTN_TOUCH, 0) + event(EV_SYN, 0, 0))
-        shell(event_writer(path, batches))
+        shell("sh", event_writer(path, batches).encode())  # stdin: a long turn outgrows the 4 KB command line
 
 
 def main(argv):
