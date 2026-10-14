@@ -174,6 +174,11 @@ typedef struct {
     void *dc_top;     /* the page of the last centre press no list click took, and its time */
     unsigned dc_at;
     unsigned charge_at, last_input, cpu_retry;
+    /* the boot logo's poll: last check, card seen mounted, its sync thread, its failure to toast */
+    unsigned logo_at;
+    int logo_mounted;
+    volatile int logo_busy;
+    const char *volatile logo_err;
     void *pull_page, *pull_surface;
     int pull_x, pull_y, pull_claimed;
     unsigned pull_scope;
@@ -5593,10 +5598,111 @@ static void cpu_poll(void) {
     }
     if (!st.cpu_off) st.cpu_bad = 3;
 }
+/* User boot logo (docs/boot.md): the card's LOGO_SRC is kept as LOGO_DST, which the splash shows at
+ * power-on, each time the card is mounted (boot, the end of USB storage). A 375x320 one is turned
+ * upright by stock ffmpeg; anything but a 320x375 baseline JPEG is refused and LOGO_DST kept. No
+ * card file, no LOGO_DST: the stock logo again. The thread keeps ffmpeg and flash off the UI; the
+ * poll toasts its failure. */
+#define LOGO_SRC "/mnt/mmc/Q2Pod/boot/boot-logo.jpg"
+#define LOGO_DST "/mnt/data/boot-logo.jpg"
+#define LOGO_ROT "/tmp/boot-logo.jpg"
+#define LOGO_MAX (512 * 1024)
+/* tools/build.py's jpeg_size: w << 16 | h of a baseline 8-bit three-component JPEG, the only kind
+ * stock display_logo draws right; 0 for anything else. */
+static unsigned jpeg_size(const unsigned char *b, unsigned n) {
+    unsigned i = 2, m, size;
+    if (n < 2 || b[0] != 0xff || b[1] != 0xd8) return 0;
+    while (i < n) {
+        if (b[i] != 0xff) return 0;
+        while (i < n && b[i] == 0xff) i++;
+        if (i >= n) return 0;
+        m = b[i++];
+        if (m == 0xd9 || m == 0xda || m == 0 || m == 0xd8) return 0;
+        if (m == 1 || (m >= 0xd0 && m <= 0xd7)) continue;
+        if (i + 2 > n || (size = b[i] << 8 | b[i + 1]) < 2 || i + size > n) return 0;
+        if (m >= 0xc0 && m <= 0xcf && m != 0xc4 && m != 0xc8 && m != 0xcc) {
+            if (size < 8 || size != 8 + 3u * b[i + 7] || m != 0xc0 || b[i + 2] != 8 || b[i + 7] != 3)
+                return 0;
+            unsigned h = b[i + 3] << 8 | b[i + 4], w = b[i + 5] << 8 | b[i + 6];
+            return w && h ? w << 16 | h : 0;
+        }
+        i += size;
+    }
+    return 0;
+}
+/* path whole, if it is 1..LOGO_MAX bytes; the caller frees it */
+static unsigned char *logo_read(const char *path, unsigned *n) {
+    void *f = fopen(path, "rb");
+    unsigned char *b = 0;
+    long size = !f || fseek(f, 0, 2) ? -1 : ftell(f);
+    if (size > 0 && size <= LOGO_MAX && !fseek(f, 0, 0) && (b = calloc(1, (unsigned)size)) &&
+        fread(b, (unsigned)size, 1, f) != 1)
+        free(b), b = 0;
+    if (f) fclose(f);
+    *n = b ? (unsigned)size : 0;
+    return b;
+}
+static void *logo_sync(void *unused) {
+    unsigned n = 0, old_n;
+    unsigned char *b = 0, *old = 0;
+    const char *err = "Boot logo must be a 320x375 JPEG";
+    (void)unused;
+    if (access(LOGO_SRC, 0))
+        unlink(LOGO_DST), err = 0;
+    else if ((b = logo_read(LOGO_SRC, &n)) && jpeg_size(b, n) == (375u << 16 | 320)) {
+        free(b), b = 0; /* landscape: ffmpeg turns it a quarter clockwise (coverflow.c's ff_thumb) */
+        int status, pid = fork();
+        if (!pid) {
+            execl("/usr/bin/ffmpeg", "/usr/bin/ffmpeg", "-nostdin", "-v", "quiet", "-i", LOGO_SRC,
+                  "-vf", "transpose=1", "-pix_fmt", "yuvj444p", "-q:v", "2", "-f", "mjpeg", "-y",
+                  LOGO_ROT, (char *)0);
+            exit(127);
+        }
+        if (pid > 0 && waitpid(pid, &status, 0) == pid && !status) b = logo_read(LOGO_ROT, &n);
+        unlink(LOGO_ROT);
+    }
+    if (b && jpeg_size(b, n) == (320u << 16 | 375)) {
+        old = logo_read(LOGO_DST, &old_n);
+        if ((old && old_n == n && !memcmp(old, b, n)) || blob_io(LOGO_DST, LOGO_DST ".tmp", b, n, 1))
+            err = 0; /* the same bytes are not written again each boot */
+        else
+            unlink(LOGO_DST ".tmp"), err = "Could not save boot logo";
+    }
+    free(b), free(old);
+    st.logo_err = err;
+    st.logo_busy = 0;
+    return 0;
+}
+static void logo_poll(void) {
+    unsigned now = time_now_ms();
+    if (st.logo_err) toast(st.logo_err), st.logo_err = 0;
+    if (st.logo_busy || (st.logo_at && now - st.logo_at < CHARGE_POLL_MS)) return;
+    st.logo_at = now | !now;
+    char m[4096]; /* ponytail: the Q2's few mounts fit (remote.c's card_mounted) */
+    int mounted = 0;
+    void *f = fopen("/proc/mounts", "rb");
+    if (f) {
+        unsigned n = fread(m, 1, sizeof m - 1, f);
+        fclose(f);
+        m[n] = 0;
+        mounted = strstr(m, " /mnt/mmc ") != 0;
+    }
+    unsigned long tid;
+    if (mounted && !st.logo_mounted) {
+        st.logo_busy = 1;
+        if (pthread_create(&tid, 0, logo_sync, 0)) {
+            st.logo_busy = 0; /* the edge is tried again next poll */
+            return;
+        }
+        pthread_detach(tid);
+    }
+    st.logo_mounted = mounted;
+}
 static void power_poll(void) {
     pod_settings();
     charge_poll();
     cpu_poll();
+    logo_poll();
 }
 
 #if IPOD

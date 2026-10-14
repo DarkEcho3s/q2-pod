@@ -150,6 +150,11 @@ BOOT_HOOK = (b'    /release/bin/demo &\n', f'''    (
         done
     ) &
 '''.encode())
+# User boot logo (docs/boot.md#custom-boot-logo): demo copies the card's to /mnt/data, which
+# S10mount_ubifs mounts before the splash; without it, the built-in one.
+S11LOGO = 'etc/init.d/S11logo_display_shell'
+LOGO_HOOK = (b'   \tdisplay_logo /release/assets/default/raw/images/xx/logo.jpg\n',
+             b'   \tl=/mnt/data/boot-logo.jpg; [ -f $l ] || l=/release/assets/default/raw/images/xx/logo.jpg; display_logo $l\n')
 REMOTE_HOOK = (b'/usr/bin/dbus-daemon --config-file=/etc/dbus-1/system.conf\n',
                b'/usr/bin/dbus-daemon --config-file=/etc/dbus-1/system.conf\n/usr/bin/q2remote &\n')
 # The byte in bluealsa's AAC capability holding the 44.1 kHz bit; see docs/internals.md.
@@ -970,6 +975,9 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     check(s90play.count(BOOT_HOOK[0]) == 1 and s90play.count(REMOTE_HOOK[0]) == 1, 'Unexpected S90play')
     s90play = s90play.replace(*BOOT_HOOK)
     (out/'S90play').write_bytes(s90play.replace(*REMOTE_HOOK) if dev else s90play)
+    s11logo = cat(S11LOGO)
+    check(s11logo.count(LOGO_HOOK[0]) == 1, 'Unexpected S11logo_display_shell')
+    (out/'S11logo').write_bytes(s11logo.replace(*LOGO_HOOK))
     logo_data = logo.read_bytes()
     check(jpeg_size(logo_data) == (320, 375), 'Logo must be 320x375 like the stock splash')
     # Package exactly the validated bytes, even if the input is edited during compression.
@@ -977,7 +985,8 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     logo.write_bytes(logo_data)
     for path, src in ((b'release/bin/demo', out/'demo'), (b'usr/bin/hciplayer', out/'peq/hciplayer'),
                       (BLUEALSA.encode(), out/'bluealsa'), (WATCHDOG.encode(), out/'watchdog'),
-                      (S90PLAY.encode(), out/'S90play'), (b'release/assets/default/raw/images/xx/logo.jpg', logo)):
+                      (S90PLAY.encode(), out/'S90play'), (S11LOGO.encode(), out/'S11logo'),
+                      (b'release/assets/default/raw/images/xx/logo.jpg', logo)):
         p = swap_inode(p, path, src)
     # New inodes, each with its stock image's metadata: the Stock build's Coverflow card icons (menu_music's),
     # the Local Music and Spotify rows' icons, drawn in assets/icons/ (stock's 52px style) or else a copy of the stock image named

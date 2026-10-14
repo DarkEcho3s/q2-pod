@@ -85,9 +85,23 @@ def boot_check():
     print('Dual boot: Rockbox by default, one-session Q2 Pod, stale choice ignored, card fallback and Home Rockbox row passed.')
 boot_check()
 
+def logo_check():
+    """S11logo_display_shell's splash choice (build.py LOGO_HOOK) under the host sh."""
+    import subprocess, tempfile, pathlib
+    from build import LOGO_HOOK
+    with tempfile.TemporaryDirectory(prefix='q2-logo-') as tmp:
+        user = pathlib.Path(tmp)/'boot-logo.jpg'
+        script = LOGO_HOOK[1].decode().replace('/mnt/data/boot-logo.jpg', str(user)).replace('display_logo', 'echo')
+        def shown(): return subprocess.run(['sh', '-c', script], check=True, capture_output=True, text=True).stdout.strip()
+        assert shown() == '/release/assets/default/raw/images/xx/logo.jpg'  # no card logo: the built-in splash
+        user.write_bytes(b'')
+        assert shown() == str(user)
+    print('Boot logo: the saved card logo, else the built-in splash, passed.')
+logo_check()
+
 def validate_assets(directory):
     import functools, json, re, struct, subprocess
-    from build import sha, run, fileoff, symbols, BLUEALSA, AAC_44K1, IPOD_HOOKS, IPOD_LEAF, WM_PAINT_LEAF, HELPER, HELPER_LIKE, BOOT, BOOT_HOOK, REMOTE, REMOTE_HOOK, S90PLAY, RTC_WRITE, LOCK_CLOCK_12H, WATCHDOG, WATCHDOG_SLEEP, DROP_CACHES, WHEEL_TS_READ, PDR
+    from build import sha, run, fileoff, symbols, BLUEALSA, AAC_44K1, IPOD_HOOKS, IPOD_LEAF, WM_PAINT_LEAF, HELPER, HELPER_LIKE, BOOT, BOOT_HOOK, REMOTE, REMOTE_HOOK, S90PLAY, S11LOGO, LOGO_HOOK, RTC_WRITE, LOCK_CLOCK_12H, WATCHDOG, WATCHDOG_SLEEP, DROP_CACHES, WHEEL_TS_READ, PDR
     from ipod import (AUDIT, TOOLBAR_SWITCHES, BOTTOM, CHEVRON_W, CONFIRM, VOLUME, QUICK_SETTINGS, QS_TOP, QS_LABEL_GAP, QS_LABEL_H,
                       QS_LABEL_W, QS_ROW_GAP, QS_PITCH, QS_BAR, QS_TOUCH, QS_EDGE, QS_SUN, HOME_LABEL_END, HOME_LIST_W, HOME_TEXT_X, HOME_TOP, PITCH, ARTIST_PAGE, HOME_PAGE, HOME_ROW, HOME_ROWS, NAVBAR_ONLY, PLAYING_PAGE, SET_ROW, SET_ROWS, SET_TOP, UI_ASSETS,
                       NP_BAR, NP_MARGIN, NP_POS_X, NP_TOP, STATUS_BAR, STATUS_HIDDEN, STATUS_LEFT, STATUS_MARGIN, STATUS_RIGHT, CLOCK_MIN, CLOCK_TEXT, corner_inset, corner_x,
@@ -210,6 +224,7 @@ def validate_assets(directory):
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         assert absent.returncode != 0, 'release rootfs contains q2remote'
     assert read('rootfs.squashfs', S90PLAY) == expected_start
+    assert read('rootfs.squashfs', S11LOGO) == read('stock.squashfs', S11LOGO).replace(*LOGO_HOOK)  # the card's logo, if saved
     # bluealsa: AAC capability, the two DROP jumps, and one appended LOAD payload.
     from build import BT_DROP, BT_DROP_HANDLER, BT_DROP_PAYLOAD, patch_bluealsa, segments
     old, new = read('stock.squashfs', BLUEALSA), read('rootfs.squashfs', BLUEALSA)

@@ -1,19 +1,19 @@
 # Boot
 
-The Q2 splash shown on the screen at power-on is a JPEG inside the rootfs. There is no on-device setting; changing it is part of building a firmware update.
+The Q2 splash shown on the screen at power-on is a JPEG inside the rootfs. A JPEG on the microSD card replaces it without a firmware update; a build can also change the built-in one ([Custom boot logo](#custom-boot-logo)).
 
-| What       | Where                                                             |
-| ---------- | ----------------------------------------------------------------- |
-| Image      | `/release/assets/default/raw/images/xx/logo.jpg` (320x375 JPEG)   |
-| Drawn by   | `/usr/bin/display_logo` (libjpeg, writes `/dev/fb0`)              |
-| Started by | `/etc/init.d/S11logo_display_shell`, as soon as `/dev/fb0` exists |
+| What       | Where                                                                                                        |
+| ---------- | ------------------------------------------------------------------------------------------------------------ |
+| Image      | `/mnt/data/boot-logo.jpg` when present, else `/release/assets/default/raw/images/xx/logo.jpg` (320x375 JPEG) |
+| Drawn by   | `/usr/bin/display_logo` (libjpeg, writes `/dev/fb0`)                                                         |
+| Started by | `/etc/init.d/S11logo_display_shell`, as soon as `/dev/fb0` exists                                            |
 
 ## Boot sequence
 
 BusyBox `init` runs `/etc/init.d/rcS`, which starts the `S??*` scripts in order:
 
 1. `S10mdev`, `S10mount_ubifs`: devices and the data partition.
-2. `S11logo_display_shell`: in the background, polls every 20 ms for `/dev/fb0`, then runs `display_logo` on the splash.
+2. `S11logo_display_shell`: in the background, polls every 20 ms for `/dev/fb0`, then runs `display_logo` on `/mnt/data/boot-logo.jpg` if it exists, else on the built-in splash.
 3. `S11module_driver_default`: `/module_driver/driver_default_init_script.sh` loads the drivers, among them `soc_fb.sh` (the framebuffer, so `/dev/fb0` appears and the splash is drawn) and the LCD panel.
 4. `S20urandom`, `S40network`.
 5. `S90play`: starts `dbus-daemon`, then the player: `/release/bin/demo`, or Rockbox first when the card has it ([Rockbox](#rockbox)).
@@ -55,7 +55,18 @@ Bluetooth survives the hand-over: demo starts `rtk_hciattach`, `bluetoothd` and 
 
 ## Custom boot logo
 
-Every build replaces the splash with `assets/boot-logo.jpg`. Pass another 320x375 JPEG with `--logo` to use your own:
+### From the card
+
+Put your logo on the microSD card as `/Q2Pod/boot/boot-logo.jpg`. Each time the card is mounted, Q2 Pod checks it and copies it to `/mnt/data/boot-logo.jpg`, through a synced temporary file and rename; the splash is drawn before the card is read, so the new logo shows from the next power-on.
+
+- **Size: 320x375, stored turned 90° clockwise as the stock splash is, or upright at 375x320**, which Q2 Pod turns itself with the Q2's own `ffmpeg`.
+- **Format: 8-bit, three-component baseline JPEG, at most 512 KB** ([Making a logo that works](#making-a-logo-that-works)).
+- A file that doesn't qualify shows "Boot logo must be a 320x375 JPEG", and one that can't be saved "Could not save boot logo"; either way the current logo stays.
+- Removing the file from the card deletes `/mnt/data/boot-logo.jpg` at the next mount, which restores the built-in splash.
+
+### In a build
+
+Every build replaces the built-in splash with `assets/boot-logo.jpg`. Pass another 320x375 JPEG with `--logo` to use your own:
 
 ```sh
 python3 tools/build.py 'Q2 Firmware V1.32.zip' --out /tmp/q2-logo --logo my-logo.jpg
@@ -65,10 +76,10 @@ Flash `/tmp/q2-logo/update.tar` the normal way: copy it to the root of the micro
 
 ## Making a logo that works
 
-- **Orientation: rotate upright artwork 90° clockwise before fitting it.** The stock JPEG is stored sideways because of the framebuffer orientation. The supplied logo therefore reads sideways in the stored JPEG and appears upright on the device.
-- **Canvas: exactly 320x375 pixels, black.** `display_logo` does not scale the image. Fit the rotated artwork within both dimensions, preserve its aspect ratio, and centre it horizontally and vertically without cropping. The build rejects any other size.
+- **Orientation: rotate upright artwork 90° clockwise before fitting it.** The stock JPEG is stored sideways because of the framebuffer orientation. The supplied logo therefore reads sideways in the stored JPEG and appears upright on the device. The card also takes an upright 375x320 JPEG and turns it for you.
+- **Canvas: exactly 320x375 pixels, black.** `display_logo` does not scale the image. Fit the rotated artwork within both dimensions, preserve its aspect ratio, and centre it horizontally and vertically without cropping. The build rejects any other size, and the card any other than 320x375 or upright 375x320.
 - **Format: 8-bit, three-component baseline JPEG (RGB/YCbCr).** No PNG, alpha, grayscale or CMYK. The stock renderer assumes three decoded bytes per pixel; the builder rejects incompatible frame headers.
-- **Keep it small.** JPEG data barely compresses and the repacked rootfs must stay within the stock image size (50,442,240 bytes). The stock splash is 47.8 KB and a rebuilt Stock rootfs with `assets/boot-logo.jpg` leaves about 12 KB of slack (iPod, without the Home carousel images, about 272 KB), so keep a Stock-build logo under about 28 KB (this file plus that slack); re-save at lower quality if the build fails with `Repacked rootfs exceeds stock size`. `assets/boot-logo.jpg` is about 6 KB.
+- **Keep it small.** On the card, at most 512 KB. In a build, JPEG data barely compresses and the repacked rootfs must stay within the stock image size (50,442,240 bytes). The stock splash is 47.8 KB and a rebuilt Stock rootfs with `assets/boot-logo.jpg` leaves about 12 KB of slack (iPod, without the Home carousel images, about 272 KB), so keep a Stock-build logo under about 28 KB (this file plus that slack); re-save at lower quality if the build fails with `Repacked rootfs exceeds stock size`. `assets/boot-logo.jpg` is about 6 KB.
 
 The shared default for both firmware variants is a small monoline mark on black: a circular Q with a short 45-degree tail and a geometric 2, both drawn with the same 10-pixel stroke and flat terminals in warm off-white (#F2F2F0), about 140x70 pixels. Below it, a thin, widely spaced POD in light grey (#D4D4D0) sits between two dark grey hairlines that run out to the edges of the mark. The group is centred at about 47% of the screen height, because perfect centring looks low. There are no gradients or glows. The mark is drawn entirely from strokes, so no fonts are required to render it. Its upright source is `assets/boot-logo.svg` (375x320). To reproduce the firmware JPEG with ImageMagick:
 
@@ -89,4 +100,4 @@ sha256sum my-logo.jpg
 
 - Only `rootfs.squashfs` and the kernel are shipped in `update.tar`; the bootloader is untouched. Anything displayed before Linux starts is not affected.
 - `manifest.json` records the logo's SHA-256, and identical inputs (including the logo) still produce an identical `update.tar`.
-- The splash is only shown while the app starts, so a logo you dislike is cosmetic: flash a corrected update to replace it.
+- The splash is only shown while the app starts, so a logo you dislike is cosmetic: remove it from the card, or flash a corrected update to replace a built-in one.

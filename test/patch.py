@@ -92,7 +92,8 @@ class Machine:
                   'airplayGetFlag','playpause_quick_click','time@GLIBC_2.0','localtime@GLIBC_2.0',
                   'strlen@GLIBC_2.0','strrchr@GLIBC_2.0','strcasecmp@GLIBC_2.0','strncasecmp@GLIBC_2.0',
                   'unlink@GLIBC_2.0','atoi@GLIBC_2.0','memcmp@GLIBC_2.0','access@GLIBC_2.0',
-                  'fflush@GLIBC_2.0','fsync@GLIBC_2.0','fileno@GLIBC_2.0')  # blob_io's sync before rename
+                  'fflush@GLIBC_2.0','fsync@GLIBC_2.0','fileno@GLIBC_2.0',  # blob_io's sync before rename
+                  'fopen@GLIBC_2.2')  # no /proc/mounts: the boot logo's poll sees no card
         self.present=set()  # paths access finds (the UI loop's Spotify poll asks for its login)
         self.image_size=(50,50)  # what widget_load_image decodes
         self.clock=(18,14)  # local (hour, minute) for time/localtime, or the one of them that fails
@@ -7282,7 +7283,7 @@ class ResumeMachine(QueueMachine):
         if not name.startswith('r:'): return super().hook(u,address,size,unused)
         name=name[2:].split('@')[0]; a,b,c,d=[u.reg_read(r) for r in REGS]; ret=0; self.calls.append((name,a,b,c))
         if name=='fopen':
-            self.opens+=1; path,mode=self.text(a),self.text(b)
+            path,mode=self.text(a),self.text(b); self.opens+=path!='/proc/mounts'  # the boot logo's poll
             if mode=='rb' and path not in self.files: ret=0
             else: ret=0x2000000+len(self.calls); self.open[ret]=[path,mode,0,b'' if mode=='wb' else self.files.get(path,b'')]
         elif name=='fread':
@@ -7687,6 +7688,77 @@ m=DirectoryFull({'LOWPOWER':'1'}); m.byte(syms['g_backlight_status'],0); m.pass_
 assert not any(p==CPU1 for p,_ in m.writes); passed()
 
 
+
+# Boot logo: a card mount (boot, USB storage's end) starts a thread that keeps the card's logo as the
+# splash's /mnt/data copy; the poll toasts its failure. The thread is run here once the poll starts it.
+LOGO_SRC,LOGO_DST,LOGO_ROT='/mnt/mmc/Q2Pod/boot/boot-logo.jpg','/mnt/data/boot-logo.jpg','/tmp/boot-logo.jpg'
+LOGO_BAD,LOGO_FAIL='Boot logo must be a 320x375 JPEG','Could not save boot logo'
+def jpg(w,h,sof=0xc0,bits=8,n=3,pad=0):  # an APP0 behind a fill byte, then the frame header
+    return b'\xff\xd8\xff\xff\xe0\x00\x04ab'+bytes([0xff,sof])+struct.pack('>HBHHB',8+3*n,bits,h,w,n)+bytes(3*n)+b'\xff\xd9'+bytes(pad)
+class LogoMachine(PowerMachine):
+    failure=''
+    def __init__(self,files=None):
+        super().__init__(files=files); self.threads=[]; self.execs=[]; self.toasts=[]; self.rotated=None; self.child=False; self.exits=[]
+        self.word(0xa2638c,0x1000010); self.handlers[0x1000010]='l:free'  # free's GOT slot, as Coverflow's
+        for n in ('fseek@GLIBC_2.0','ftell@GLIBC_2.0','memcmp@GLIBC_2.0','strstr@GLIBC_2.0','pthread_create@GLIBC_2.2',
+                  'fork@GLIBC_2.0','execl@GLIBC_2.0','exit@GLIBC_2.0','waitpid@GLIBC_2.0','navigator_to_with_context'): self.handlers[syms[n]]='l:'+n
+    def hook(self,u,address,size,unused):
+        name=self.handlers.get(address,'')
+        if name.startswith('r:'+self.failure+'@') and (self.failure!='fopen' or self.text(u.reg_read(REGS[1]))=='wb'):
+            u.reg_write(UC_MIPS_REG_V0,0 if self.failure in ('fopen','fwrite') else 0xffffffff)
+            u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA)); return
+        if not name.startswith('l:'): return super().hook(u,address,size,unused)
+        name=name[2:].split('@')[0]; a,b,c,d=[u.reg_read(r) for r in REGS]; self.calls.append((name,a,b,c)); ret=0
+        if name=='fseek': f=self.open[a]; f[2]=signed(b)+(len(f[3]) if c==2 else 0)
+        elif name=='ftell': ret=self.open[a][2]
+        elif name=='memcmp': ret=int(bytes(u.mem_read(a,c))!=bytes(u.mem_read(b,c)))
+        elif name=='strstr': i=self.text(a).find(self.text(b)); ret=a+i if i>=0 else 0
+        elif name=='pthread_create': self.word(a,77); self.threads.append(c)
+        elif name=='fork': ret=0 if self.child else 4242
+        elif name=='exit':  # the child ends: back to call()'s return, as if the thread had
+            self.exits.append(a)
+            for i,r in enumerate(SAVED): u.reg_write(r,0x12340000+i)
+            u.reg_write(UC_MIPS_REG_SP,0x7000f000); u.reg_write(UC_MIPS_REG_PC,0x1000000); return
+        elif name=='execl':
+            sp=u.reg_read(UC_MIPS_REG_SP); args=[self.text(x) for x in (a,b,c,d)]
+            while (x:=self.get(sp+16+4*(len(args)-4))): args.append(self.text(x))
+            self.execs.append(args)
+        elif name=='waitpid':
+            assert a==4242; self.word(b,0); ret=a
+            if self.rotated is not None: self.files[LOGO_ROT]=self.rotated
+        elif name=='navigator_to_with_context': self.toasts.append(self.text(b+8))
+        for r in [UC_MIPS_REG_V1,*REGS,UC_MIPS_REG_T8,UC_MIPS_REG_T9]: u.reg_write(r,0xdeadbeef)
+        u.reg_write(UC_MIPS_REG_V0,ret&0xffffffff); u.reg_write(UC_MIPS_REG_PC,u.reg_read(UC_MIPS_REG_RA))
+    def sync(self,mounted=True):  # a poll with the card in or out; returns the threads it started
+        self.files['/proc/mounts']=b'/dev/mmcblk0p1 /mnt/mmc vfat rw 0 0\n' if mounted else b'none /mnt/data ubifs rw 0 0\n'
+        self.threads=[]; self.pass_()
+        for t in self.threads: self.call(address=t,args=(0,0,0,0),gap=0,clear=False)
+        started=len(self.threads); self.pass_(1)  # the next pass, too soon to poll, toasts a failure
+        return started
+m=LogoMachine({LOGO_SRC:jpg(320,375)})
+assert m.sync()==1 and m.files[LOGO_DST]==jpg(320,375) and m.renames==1 and LOGO_DST+'.tmp' not in m.files and not m.toasts; passed()
+assert m.sync()==0 and m.renames==1; passed()  # still mounted: no edge, no sync
+assert m.sync(False)==0 and m.sync()==1 and m.renames==1 and not m.toasts; passed()  # remounted, the same bytes: no write
+m.files[LOGO_SRC]=jpg(320,375,pad=1); m.sync(False); m.sync(); assert m.files[LOGO_DST]==jpg(320,375,pad=1) and m.renames==2; passed()
+del m.files[LOGO_SRC]; m.sync(False); m.sync(); assert LOGO_DST not in m.files and not m.toasts; passed()  # gone: the stock logo
+m=LogoMachine(); assert m.sync()==1 and LOGO_DST not in m.files and not m.toasts and not m.execs; passed()
+for bad in (jpg(375,375),jpg(320,375,n=1),jpg(320,375,sof=0xc2),jpg(320,375,bits=12),jpg(320,375,pad=512*1024),jpg(0,375),
+            b'\xff\xd8\xff\xda\x00\x02',jpg(320,375)[:12],b'not a jpeg',b''):
+    m=LogoMachine({LOGO_SRC:bad,LOGO_DST:b'old'}); m.sync()
+    assert m.files[LOGO_DST]==b'old' and not m.renames and m.toasts==[LOGO_BAD] and not m.execs,bad[:16]; passed()
+m=LogoMachine({LOGO_SRC:jpg(375,320)}); m.child=True; m.sync()
+assert m.exits==[127] and LOGO_DST not in m.files and m.execs==[['/usr/bin/ffmpeg','/usr/bin/ffmpeg','-nostdin','-v','quiet','-i',LOGO_SRC,'-vf','transpose=1','-pix_fmt',
+                  'yuvj444p','-q:v','2','-f','mjpeg','-y',LOGO_ROT]],m.execs; passed()
+m=LogoMachine({LOGO_SRC:jpg(375,320)}); m.rotated=jpg(320,375,pad=2); m.sync()
+assert not m.execs and not m.exits
+assert m.files[LOGO_DST]==m.rotated and LOGO_ROT not in m.files and not m.toasts; passed()
+for rotated in (None,jpg(375,320)):  # ffmpeg failed, or wrote something else
+    m=LogoMachine({LOGO_SRC:jpg(375,320),LOGO_DST:b'old'}); m.rotated=rotated; m.sync()
+    assert m.files[LOGO_DST]==b'old' and m.toasts==[LOGO_BAD]; passed()
+for failure in ('fopen','fwrite','fclose','rename'):
+    m=LogoMachine({LOGO_SRC:jpg(320,375),LOGO_DST:b'old'}); m.failure=failure; m.sync()
+    assert m.files[LOGO_DST]==b'old' and LOGO_DST+'.tmp' not in m.files and m.toasts==[LOGO_FAIL],failure; passed()
+print('Boot logo: mount edges, validation, rotation, unchanged bytes and failed writes passed.')
 
 # System boot row in both variants: regular-file gating, persisted choice and transactional failures.
 class BootMachine(ResumeMachine):
