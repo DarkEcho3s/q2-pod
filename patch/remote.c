@@ -43,7 +43,7 @@ struct sockaddr_in { unsigned short sin_family, sin_port; unsigned sin_addr; cha
 int socket(int,int,int), setsockopt(int,int,int,const void*,unsigned), bind(int,const void*,unsigned), listen(int,int), accept(int,void*,void*);
 int fork(void), close(int), dup2(int,int), open(const char*,int,...), read(int,void*,unsigned), write(int,const void*,unsigned);
 int ioctl(int,unsigned,...), execl(const char*,const char*,...);
-void *mmap(void*,unsigned,int,int,int,long); unsigned alarm(unsigned); void (*signal(int,void(*)(int)))(int); void _exit(int);
+void *mmap(void*,unsigned,int,int,int,long); unsigned alarm(unsigned); void (*signal(int,void(*)(int)))(int); void _exit(int); int usleep(unsigned);
 int strcmp(const char*,const char*);
 int unlink(const char*), rename(const char*,const char*), fsync(int), memcmp(const void*,const void*,unsigned);
 char *strstr(const char*,const char*);
@@ -153,6 +153,14 @@ int main(int argc,char **argv) {
     struct sockaddr_in a={.sin_family=AF_INET,.sin_port=(PORT&255)<<8|PORT>>8};
     if (setsockopt(s,SOL_SOCKET,SO_REUSEADDR,&one,sizeof one) || bind(s,(void*)&a,sizeof a) || listen(s,4)) { close(s); return 1; }
     signal(SIGCHLD,SIG_IGN);
+    /* Keep the key from boot: the card mounts around now, and with a USB cable in demo soon
+     * unmounts it, before any client may connect. */
+    if (!fork()) {
+        for (int i=0;i<150 && !card_mounted();++i) usleep(200000);
+        char key[128];
+        key_read(key);
+        _exit(0);
+    }
     for (;;) {
         int c=accept(s,0,0);
         if (c<0) continue;

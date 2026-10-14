@@ -81,6 +81,7 @@ with tempfile.TemporaryDirectory(prefix="q2-remote-") as td:
     proc = subprocess.Popen([exe])
     try:
         time.sleep(.1)
+        assert cache.read_text() == "0123456789abcdef\n"  # kept at start, before any client
         os.environ.update(Q2_HOST="127.0.0.1", Q2_KEY="0123456789abcdef")
         assert q.shell("cat", b"\x00binary\xff") == b"\x00binary\xff"
         for _ in range(3): assert q.shell("printf repeated") == b"repeated"

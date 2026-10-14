@@ -13,7 +13,7 @@ It listens on TCP port 2302 and sends the key and every command **unencrypted**.
    openssl rand -hex 16 > /run/media/$USER/<card>/q2remote.key
    ```
 
-3. **Eject and unplug the USB cable.** While the card is shared over USB storage the Q2 unmounts it, so it can't read a new key until the cable comes out. After the first connection it keeps a copy in `/mnt/data/q2remote.key` and uses that while the card is away, so later a cable in, even from boot, doesn't lock you out.
+3. **Eject, then unplug the cable or restart the Q2.** While the card is shared over USB storage the Q2 unmounts it, so a new key is read only once the cable is out, or at the next boot, before USB storage takes the card. q2remote keeps a copy in `/mnt/data/q2remote.key` and uses it while the card is away, so a cable in, even from boot, doesn't lock you out.
 4. Find the Q2's address: the hotspot's or router's client list, or `ip neigh` after a ping sweep of the subnet.
 5. Load the key into the environment without echoing it:
 
