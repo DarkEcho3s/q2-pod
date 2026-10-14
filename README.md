@@ -6,7 +6,7 @@
 
 <p align="center">
   iPod classic experience for the Shanling Q2.<br>
-  Wheel navigation, Coverflow, PEQ and optionally; Spotify Connect &amp; Rockbox, all built on top of the stock firmware.
+  Wheel navigation, Coverflow, PEQ, and optional Spotify Connect and Rockbox, all built on top of the stock firmware.
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 ## Features
 
 - **iPod UI:** Home, menus, Now Playing, Coverflow and four visualizers. Choose your accent colour, Home layout and battery display.
-- **Wheel navigation:** scrolling is now smooth and menus remember your place.
+- **Wheel navigation:** smooth scrolling, and menus remember your place.
 - **EQ:** Simple's Low, Mid and High sliders, or Advanced's parametric EQ with up to 30 bands and a live curve. Import AutoEQ and Equalizer APO presets.
 - **Streaming:** Spotify Connect (Premium), AirPlay from your iPhone, and Internet Radio.
 - **Scrobbling:** send your listens to Last.fm or ListenBrainz over Wi-Fi.
@@ -38,8 +38,8 @@
 - **Battery:** an optional 80% charge limit and Low Power mode.
 
 <details>
-<summary><b>Screenshots</b></summary>
-<br>
+<summary><h2>Screenshots</h2></summary>
+
 <p align="center">
   <img src="assets/screenshots/home-split.png" alt="Home: the menu beside the playing album's cover" width="45%">
   &nbsp;
@@ -53,6 +53,8 @@
 
 > [!IMPORTANT]
 > Charge the Q2 before you start. Only insert or remove the microSD card while the Q2 is **fully shut down** (not asleep), or the card can be corrupted.
+>
+> Flashing firmware carries risk. Back up anything on the card you can't lose before you start.
 
 1. **Download** `Q2.Firmware.*.zip` from the [latest release](https://github.com/DiamondBond/q2-pod/releases/latest).
 2. **Plug the Q2 into your computer** with the USB-C cable. The card shows up as a drive.
@@ -78,13 +80,13 @@
 | **Hold Play/Pause** | Track, queue, playlist and shuffle/repeat options.                 |
 | **Hold Return**     | Jump to Now Playing; hold again to go back.                        |
 
-The [user guide](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf) covers every control, EQ, Coverflow and more tips.
+The user guide covers every control, EQ, Coverflow and more tips.
 
 ## Library
 
 Copy your music to the card over USB-C, then run **Library → Update Local Music** on the Q2.
 
-These folders at the card's root each add their own Library entry: `Podcasts/`, `Audiobooks/`, `Photos/`, `Books/`, `Videos/`, and `EQ/` for EQ presets. See the [user guide](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf) for supported formats.
+These folders at the card's root each add their own Library entry: `Podcasts/`, `Audiobooks/`, `Photos/`, `Books/`, `Videos/`, and `EQ/` for EQ presets. See the user guide for supported formats.
 
 Settings, play counts, ratings and resume points are stored on the Q2 itself, so they stay put when you swap cards.
 
@@ -95,7 +97,7 @@ Repeat the [install steps](#install) with the newest release. Your settings, rat
 ## Restoring stock firmware
 
 - **Back to Shanling's firmware:** install the [official Shanling firmware](https://en.shanling.com/download/150) the same way.
-- **If the Q2 won't start up:** copy the `recovery-update` folder from [Shanling's recovery package](https://drive.google.com/file/d/1aINQfJu6n0JTQ4hOzzD1uSpSj3TS_NJj/view?usp=drive_link) to the card, then hold **previous-song** and power on with **centre**.
+- **If the Q2 won't start up:** copy the `recovery-update` folder from [Shanling's recovery package](https://drive.google.com/file/d/1aINQfJu6n0JTQ4hOzzD1uSpSj3TS_NJj/view?usp=drive_link) to the card, then hold **Previous** and power on with **Centre**.
 
 ## Help
 
