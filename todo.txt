@@ -1,2 +1,14 @@
-- Update repo artwork & user guide (after being able to actually get screenshots of the Q2)
-- Make Shuffle songs faster
+- boot: user boot logo from the card
+  The splash is drawn by S11logo_display_shell before the card mounts
+  (S90play waits for /tmp/mmc_add), but /mnt/data is up by S10mount_ubifs.
+  - Card folder, e.g. /Q2Pod/boot/boot-logo.jpg.
+  - Once the card is mounted, validate it (320x375, 8-bit 3-component
+    baseline JPEG, size cap) and copy it to /mnt/data/boot-logo.jpg via a
+    synced temp file + rename; on failure show an error and keep the current logo.
+  - S11logo_display_shell: use /mnt/data/boot-logo.jpg when present, else
+    the built-in splash.
+  - Removing the card file restores the default.
+  - Takes effect from the next power-on.
+  - Maybe accept upright 375x320 and rotate on device, so users needn't
+    pre-rotate 90° clockwise.
+  - Document in docs/boot.md (Custom boot logo).
