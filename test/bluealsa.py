@@ -7,13 +7,11 @@ import pathlib, struct, subprocess, sys
 from unicorn import Uc, UC_ARCH_MIPS, UC_MODE_MIPS32, UC_MODE_LITTLE_ENDIAN, UC_HOOK_CODE
 from unicorn.mips_const import *
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'tools'))
-from build import BLUEALSA, BT_DROP, BT_DROP_HANDLER, BT_PCM_CALLERS, load_elf, segments
+from build import BLUEALSA, BT_DROP, BT_DROP_HANDLER, BT_PCM_CALLERS, machine, segments
 
 
 def check_drop(raw, queued, caller=None):
-    u = Uc(UC_ARCH_MIPS, UC_MODE_MIPS32 | UC_MODE_LITTLE_ENDIAN)
-    load_elf(u, raw)
-    u.mem_map(0x1000000, 0x10000)
+    u = machine(raw, 0x1000000)
     pcm, transport, state, stop = 0x1000000, 0x1000200, 0x1000400, 0x1000600
     def word(address, value): u.mem_write(address, struct.pack('<I', value))
     def read(address): return struct.unpack('<I', u.mem_read(address, 4))[0]

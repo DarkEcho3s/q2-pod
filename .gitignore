@@ -12,3 +12,8 @@ __pycache__/
 .build-number
 docs/manual/*.pdf
 graphify-out/
+
+# graphify install regenerates these per agent
+.claude/skills/
+.codex/skills/
+.agents/skills/

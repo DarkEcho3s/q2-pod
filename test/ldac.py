@@ -2,19 +2,13 @@
 """Exercise the shipped LDAC encoder's intermediate rates and bluealsa's Auto dispatch."""
 import pathlib, struct, subprocess, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'tools'))
-from build import load_elf
-from unicorn import Uc, UC_ARCH_MIPS, UC_MODE_MIPS32, UC_MODE_LITTLE_ENDIAN, UC_HOOK_CODE
+from build import machine
+from unicorn import UC_HOOK_CODE
 from unicorn.mips_const import *
 
 directory = pathlib.Path(sys.argv[1])
 def image(name):
     return subprocess.check_output(['unsquashfs', '-cat', str(directory/'rootfs.squashfs'), name])
-
-def machine(raw):
-    u = Uc(UC_ARCH_MIPS, UC_MODE_MIPS32 | UC_MODE_LITTLE_ENDIAN)
-    load_elf(u, raw)
-    u.mem_map(0x2000000, 0x10000)
-    return u
 
 def word(u, address, value):
     u.mem_write(address, struct.pack('<I', value))
@@ -32,7 +26,7 @@ def call(u, address, *args):
     assert u.reg_read(UC_MIPS_REG_PC) == 0x200ff00
     return u.reg_read(UC_MIPS_REG_V0)
 
-encoder = machine(image('usr/lib/libldacBT.so.2.0.19'))
+encoder = machine(image('usr/lib/libldacBT.so.2.0.19'), 0x2000000)
 handle = 0x2001000
 # An initialized stereo encoder. alter_eqmid changes the next frame's size without allocation.
 for offset, value in ((4, 1), (0x14, 2), (0x28, 5), (0x58, 0)):
@@ -49,7 +43,7 @@ for expected in (4, 3, 1, 0):
     assert call(encoder, 0x217c, handle, 1) == 0
     assert read(encoder, handle+0x58) == expected
 
-daemon = machine(image('usr/bin/bluealsa'))
+daemon = machine(image('usr/bin/bluealsa'), 0x2000000)
 # SetLDACQuality converts the wire values 0x15/16/17/18 to 0/1/2/3.
 for quality, eqmid, adaptive in ((0,0,0), (1,1,0), (2,2,0), (3,1,1)):
     word(daemon, 0x441a50, quality)
@@ -57,7 +51,7 @@ for quality, eqmid, adaptive in ((0,0,0), (1,1,0), (2,2,0), (3,1,1)):
     assert (read(daemon, 0x4417a0), read(daemon, 0x441bf0)) == (eqmid, adaptive)
 
 # Run the actual ABR library with its encoder callbacks delegated to the actual encoder above.
-abr = machine(image('usr/lib/libldacBT_ABR.so.2.0.0'))
+abr = machine(image('usr/lib/libldacBT_ABR.so.2.0.0'), 0x2000000)
 state, history = 0x2002000, 0x2003000
 calloc = read(abr, 0x18ea0-0x7fc8)
 word(abr, state+8, 0x2000100)

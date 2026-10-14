@@ -2,16 +2,14 @@
 """Exercise the installed TagLib's native MP4 dispatch, without decoding audio or flashing."""
 import pathlib, struct, subprocess, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]/'tools'))
-from build import load_elf, fileoff
+from build import machine, fileoff
 from unicorn import Uc, UC_ARCH_MIPS, UC_MODE_MIPS32, UC_MODE_LITTLE_ENDIAN, UC_HOOK_CODE
 from unicorn.mips_const import *
 raw = subprocess.check_output(['unsquashfs','-cat',str(pathlib.Path(sys.argv[1])/'stock.squashfs'),'usr/lib/libtag.so.2.0.1'])
 # Pin the native resolver: M4A and M4B compare in the same chain and branch to MP4's constructor.
 assert raw[fileoff(raw,0x115130):fileoff(raw,0x115130)+4] == b'M4B\0'
 for ext in ('M4A','M4B','m4b','M4b','m4B','MP4'):
-    u=Uc(UC_ARCH_MIPS,UC_MODE_MIPS32|UC_MODE_LITTLE_ENDIAN)
-    load_elf(u,raw)
-    u.mem_map(0x2000000,0x10000)
+    u=machine(raw,0x2000000)
     def word(addr): return struct.unpack('<I',u.mem_read(addr,4))[0]
     gp=0x158590
     eq,alloc,mp4=[word(gp+n) for n in (-0x7c10,-0x69ac,-0x6e90)]
