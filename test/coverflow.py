@@ -18,6 +18,7 @@ SHIM_H = r"""
 #include <dirent.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 typedef int (*handler)(void *, void *);
 extern pthread_mutex_t shim_parse, shim_play;
 extern void *shim_dir;
@@ -377,6 +378,7 @@ static int write_art(const char *dst, const char *what) {
 }
 int toolsThumbSpecCover(const char *src, const char *dst, int ww, int h) {
     assert(ww == 160 && h == 160 && held[0] && !held[1] && strstr(dst, ".jpg.tmp"));
+    if (strstr(src, ".webp")) return 0; /* stock decodes only JPEG and PNG */
     return write_art(dst, strrchr(src, '/') + 1);
 }
 int toolsGetAlbumCover(const char *src, const char *dst, int ww, int h) {
@@ -975,6 +977,19 @@ static void disc_folders(void) {
     rescan();
 }
 
+static void ffmpeg_art(void) {
+    /* What stock cannot decode goes to ffmpeg (FFMPEG_STUB): a folder's cover.webp, and the
+       embedded picture of an album whose track only ffmpeg reads. */
+    int before = calls;
+    embedded_fails = 1;
+    album("Webp", "cover.webp");
+    album("Ffok", 0);
+    rescan();
+    open_page();
+    assert(calls == before && size("Webp") == 6 && size("Ffok") == 6 && !tmp_files());
+    close_page();
+}
+
 int main(void) {
     /* Titles come from tags, unchanged; missing tags retain filename/CUE fallbacks. */
     char track[0x60] = {0}, name[512];
@@ -1108,6 +1123,7 @@ int main(void) {
     same_name();
     disc_folders();
     audiobooks();
+    ffmpeg_art();
 #if IPOD
     /* iPod Home: the player's cover for its type, once the player has parsed the current track
        (g_lastcover_url is its path), else the track album's Coverflow thumbnail, else the
@@ -1243,6 +1259,14 @@ int main(void) {
 """
 
 
+# Stands in for stock ffmpeg: "ffmpeg" in its output (the last argument) for a .webp source or a
+# track under Ffok/, else a failure.
+FFMPEG_STUB = r"""#!/bin/sh
+for a; do [ "$prev" = -i ] && src=$a; prev=$a; done
+case $src in *.webp|*/Ffok/*) printf ffmpeg > "$a";; *) exit 1;; esac
+"""
+
+
 def main():
     import argparse, os
     ap = argparse.ArgumentParser(description=__doc__)
@@ -1273,10 +1297,12 @@ def main():
         tmp = pathlib.Path(directory)
         (tmp/'shim.h').write_text(SHIM_H)
         (tmp/'test.c').write_text(TEST)
+        (tmp/'ffmpeg').write_text(FFMPEG_STUB)
+        (tmp/'ffmpeg').chmod(0o755)
         for ipod in (0, 1):  # a fresh card each run
             binary = tmp/f'coverflow_test{ipod}'
             subprocess.run(['cc', '-m32', '-pthread', '-DPEQ_HOST', f'-DPEQ_ROOT="{tmp}/root{ipod}"', f'-DIPOD={ipod}',
-                            '-D_GNU_SOURCE', '-O1', '-Wall', '-Wextra', '-Werror', '-Wno-unused-function',
+                            f'-DART_FFMPEG="{tmp}/ffmpeg"', '-D_GNU_SOURCE', '-O1', '-Wall', '-Wextra', '-Werror', '-Wno-unused-function',
                             '-I', str(ROOT/'patch'), '-include', str(tmp/'shim.h'), str(ROOT/'patch/coverflow.c'),
                             str(tmp/'test.c'), '-o', str(binary)], check=True)
             env = dict(os.environ)
@@ -1291,7 +1317,7 @@ def main():
             for raw in sorted((tmp/'frames').glob('*.rgba')):  # RGBA8888 rows, the frame's byte order
                 (a.captures/(raw.stem + '.png')).write_bytes(imagemagick(
                     '-size', size, '-depth', '8', 'rgba:-', '-alpha', 'off', 'png:-', data=raw.read_bytes()))
-    print('Coverflow: art order, locks, markers, resume, cancel, Refresh, album list reuse, low space and empty library passed;'
+    print('Coverflow: art order, ffmpeg fallback, locks, markers, resume, cancel, Refresh, album list reuse, low space and empty library passed;'
           ' depth renderer (exact centre, clipping, symmetry, reflection, continuity),'
           ' its texture window, centre click, small libraries and flat fallback passed;'
           ' Sort by artist, year, recently added, most played and random, kept across opens, passed; an artist\'s albums alone passed;'

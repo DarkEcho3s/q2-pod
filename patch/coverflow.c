@@ -122,12 +122,31 @@ static char *art_path(char *out, unsigned key, const char *suffix) {
  * it stays a failure, and the placeholder would stay until a reboot. url is "file://" + the path. */
 static int art_exists(const char *url) { return !access(url + 7, 0); }
 
-/* stock's thumbnailer, under the lock every stock caller holds; shared with photos.c */
+#ifndef ART_FFMPEG
+#define ART_FFMPEG "/usr/bin/ffmpeg"
+#endif
+
+/* Stock ffmpeg's first picture of src (an image, or an audio file's embedded one) fitted into w x h
+ * as a JPEG at dst: what stock's decoder refuses (WebP, a PNG over 1 MB, a JPEG over 6 MB). Uses no
+ * shared file, so no lock. ponytail: a process per cover; a resident decoder if first builds drag. */
+static int ff_thumb(const char *src, const char *dst, int w, int h) {
+    char vf[80];
+    tk_snprintf(vf, sizeof(vf), "scale=%d:%d:force_original_aspect_ratio=decrease", w, h);
+    int status, pid = fork();
+    if (!pid) {
+        execl(ART_FFMPEG, ART_FFMPEG, "-nostdin", "-v", "quiet", "-i", src, "-frames:v", "1", "-vf",
+              vf, "-pix_fmt", "yuvj420p", "-q:v", "3", "-f", "mjpeg", "-y", dst, (char *)0);
+        exit(127);
+    }
+    return pid > 0 && waitpid(pid, &status, 0) == pid && !status;
+}
+
+/* stock's thumbnailer, under the lock every stock caller holds, else ffmpeg; shared with photos.c */
 int thumb(const char *src, const char *dst, int w, int h) {
     pthread_mutex_lock((void *)parse_cover_mutex);
     int ok = toolsThumbSpecCover(src, dst, w, h) == 1;
     pthread_mutex_unlock((void *)parse_cover_mutex);
-    return ok;
+    return ok || (!access(src, 4) && ff_thumb(src, dst, w, h)); /* none for a missing file */
 }
 
 /* Whether another album has a track in this one's folder. ponytail: a scan of every album per
@@ -142,8 +161,9 @@ static int folder_shared(unsigned key, const char *track) {
     return 0;
 }
 
-/* One album: embedded art, then cover.jpg and folder.jpg (not from a folder shared with other
- * albums, whose cover.jpg would be theirs too), written to .tmp and renamed. An empty file marks
+/* One album: embedded art, then cover and folder images (not from a folder shared with other
+ * albums, whose cover.jpg would be theirs too), then ffmpeg's read of the embedded art, last as it
+ * costs a process for every album without art; written to .tmp and renamed. An empty file marks
  * "no art", so the placeholder shows and the album is not retried until Refresh. */
 static void build_art(const job_t *j) {
     char dst[512], tmp[512], src[1024];
@@ -160,11 +180,13 @@ static void build_art(const job_t *j) {
     pthread_mutex_unlock((void *)parse_cover_mutex);
     const char *slash = strrchr(j->track, '/');
     int folder = slash ? (int)(slash - j->track) : 0;
-    static const char *const names[] = { "cover.jpg", "folder.jpg" };
-    for (int i = 0; i < 2 && !ok && !j->shared; ++i) {
+    static const char *const names[] = { "cover.jpg",  "folder.jpg",  "cover.png",
+                                          "folder.png", "cover.webp", "folder.webp" };
+    for (unsigned i = 0; i < sizeof(names) / sizeof(*names) && !ok && !j->shared; ++i) {
         snprintf(src, sizeof(src), "%.*s/%s", folder, j->track, names[i]);
         ok = !access(src, 4) && thumb(src, tmp, ART_SIZE, ART_SIZE);
     }
+    ok = ok || ff_thumb(j->track, tmp, ART_SIZE, ART_SIZE);
     if (ok && !rename(tmp, dst)) return;
     unlink(tmp);
     if (access(j->track, 0)) return;
