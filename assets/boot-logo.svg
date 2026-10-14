@@ -3,7 +3,7 @@
   <g fill="none" stroke="#F2F2F0" stroke-width="10">
     <circle cx="154" cy="131" r="30"/>
     <path d="M168 145L185 162"/>
-    <path d="M208.08 123.83A21 21 0 1 1 243.33 137.35L218 161H251" stroke-miterlimit="10"/>
+    <path d="M208.08 124.92A22 22 0 1 1 242.89 140.83L215 161H255" stroke-miterlimit="10"/>
   </g>
   <g fill="none" stroke="#8C8C88" stroke-width="2">
     <path d="M158 190V200M158 191H162A3 3 0 0 1 162 197H158"/>
