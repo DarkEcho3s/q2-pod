@@ -30,27 +30,27 @@ Each connection rereads `/mnt/mmc/q2remote.key` while the card is mounted, so re
 
 ## Commands
 
-| Command | Does |
-|---|---|
-| `sh 'COMMAND'` | Runs `COMMAND` with busybox `sh` as root, printing stdout and stderr together. There is no exit status: append `; echo $?` if you need it. |
-| `shot OUT.png` | Saves the displayed framebuffer as an upright 375×320 PNG. |
-| `key NAME [MS]` | Presses a button for `MS` ms (default 80). |
-| `wheel N` | Turns the wheel `N` ticks: positive is down/next, negative up/back. |
-| `tap X Y` | Taps the screen at upright screenshot coordinates (0-374, 0-319). |
-| `events N [S]` | Prints raw events from `/dev/input/eventN` for `S` seconds (default 5). |
-| `devices` | Lists the input devices and their key and axis codes. |
-| `reboot` | Syncs and reboots into the saved boot target; q2remote answers again once the Q2 rejoins Wi-Fi, which can take a few minutes. |
+| Command         | Does                                                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sh 'COMMAND'`  | Runs `COMMAND` with busybox `sh` as root, printing stdout and stderr together. There is no exit status: append `; echo $?` if you need it. |
+| `shot OUT.png`  | Saves the displayed framebuffer as an upright 375×320 PNG.                                                                                 |
+| `key NAME [MS]` | Presses a button for `MS` ms (default 80).                                                                                                 |
+| `wheel N`       | Turns the wheel `N` ticks: positive is down/next, negative up/back.                                                                        |
+| `tap X Y`       | Taps the screen at upright screenshot coordinates (0-374, 0-319).                                                                          |
+| `events N [S]`  | Prints raw events from `/dev/input/eventN` for `S` seconds (default 5).                                                                    |
+| `devices`       | Lists the input devices and their key and axis codes.                                                                                      |
+| `reboot`        | Syncs and reboots into the saved boot target; q2remote answers again once the Q2 rejoins Wi-Fi, which can take a few minutes.              |
 
 ## Input
 
-| Control | How | Device |
-|---|---|---|
-| Centre | `key centre`; hold 5 s (`key centre 5000`) for the shutdown prompt | `md-gpio-keys`, `KEY_POWER` 116 |
-| Return | `key return` | `md-gpio-keys`, `KEY_UP` 103 |
-| Play/Pause | `key play` | `md-gpio-keys`, `KEY_DOWN` 108 |
-| Next, Previous | `key next`, `key prev` | `md-gpio-keys`, 163, 165 |
-| Wheel | `wheel N` | `hyn_sliderbar`: x 1-200 a turn, read through tslib |
-| Touch | `tap X Y` | `hyn_ts`: the portrait panel's axes, which `tap` converts |
+| Control        | How                                                                | Device                                                    |
+| -------------- | ------------------------------------------------------------------ | --------------------------------------------------------- |
+| Centre         | `key centre`; hold 5 s (`key centre 5000`) for the shutdown prompt | `md-gpio-keys`, `KEY_POWER` 116                           |
+| Return         | `key return`                                                       | `md-gpio-keys`, `KEY_UP` 103                              |
+| Play/Pause     | `key play`                                                         | `md-gpio-keys`, `KEY_DOWN` 108                            |
+| Next, Previous | `key next`, `key prev`                                             | `md-gpio-keys`, 163, 165                                  |
+| Wheel          | `wheel N`                                                          | `hyn_sliderbar`: x 1-200 a turn, read through tslib       |
+| Touch          | `tap X Y`                                                          | `hyn_ts`: the portrait panel's axes, which `tap` converts |
 
 All of it is injected by writing input events to `/dev/input/eventN`, so the firmware sees exactly what the hardware would send and `demo` needs no change. `wheel` reads the saved **Wheel Sensitivity** from `/mnt/data/config.ini`, so one tick is one tick of the firmware at any setting ([internals.md](internals.md), the wheel). The PMIC's 10-15 s Centre reset is wired in hardware and can't be injected; use `reboot`.
 

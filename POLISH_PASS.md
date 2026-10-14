@@ -34,6 +34,7 @@ You are the lead. Sub-agents do all the work, one phase each: plan, implement, r
   d = open(sys.argv[1], "rb").read()
   print(q.shell("cd /mnt/mmc && cat > update.tar.new && mv update.tar.new update.tar && sync && echo 3 > /proc/sys/vm/drop_caches && md5sum update.tar", d, timeout=600).decode())' <build>/update.tar
   ```
+
   - The md5 must match `md5sum <build>/update.tar`.
   - Then on the device: Settings → System → System Update → TF card update → OK.
   - Wait until `md5sum /release/bin/demo` matches `<build>/demo`.
@@ -53,6 +54,7 @@ The planner reads README.md, docs/ipod.md, docs/changelog.md and docs/remote.md 
 It writes down every flaw it sees: inconsistent spacing, type, colour or alignment; raw or technical text (file names, stock strings, odd capitalisation); dead ends; slow or janky moments; missing feedback; anything that falls short of the original iPod.
 
 It returns the flaws ranked by how much a user would notice, grouped as: seen every session / dead ends and missing feedback / visual consistency / lower impact. For each flaw it gives:
+
 - the screen and what's wrong
 - the screenshot path
 - where in the code it comes from
@@ -64,6 +66,7 @@ It returns the flaws ranked by how much a user would notice, grouped as: seen ev
 ## 2. Implement (sub-agent)
 
 Give the implementer the approved list. It fixes the items highest impact first. It should:
+
 - keep each change conservative and follow stock firmware behaviour unless deliberately improving on it
 - fix root causes in the shared function, not one caller
 - update the emulator tests in test/patch.py for every behaviour change, and add one small check for each new piece of logic
@@ -75,6 +78,7 @@ It reports, item by item, what it changed (file:line), what it left alone and wh
 ## 3. Review (two sub-agents, read-only)
 
 Run both on the working-tree diff. They edit nothing and don't build.
+
 - **ponytail-review:** over-engineering, duplication and helpers that already exist. One line per finding: location, what to cut, what replaces it.
 - **code-review:** correctness bugs, regressions and missed callers. For each finding: location, the failure scenario, and a fix.
 
@@ -83,6 +87,7 @@ Judge every finding yourself before passing it on, because reviewers can be wron
 ## 4. Fix (sub-agent)
 
 Give the fixer the findings you accepted. It:
+
 - applies them
 - rebuilds and reruns all three suites until they pass
 - installs the build over Wi-Fi
@@ -93,6 +98,7 @@ It reports the build tag, the test counts, the screenshot paths, and the md5 mat
 ## 5. Hand-off to me
 
 Look at the after screenshots yourself, then tell me:
+
 - **What changed:** one bullet per area (Hold menus, Wording, Song rows, …), in plain words a user would understand
 - **What to look for on the device:** for each change, where to go and what I should see, for example "Hold Play/Pause on a song: three whole rows, none cut under the title"
 - **Left alone:** each skipped item and why
