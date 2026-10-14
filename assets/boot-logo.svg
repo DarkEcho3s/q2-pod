@@ -5,9 +5,14 @@
     <path d="M168 145L185 162"/>
     <path d="M208.08 124.92A22 22 0 1 1 242.89 140.83L215 161H255" stroke-miterlimit="10"/>
   </g>
-  <g fill="none" stroke="#8C8C88" stroke-width="2">
-    <path d="M158 190V200M158 191H162A3 3 0 0 1 162 197H158"/>
-    <circle cx="188" cy="195" r="4"/>
-    <path d="M210 190V200M210 191H213A4 4 0 0 1 213 199H210"/>
+  <g fill="none" stroke="#5A5A57">
+    <path d="M124 180H180M198 180H255"/>
+    <path d="M186 175L182 185M191 175L187 185M196 175L192 185" stroke-width="1.5"/>
   </g>
+  <g fill="none" stroke="#D4D4D0" stroke-width="1.4">
+    <path d="M150 204V193H153.85A3.08 3.08 0 0 1 153.85 199.16H150"/>
+    <circle cx="188.57" cy="198.5" r="5.5"/>
+    <path d="M220.2 204V193H223.5A5.5 5.5 0 0 1 223.5 204Z"/>
+  </g>
+  <circle cx="188.57" cy="198.5" r="1.2" fill="#D4D4D0"/>
 </svg>
