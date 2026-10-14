@@ -14,8 +14,8 @@
     - Folder and song lists use the full width, so the selection and chevrons line up with Library and Settings.
     - Shuffle, Ratings, Radio and the Coverflow tracks are left-aligned like every other list, with chevrons on rows that open lists.
   - Times: they read "0:02" instead of "00:02".
-  - Artist albums: Playback settings' new **Artist Album Order** lists an artist's albums A–Z instead of by year, in the grid and in Coverflow. **Artist Albums: List** shows them as a plain list, without artwork.
-  - Home: Display's new **Shortcut** row picks what Home's Rockbox row opens: Rockbox, Artists, Albums or Favorites. Other than Rockbox, the row shows without Rockbox on the card.
+  - Artist albums: Playback settings' new **Artist Album Order** lists an artist's albums A–Z instead of by year, in the grid and in Coverflow. **Artist Albums: List** shows them as a plain list, without artwork. **Artist Albums: Coverflow** is now the default.
+  - Home: Display's new **Shortcut** row picks what Home's Rockbox row opens: Rockbox, Favorites, Artists or Albums. Other than Rockbox, the row shows without Rockbox on the card, and without it the row opens Favorites by default.
   - Shuffle Songs, Albums and Folders start faster: they no longer sort the whole library by title first.
   - Hold Play/Pause: the queue menu titles a song by its title tag, not its file name with the extension.
   - Now Playing's info page reads "Label: value" with spaced units, and a paused scrub stays paused and plays from the new position on Play.

@@ -88,7 +88,7 @@ selection rectangle or chevron. **Theme: Classic** styles the menu as before 1.0
 
 The seven destinations remain Now Playing, Library, Coverflow, Folder, Rockbox, Streaming and
 Settings. Rockbox is visible only when its binary is on the card, unless Display's **Shortcut**
-(`IPOD/SHORTCUT` 0-3) turns that row into Artists, Albums or Favorites (`home_shortcut_open`). Settings opens Playback and
+(`IPOD/SHORTCUT` 0-3) turns that row into Artists, Albums or Favorites (`home_shortcut_open`); with no key it is Rockbox when the card has it, else Favorites. Centre cycles Rockbox, Favorites, Artists, Albums. Settings opens Playback and
 System; Return restores the menu's previous selection. The native stock handlers, translation
 keys, full-row tap targets, wheel hard ends and submenu animation remain intact.
 
@@ -150,6 +150,7 @@ stock font at 16 pixels.
 The percentage's slot is as wide as its digits (measured once in the stock font, which has tabular
 digits), so every mode ends on the icons' margin with the same 4-pixel gap to Wi-Fi; `BATT_PCT_W`
 (42, "100%") stands in until the first paint has measured them.
+
 - Percent Inside (`BATTERY=3`): a compact 32×16 solid battery with softly rounded corners and a 2×6 terminal. Centred 13 px dark digits show the percentage without a percent sign. The body turns green while charging and red when low.
 
 The playback, Bluetooth and Wi-Fi glyphs share smooth edges, rounded ends and a consistent visual weight. Four-pixel spacing keeps the enlarged numbers clear of connectivity icons. Wi-Fi's arcs are concentric round its dot and stand the battery's 11 pixels tall; it retains all five signal states.
@@ -517,7 +518,7 @@ builds three rows with `0x4c19bc`: a `list_item_create(view, 0, 0, 0, 0)` in `s_
 show no value; each opens a sub-page (iPod's [settings rows](#settings) then lay them out 68
 pixels high). iPod runs the stock init, then adds six rows the same way: "Theme: Minimal" and
 "Accent: Graphite" with the System settings Display icon (`system_display`), "Home: Split" with Play settings' cover
-mode icon (`playset_covermode`), "Artist Albums: Grid" (`Q2POD ARTISTCF`, same icon, see [internals.md](internals.md#artist-albums-in-coverflow)),
+mode icon (`playset_covermode`), "Artist Albums: Coverflow" (`Q2POD ARTISTCF`, the default; Grid and List, same icon, see [internals.md](internals.md#artist-albums-in-coverflow)),
 "Battery: Icon" (Icon, Percent, Icon + Percent, Percent Inside; see
 [Status bar and clock](#status-bar-and-clock)) with the power manager icon
 (`system_powermanager`), then "Shortcut: Rockbox", all among the [settings icons](#settings-icons)

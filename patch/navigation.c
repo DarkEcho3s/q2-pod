@@ -191,7 +191,7 @@ typedef struct {
     int codec, codec_step, batt_mode;
     unsigned codec_timer, batt_key;
     int pct_digit, pct_sign; /* BATT_PX advances of '0' and '%', measured on the first paint */
-    unsigned letter_timer; /* the fast-scroll letter shows while this runs */
+    unsigned letter_timer;   /* the fast-scroll letter shows while this runs */
     /* Now Playing's window and payload-filled widgets, and the sources they last showed. */
     void *np_win, *np_pos, *np_album, *np_slider, *np_remain, *np_elapsed, *np_cover;
     void *np_slide, *np_lrc; /* the art/lyrics/info pages and the lyric lines' scroll_view */
@@ -1253,12 +1253,15 @@ static void pull_begin(void *event) {
     context_now(&st.pull_scope);
 }
 
-/* A one-digit setting under section in the stock config.ini, 0 to n - 1, else 0:
- * toolsReadConfig(path, section, key, out, default) copies the value, or the default. */
+/* A one-digit setting under section in the stock config.ini, 0 to n - 1, else def (a missing key
+ * too): toolsReadConfig(path, section, key, out, default) copies the value, or the default. */
+static int config_or(const char *section, const char *key, int n, int def) {
+    char s[256] = "", d[2] = { (char)('0' + def), 0 };
+    toolsReadConfig("/mnt/data/config.ini", section, key, s, d);
+    return s[0] >= '0' && s[0] < '0' + n && !s[1] ? s[0] - '0' : def;
+}
 int config_value(const char *section, const char *key, int n) {
-    char s[256] = "";
-    toolsReadConfig("/mnt/data/config.ini", section, key, s, "0");
-    return s[0] >= '0' && s[0] < '0' + n && !s[1] ? s[0] - '0' : 0;
+    return config_or(section, key, n, 0);
 }
 
 #define ROCKBOX_BIN "/mnt/mmc/.rockbox/rockbox"
@@ -1296,14 +1299,22 @@ int config_digit(const char *key, int n) {
 /* The Display rows' settings, by ringnav_display's index: 0 Accent, 1 Home, 2 Battery, 3 Theme. */
 static const char *const setting_keys[] = { "ACCENT", "HOME", "BATTERY", "THEME", "SHORTCUT" };
 static const int setting_counts[] = { ACCENT_N, 2, 4, 2, 4 };
-static int *const setting_values[] = { &st.accent, &st.home_full, &st.battery, &st.classic, &st.shortcut };
+static int *const setting_values[] = { &st.accent, &st.home_full, &st.battery, &st.classic,
+                                       &st.shortcut };
 static int accent(void) {
     if (!st.settings_read) {
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < 4; ++i)
             *setting_values[i] = config_digit(setting_keys[i], setting_counts[i]);
+        st.shortcut = config_or("IPOD", "SHORTCUT", 4, 4); /* 4: no key, see shortcut() */
         st.settings_read = 1;
     }
     return st.classic ? st.accent : 0; /* Graphite */
+}
+/* Shortcut with no key is Rockbox while the card has it, else Favorites: asked each time, as the
+ * card may mount after the first read. */
+static int shortcut(void) {
+    accent();
+    return st.shortcut < 4 ? st.shortcut : rockbox_available() ? 0 : 3;
 }
 int ipod_classic(void) {
     accent();
@@ -1319,25 +1330,27 @@ int ipod_battery(void) {
 } /* lockscreen.c's Large clock */
 /* 1 when Home shows its Rockbox row (coverflow_home_layout): the card has Rockbox. */
 int ipod_home_rockbox(void) {
-    accent();
     st.home_rockbox = rockbox_available();
-    return st.shortcut || st.home_rockbox;
+    return shortcut() || st.home_rockbox;
 }
 const char *ipod_home_shortcut(void) {
     static const char *const names[] = { "Rockbox", "Artists", "Albums", "Favorites" };
-    accent();
-    return names[st.shortcut];
+    return names[shortcut()];
 }
 extern int rockbox_open(void *, void *);
 int home_shortcut_open(void *ctx, void *event) {
-    accent();
-    if (!st.shortcut) return rockbox_open(ctx, event);
-    if (st.shortcut == 2) {
-        struct { int cls; void *record; } album = { 0xf003, 0 };
+    int s = shortcut();
+    if (!s) return rockbox_open(ctx, event);
+    if (s == 2) {
+        struct {
+            int cls;
+            void *record;
+        } album = { 0xf003, 0 };
         return navigator_to_with_context("localmusic/album_page", &album);
     }
-    return navigator_to_with_context(st.shortcut == 1 ? "localmusic/localclass_page" : "localmusic/allmusic_page",
-                                     (void *)(long)(st.shortcut == 1 ? 0xf004 : 0xf00a));
+    return navigator_to_with_context(s == 1 ? "localmusic/localclass_page"
+                                            : "localmusic/allmusic_page",
+                                     (void *)(long)(s == 1 ? 0xf004 : 0xf00a));
 }
 enum { TONE_LIGHT = 2, TONE_RED = 3 }; /* columns of ACCENTS */
 unsigned accent_tone(int tone) {
@@ -1860,7 +1873,9 @@ static const char *const pod_keys[] = { "CHARGELIMIT", "LOWPOWER",  "WAKEDOUBLE"
 static void pod_settings(void) {
     if (st.pod_read) return;
     for (unsigned i = 0; i < sizeof pod_keys / sizeof *pod_keys; ++i)
-        if (pod_keys[i]) *pod_values[i] = config_value("Q2POD", pod_keys[i], i == POD_ARTIST_CF ? 3 : 2);
+        if (pod_keys[i]) /* Artist albums defaults to Coverflow */
+            *pod_values[i] =
+                config_or("Q2POD", pod_keys[i], i == POD_ARTIST_CF ? 3 : 2, i == POD_ARTIST_CF);
     st.pod_read = 1;
 }
 int ringnav_year_old(void) {
@@ -2074,7 +2089,8 @@ static int codec_fade(const void *info) {
     return 0;
 }
 
-/* The percentage's width at BATT_PX: digits are tabular; BATT_PCT_W until the first paint measures. */
+/* The percentage's width at BATT_PX: digits are tabular; BATT_PCT_W until the first paint measures.
+ */
 static int pct_width(unsigned level) {
     if (!st.pct_digit) return BATT_PCT_W;
     return (level >= 100 ? 3 : level >= 10 ? 2 : 1) * st.pct_digit + st.pct_sign;
@@ -2924,7 +2940,8 @@ static void accent_row(void) {
 static int setting_click(void *ctx, void *event) {
     (void)event;
     int i = (int)(long)ctx, *value = setting_values[i];
-    *value = (*value + 1) % setting_counts[i];
+    static const int shortcut_next[] = { 3, 2, 0, 1 }; /* Rockbox, Favorites, Artists, Albums */
+    *value = i == 4 ? shortcut_next[shortcut()] : (*value + 1) % setting_counts[i];
     write_int_config(*value, "IPOD", setting_keys[i]);
     if (i == 2)
         widget_invalidate_force(*(void *const *)system_bar, (void *)0); /* bar_sync applies it */
@@ -3104,18 +3121,20 @@ static void hide_outline(void) {
 int ringnav_touch(void *ctx, void *event) {
 #if IPOD
     /* settle_timer while paused on the scrubbed track: a paused seek still waiting for Play. */
-    int hold = st.settle_timer && st.np_slider && np_track() == st.scrub_track &&
-               mclGetPlayStatus() == 3;
+    int hold =
+        st.settle_timer && st.np_slider && np_track() == st.scrub_track && mclGetPlayStatus() == 3;
     if (hold && event) {
         int xy[2] = { I(event, EVENT_X), I(event, EVENT_Y) };
         widget_to_local(st.np_slider, xy);
-        if (xy[0] >= 0 && xy[0] < I(st.np_slider, W_W) &&
-            xy[1] >= 0 && xy[1] < I(st.np_slider, W_H)) hold = 0;
+        if (xy[0] >= 0 && xy[0] < I(st.np_slider, W_W) && xy[1] >= 0 &&
+            xy[1] < I(st.np_slider, W_H))
+            hold = 0;
     }
-    if (hold) stop_timer(&st.np_press); /* Swiping pages keeps the paused seek's preview. */
+    if (hold)
+        stop_timer(&st.np_press); /* Swiping pages keeps the paused seek's preview. */
     else
 #endif
-    np_cancel(); /* before the slider sees the touch, so a drag seeks the stock way */
+        np_cancel(); /* before the slider sees the touch, so a drag seeks the stock way */
     hide_outline();
     int result = stock_touch_trampoline(ctx, event);
     /* A tap is a fresh interaction: it cancels a pending screen-toggle pair and any spin. */

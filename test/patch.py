@@ -3618,7 +3618,7 @@ class ArtistCoverflow(ArtistMachine):
 for on,tab,page,want in ((1,1,'artistinfo_page',[1]),(2,1,'artistinfo_page',[1]),(0,1,'artistinfo_page',[]),(1,0,'artistinfo_page',[]),(1,1,'localclass_page',[])):
     m=ArtistCoverflow(page='localclass_page',cls=0xff01,rows=2); m.handed=[]
     m.word(m.row(1)+O['REC_ALBUM'],m.string('Other album'))
-    if on: m.config['ARTISTCF']=str(on)
+    m.config['ARTISTCF']=str(on)
     m.split=[m.song('Baroness'),m.song('STP')]
     for r in m.split: m.word(r+O['REC_ALBUM_ARTIST'],m.get(r+O['REC_NAME']))
     m.found=[m.split[0]]; m.artist_page(page)
@@ -5329,7 +5329,7 @@ if variant=='ipod':
     end(m,labels[1]); end(m,view); passed()
 
     m=Machine(); style_color(m,red)
-    assert m.config_reads==[('/mnt/data/config.ini','IPOD',key,'0') for key in ('ACCENT','HOME','BATTERY','THEME','SHORTCUT')]; passed()
+    assert m.config_reads==[('/mnt/data/config.ini','IPOD',key,'0') for key in ('ACCENT','HOME','BATTERY','THEME')]+[('/mnt/data/config.ini','IPOD','SHORTCUT','4')]; passed()
 
     # Gradients: the leaf's null checks, then the caller's stops mapped (nr @8, stops @0xc).
     def gradient(config,stops,same_out=True,vt_get=True,style=True):
@@ -5546,13 +5546,21 @@ if variant=='ipod':
         assert m.nodes[b]['style']=='s_btn_listitem' and [m.get(b+O[k]) for k in ('W_X','W_Y','W_W','W_H')]==[20,0,335,70]
         assert m.nodes[l]['type']=='hscroll_label' and m.nodes[l]['style']=='s_scrlabel_white24l' and m.get(l+O['W_X'])==72
     def texts(): return [m.nodes[l]['text'] for l in labels]
-    # Artist albums (Q2POD ARTISTCF), the other layout choice, after Home.
-    cf_label=m.nodes[m.nodes[cf]['children'][0]]['children'][1]; assert m.nodes[cf_label]['text']=='Artist Albums: Grid'
+    # Artist albums (Q2POD ARTISTCF), the other layout choice, after Home; no key is Coverflow.
+    cf_label=m.nodes[m.nodes[cf]['children'][0]]['children'][1]; assert m.nodes[cf_label]['text']=='Artist Albums: Coverflow'
     f,ctx=m.handler(m.nodes[cf]['children'][0],O['EVT_CLICK']); m.calls=[]
-    assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0 and m.nodes[cf_label]['text']=='Artist Albums: Coverflow'
-    assert [(c[1],m.text(c[2]),m.text(c[3])) for c in m.calls if c[0]=='write_int_config']==[(1,'Q2POD','ARTISTCF')]
-    m.call(address=f,args=(ctx,m.event,0,0),gap=0); assert m.nodes[cf_label]['text']=='Artist Albums: List'
-    m.call(address=f,args=(ctx,m.event,0,0),gap=0); assert m.nodes[cf_label]['text']=='Artist Albums: Grid'; passed()
+    assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0 and m.nodes[cf_label]['text']=='Artist Albums: List'
+    assert [(c[1],m.text(c[2]),m.text(c[3])) for c in m.calls if c[0]=='write_int_config']==[(2,'Q2POD','ARTISTCF')]
+    m.call(address=f,args=(ctx,m.event,0,0),gap=0); assert m.nodes[cf_label]['text']=='Artist Albums: Grid'
+    m.call(address=f,args=(ctx,m.event,0,0),gap=0); assert m.nodes[cf_label]['text']=='Artist Albums: Coverflow'; passed()
+    # Shortcut: no key is Rockbox on a card with it, else Favorites.
+    for card,first in ((True,'Rockbox'),(False,'Favorites')):
+        CONFIG.clear(); d=Machine(); d.rockbox_mode=0o100755 if card else 0
+        assert d.text(d.call(address=payload_syms['ipod_home_shortcut'],args=(0,0,0,0),gap=0))==first
+        assert d.call(address=payload_syms['ipod_home_rockbox'],args=(0,0,0,0),gap=0)==1  # shown either way
+    d.rockbox_mode=0o100755  # a card mounted after the first read: the default follows it
+    assert d.text(d.call(address=payload_syms['ipod_home_shortcut'],args=(0,0,0,0),gap=0))=='Rockbox'
+    passed()
     assert texts()==['Accent: Graphite','Home: Split','Battery: Icon','Theme: Minimal']; passed()
     def click(i):
         m.calls=[]; f,ctx=m.handler(buttons[i],O['EVT_CLICK'])
@@ -5578,7 +5586,7 @@ if variant=='ipod':
         assert tuple(signed(m.get(art+O[k])) for k in ('W_X','W_Y','W_W','W_H'))==(split,0,375-split,290)
     shortcut_button=m.nodes[shortcut]['children'][0]
     sf,sc=m.handler(shortcut_button,O['EVT_CLICK'])
-    for label in ('Artists','Albums','Favorites','Rockbox'):
+    for label in ('Favorites','Artists','Albums','Rockbox'):
         m.call(address=sf,args=(sc,m.event,0,0),gap=0)
         assert m.nodes[named(m,home,'label_rockbox')]['text']==label
     home_bounds(False)
@@ -5644,7 +5652,7 @@ if variant=='ipod':
     assert not {'fopen','player_stop','system'} & set(names)
     assert [m.text(c[1]) for c in m.calls if c[0]=='navigator_to_with_context']==['dialog/msginfo_dialog']; passed()
     # ipod_home_rockbox follows the card.
-    m=Machine(); m.rockbox_mode=0
+    m=Machine(); m.rockbox_mode=0; m.config['SHORTCUT']='0'
     assert m.call(address=payload_syms['ipod_home_rockbox'],args=(0,0,0,0),gap=0)==0
     m.rockbox_mode=0o100755
     assert m.call(address=payload_syms['ipod_home_rockbox'],args=(0,0,0,0),gap=0)==1; passed()
@@ -6163,7 +6171,7 @@ m.close(); assert m.call(address=f,args=(ctx,m.event,0,0),gap=0)==0 and m.top!=p
 def home_settings():
         # Home's Rockbox row shows only while the card has Rockbox: hidden, it moves after Settings, so the
         # list's layout leaves no gap; it comes back after Folder once the card has it.
-        m=ShuffleMachine(); m.rockbox_mode=0; view,imgs=home_list(m)
+        CONFIG['SHORTCUT']='0'; m=ShuffleMachine(); del CONFIG['SHORTCUT']; m.rockbox_mode=0; view,imgs=home_list(m)
         assert m.call(address=home_hook[0],args=(m.top,0,0,0),gap=0)==0
         btn=named(m,m.top,'btn_rockbox'); order=lambda: [m.nodes[r]['name'][4:] for r in m.nodes[view]['children']]
         assert order()==['playing','localmusic','coverflow','folder','stream','settings','rockbox'] and not m.nodes[btn]['visible']
