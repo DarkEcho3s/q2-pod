@@ -4226,7 +4226,7 @@ if variant=='ipod':
     # Volume: with the stock volume dialog directly over Now Playing, the dialog's own paint draws
     # the band from the progress bar to the times: black, the track, a white fill to the volume and
     # "Volume N". Its slider and label hide, the slider moved onto the band so stock's invalidation
-    # repaints it. Over any other window it stays stock.
+    # repaints it. Over any other window it draws a compact panel.
     # The page's bar is the Theme's: Minimal's 4px line, Classic's 8px capsule (np_theme).
     for theme,bh in (('0',4),('1',8)):
       CONFIG.clear(); CONFIG.update(THEME=theme)
@@ -4239,6 +4239,7 @@ if variant=='ipod':
       m.word(syms['system_bar'],m.node('window','system_bar'))
       assert m.call(address=playing,args=(win,7,0,0),gap=0)==0
       sv,lv=m.node('slider','slider_vol',max=100,value=40),m.node('label','label_vol')
+      for w in (sv,lv): m.nodes[w]['visible']=0  # hidden by the asset before any paint
       dlg=m.node('dialog','volume_dialog',[sv,lv]); m.word(dlg+O['W_PARENT'],m.wm); put(dlg,0,0,375,320)
       def paint(w): m.call(address=IPOD_HOOKS['widget_on_paint_background'][0],args=(w,m.canvas,0,0))
       def did(n): return [c[1:] for c in m.calls if c[0]==n]

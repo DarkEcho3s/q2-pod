@@ -363,8 +363,10 @@ def validate_assets(directory):
             for n in walk(root):
                 if n[0] == 'slider' or n[2].get('name') in ('img_add', 'img_dec'):
                     assert n == before[n[2]['name']]  # ranges, touch and wheel controls stay stock
-        if short == VOLUME:  # iPod only: no highlight, so nothing under it dims; otherwise stock
+        if short == VOLUME:  # Hidden before the first paint, including transition snapshots.
             plain = decode(original); del plain[2]['highlight']
+            assert [(n[0], n[2]['name']) for n in root[3]] == [('slider', 'slider_vol'), ('label', 'label_vol')]
+            for child in plain[3]: child[2]['visible'] = 'false'
             assert root == plain
             continue
         # iPod: browsing, settings and the PEQ editor slide; Home, Now Playing, the bar and dialogs don't.

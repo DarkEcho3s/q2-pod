@@ -534,6 +534,11 @@ def volume_dialog(root):
     check(root[0] == 'dialog' and root[2].get('name') == 'volume_dialog' and
             root[2].get('highlight') == 'default(alpha=200)', 'Unexpected volume dialog')
     del root[2]['highlight']
+    # Snapshot paints can precede vol_paint; never expose the stock full-screen controls.
+    check([(n[0], n[2].get('name')) for n in root[3]] ==
+          [('slider', 'slider_vol'), ('label', 'label_vol')], 'Unexpected volume controls')
+    for child in root[3]:
+        child[2]['visible'] = 'false'
 
 
 # iPod only. Settings and Streaming lose their navbar, as on the local pages, and their lists hold
