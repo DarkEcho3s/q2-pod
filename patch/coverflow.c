@@ -52,7 +52,7 @@ static struct {
     unsigned long thread;
     unsigned timer;
     unsigned saved_album, albums_gen; /* albums_gen: library_gen when albums was queried */
-    int screen, album, running;
+    int screen, album, running, text_albums;
     volatile int done, total, cancel;
     /* Scoped (ARTIST_ALBUMS or RATED_ALBUMS, else 0): an artist's albums (coverflow_artist), albums
      * holding them, or the rated ones (coverflow_rated), stock holding them in the library's order
@@ -889,14 +889,15 @@ static void *sorted(void) {
     free(v), free(sum), free(keys);
     return out;
 }
-/* albums (split's rows) in place by year, as year_sql: the query's order, then the albums it
- * missed, then the Unknown album. navigation.c's artist pages. Out of memory they keep their order. */
+extern int ringnav_artist_az(void);
+/* albums (split's rows) in place by year, as year_sql, or by name (Playback's Artist album order
+ * A-Z): the query's order, then the albums it missed, then the Unknown album. navigation.c's artist pages. Out of memory they keep their order. */
 void coverflow_by_year(void *albums) {
     unsigned n = deque_size(albums);
     char *taken = calloc(n + 1, 1);
     int found;
     if (!taken) return;
-    void *rows = staged(rank_query, (void *)year_sql(), &found), *out = _create_deque("stSongInfo");
+    void *rows = staged(rank_query, (void *)(ringnav_artist_az() ? SORT_SQL "album COLLATE NOCASE" : year_sql()), &found), *out = _create_deque("stSongInfo");
     deque_init(out);
     for (unsigned j = 0; j < deque_size(rows); ++j) {
         int i = album_in(albums, deque_at(rows, j));
@@ -1392,6 +1393,13 @@ static int changed(void *ctx, void *event) {
  * if large libraries lag on hardware, virtualize to a recycled window of children. */
 static void covers(void) {
     cf.screen = COVERS;
+    if (cf.text_albums) {
+        unsigned n = deque_size(cf.albums);
+        void *view = list("Albums", (int)n);
+        for (unsigned i = 0; i < n; ++i)
+            page_row_into(view, (int)i, P(deque_at(cf.albums, i), REC_ALBUM), pick);
+        return;
+    }
     widget_set_visible(cf.body, 0, 0);
     if (!cf.covers) {
         void *f = widget_factory();
@@ -1492,6 +1500,10 @@ static void load(void) {
         return;
     }
     unsigned count = deque_size(cf.albums);
+    if (cf.text_albums) {
+        covers();
+        return; /* Text lists need no cover cache or decoding. */
+    }
     char path[512];
     if (!cf.saved_album) BLOB_IO(LAST_ALBUM, cf.saved_album, 0); /* outlives a reboot */
     cf.jobs = calloc(count, sizeof(job_t));
@@ -1615,7 +1627,7 @@ static int to_tracks(const void *unused) {
     cf.tracks = coverflow_album_tracks(r);
     n = (int)deque_size(cf.tracks);
     cf.screen = TRACKS;
-    widget_set_visible(cf.covers, 0, 0);
+    if (cf.covers) widget_set_visible(cf.covers, 0, 0); /* none in the text list */
     void *view = list(P(r, REC_ALBUM), n);
     for (int i = 0; i < n; ++i)
         page_row_detail(view, i, track_name(name, sizeof name, deque_at(cf.tracks, (unsigned)i)), 0,
@@ -1704,6 +1716,7 @@ static int closed(void *ctx, void *event) {
         deque_destroy(cf.albums);
     if (cf.scoped) cf.albums = cf.all_albums;
     cf.scoped = 0;
+    cf.text_albums = 0;
     return 0;
 }
 
@@ -1731,6 +1744,8 @@ int coverflow_artist(void *albums) {
     cf.all_albums = cf.albums;
     cf.albums = albums;
     cf.scoped = ARTIST_ALBUMS;
+    extern int ringnav_artist_view(void);
+    cf.text_albums = ringnav_artist_view() == 2;
     load();
     return 1;
 }
@@ -1789,7 +1804,8 @@ static struct {
     int clip[4];  /* the canvas clip while the art paints, restored after */
     int clipped;
 } home __attribute__((section(".scratch")));
-extern int ipod_home_full(void), ipod_home_rockbox(void), rockbox_open(void *, void *);
+extern int ipod_home_full(void), ipod_home_rockbox(void), home_shortcut_open(void *, void *);
+extern const char *ipod_home_shortcut(void);
 /* Split's menu width; the art fills the rest. */
 
 /* player_parsecover_thd writes the playing track's cover and then sets g_playcover_type, as Now
@@ -1901,6 +1917,7 @@ void coverflow_home_layout(void) {
         int shown = ipod_home_rockbox();
         widget_restack(rockbox, shown ? 4 : 6); /* after Folder, else last */
         widget_set_visible(rockbox, shown, 0);
+        widget_set_text_utf8(widget_lookup(home.win, "label_rockbox", 1), ipod_home_shortcut());
     }
     int split = HOME_SPLIT_W, outer = full ? 375 : split,
         inner = !full ? split : classic ? HOME_CLASSIC_ROW : HOME_FULL_ROW,
@@ -1952,7 +1969,7 @@ int coverflow_home(void *win, void *ctx) {
     int result = stock_home_trampoline(win, ctx);
     widget_on(widget_lookup(win, "img_coverflow", 1), EVT_CLICK, coverflow_open, 0);
 #if IPOD
-    widget_on(widget_lookup(win, "img_rockbox", 1), EVT_CLICK, rockbox_open, 0);
+    widget_on(widget_lookup(win, "img_rockbox", 1), EVT_CLICK, home_shortcut_open, 0);
     widget_on(widget_lookup(win, "img_settings", 1), EVT_CLICK, home_settings, 0);
     home.win = win;
     void *art = widget_lookup(win, "img_homeart", 1);

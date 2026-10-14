@@ -200,6 +200,28 @@
       "sites": [
         ["0x52a330", "0x24420032"]
       ]
+    },
+    {
+      "value": 225,
+      "purpose": "toolbar switch pages: the title spans to the switch",
+      "sites": [
+        ["0x4b4b58", "0x2407006e"], ["0x4ca0a8", "0x2407006e"], ["0x4c96c8", "0x2407006e"]
+      ]
+    },
+    {
+      "value": 305,
+      "purpose": "toolbar switch pages: the switch takes the right-hand slot",
+      "sites": [
+        ["0x4b4c3c", "0x240500bd"], ["0x4ca184", "0x240500bd"], ["0x4c97a4", "0x240500bd"]
+      ]
+    },
+    {
+      "value": 0,
+      "purpose": "toolbar switch pages: no Home or Now Playing button (the keys go there)",
+      "sites": [
+        ["0x4b4cc4", "0x24070032"], ["0x4b4d30", "0x24070032"], ["0x4ca210", "0x24070032"],
+        ["0x4ca27c", "0x24070032"], ["0x4c982c", "0x24070032"], ["0x4c9898", "0x24070032"]
+      ]
     }
   ],
   "row_layout_calls": {

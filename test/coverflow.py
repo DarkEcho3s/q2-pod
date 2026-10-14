@@ -174,7 +174,8 @@ static int home_full, classic;
 int ipod_home_full(void) { return home_full; }
 int ipod_classic(void) { return classic; }
 int ipod_home_rockbox(void) { return 0; }
-int rockbox_open(void *x, void *e) { (void)x; (void)e; return 0; }
+const char *ipod_home_shortcut(void) { return "Rockbox"; }
+int home_shortcut_open(void *x, void *e) { (void)x; (void)e; return 0; }
 int widget_move_resize(void *x, int left, int top, int ww, int h) {
     int *r = (int *)W(x)->raw; /* W_X, W_Y, W_W, W_H */
     r[0] = left; r[1] = top; r[2] = ww; r[3] = h;
@@ -314,6 +315,9 @@ static char rank_rows[16][0x60];
 /* navigation.c's Year order: newest first (0) or oldest. */
 static int year_old;
 int ringnav_year_old(void) { return year_old; }
+static int artist_view;
+int ringnav_artist_view(void) { return artist_view; }
+int ringnav_artist_az(void) { return 0; }
 int album_row(void *a, int n, char **v, char **c) { (void)a; (void)n; (void)v; (void)c; return 0; }
 int toolsQueryDbTable(const char *db, const char *sql, void *row, int sort) {
     (void)row;
@@ -824,6 +828,24 @@ static void artist_only(void) {
     assert(!coverflow_artist(none));
     free(none);
     assert(loads == unloads);
+    artist_view = 2;
+    d = _create_deque(0);
+    d->at[d->n++] = records[6], d->at[d->n++] = records[8];
+    page = &w[nw + 1];
+    int before = loads;
+    assert(coverflow_artist(d));
+    run();
+    assert(loads == before); /* text mode never decodes artwork */
+    widget *row = 0;
+    for (int i = (int)(page - w); i <= nw; ++i)
+        if (!strcmp(w[i].type, "list_item") && w[i].click) { row = &w[i]; break; }
+    assert(row);
+    row->click(row->ctx, 0); run();
+    assert(!strcmp(title(), "B"));
+    key(KEY_RETURN); /* tracks return to the text list */
+    assert(!strcmp(title(), "Albums") && loads == before);
+    close_page();
+    artist_view = 0;
 }
 
 /* The Unknown Album card shows only when its press would find a song: getAllAlbum appends it even

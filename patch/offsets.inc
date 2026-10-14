@@ -484,8 +484,10 @@
  * stays the knob for sync. VIS_FPS frames a second; spectrum bars
  * fall VIS_DECAY of full scale a second, their caps hold VIS_HOLD_MS then fall at VIS_GRAVITY full
  * scale a second squared. Levels span VIS_FLOOR_DB below full scale; the VU meters read 0 VU at
- * VIS_VU_REF_DB dBFS RMS and light their peak LED from VIS_LED_DB dBFS for VIS_HOLD_MS. */
+ * VIS_VU_REF_DB dBFS RMS and light their peak LED from VIS_LED_DB dBFS for VIS_HOLD_MS. A paint that
+ * found the page unsettled (under a closing window, mid-slide) looks again VIS_RETRY_MS later. */
 #define VIS_LATENCY_MS 480
+#define VIS_RETRY_MS 250
 #define VIS_FPS 25
 #define VIS_BARS 32
 #define VIS_DECAY 1.6f

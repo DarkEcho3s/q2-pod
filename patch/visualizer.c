@@ -23,8 +23,11 @@ static struct {
     void *win, *slide, *page, *art, *cover;
     vis_tap *tap;
     unsigned timer, last, named, heard; /* heard: the last tick with audio */
+    unsigned retry; /* a paint missed while not settled looks again (look) */
     int ox, oy, page_x; /* the slide area in the window; the page's canvas x there as last painted */
     int style, tapped; /* tapped: the filter was put in the chain this boot */
+    int quiet; /* at rest (not playing, nothing heard), the style's name gone, as last ticked: the
+                * track's name shows, and its change repaints */
 #endif
 } vz __attribute__((section(".scratch")));
 
@@ -150,10 +153,14 @@ extern int config_digit(const char *key, int n);
 #define DARK(tone) mix(tone, 0, 55, 100)
 #define BRIGHT(tone) mix(tone, 0xffffff, 30, 100)
 
+/* The slide_view is on this page. */
+static int on_page(void) {
+    return vz.page && widget_get_prop_int(vz.slide, "value", 0) == (int)widget_count_children(vz.slide) - 1;
+}
+
 /* Now Playing is on top, on this page, with the screen on. */
 static int showing(void) {
-    return vz.page && g_backlight_status && window_manager_get_top_window(window_manager()) == vz.win &&
-           widget_get_prop_int(vz.slide, "value", 0) == (int)widget_count_children(vz.slide) - 1;
+    return on_page() && g_backlight_status && window_manager_get_top_window(window_manager()) == vz.win;
 }
 
 /* Showing and still: no window sliding, and the page last painted at the slide area's left edge, so
@@ -239,10 +246,15 @@ static int tick(const void *unused) {
     if (dt > 0.1f) dt = 0.1f;
     if (rate || now - vz.heard <= 1500) vis_analyze(vz.style, rate, dt, now);
     /* 1.5 s after the audio stops everything has come to rest (a cap's hold and fall, the wave's fade)
-     * and the style's name has faded: no repaint until it plays again. */
+     * and the style's name has faded: one repaint puts the track's name under it, then none until it
+     * plays again. */
     if (rate) vz.heard = now;
     int still = settled() && !window_manager_get_pointer_pressed(window_manager()); /* a drag starting */
     halo_art(still);
+    if (still && vz.quiet != (now - vz.heard > 1500 && now - vz.named > 1500 && mclGetPlayStatus() != 2)) {
+        vz.quiet = !vz.quiet; /* at rest, the style's name gone: the track's name, or back */
+        widget_invalidate_force(vz.slide, 0);
+    }
     if (!visualizer_live() || !still) return 8; /* RET_REPEAT */
     vz.spin += dt * 0.2f; /* radians a second */
     /* The slide_view: the page's own rect does not map to the screen inside it. */
@@ -400,6 +412,15 @@ static void halo(void *vg, unsigned tone) {
     vgcanvas_set_line_cap(vg, "butt");
 }
 
+/* A paint missed while not settled: once settled, the page paints again. */
+static int look(const void *unused) {
+    (void)unused;
+    if (on_page() && !settled()) return 8; /* RET_REPEAT: an overlay can outlast one retry. */
+    vz.retry = 0;
+    if (settled()) widget_invalidate_force(vz.slide, 0);
+    return 0; /* a one-shot */
+}
+
 /* ringnav_paint, after stock, on Now Playing's window (after all its children): the current style
  * over the slide area, and for 1.5 s after a change the style's name, fading over its last half
  * second. Drawing on the window, clipped to the slide area, not on the page: the slide_view clips the
@@ -412,11 +433,15 @@ void visualizer_paint(void *w, void *canvas) {
         if (vz.page_x) halo_art(0); /* the art is the window's, painted after the page: off this frame */
         return;
     }
-    if (w != vz.win || !P(canvas, CANVAS_LCD) || !showing()) return;
+    if (w != vz.win || !P(canvas, CANVAS_LCD) || !on_page()) return;
     arm();
+    if (!settled()) { /* under a closing window (the lock screen), sliding or dragged: paused, nothing
+                       * else would paint it once that ends */
+        if (!vz.retry) vz.retry = timer_add(look, 0, VIS_RETRY_MS);
+        return;
+    }
     int x = vz.ox, y = vz.oy, old[4], clip[4];
-    if (!settled() ||
-        !clip_within(canvas, old, clip, I(canvas, CANVAS_X) + x, I(canvas, CANVAS_Y) + y, 375, VIS_H))
+    if (!clip_within(canvas, old, clip, I(canvas, CANVAS_X) + x, I(canvas, CANVAS_Y) + y, 375, VIS_H))
         return;
     canvas_set_clip_rect(canvas, clip);
     I(canvas, CANVAS_X) += x; /* the slide area's origin, for the vector drawing and the text alike */
@@ -436,6 +461,20 @@ void visualizer_paint(void *w, void *canvas) {
     if (vz.named && shown < 1500)
         caption(canvas, names[vz.style], 0, VIS_H - 22, 375, 20, 14,
              rgba(0xaaaaaa, shown < 1000 ? 255 : 255 * (1500 - shown) / 500));
+    else if (vz.quiet) { /* the track: title · artist, or the title alone, trimmed to fit */
+        void *tl = widget_lookup(vz.win, "scrlabel_title", 1), *al = widget_lookup(vz.win, "scrlabel_artist", 1);
+        const unsigned *t = tl ? widget_get_text(tl) : 0, *a = al ? widget_get_text(al) : 0;
+        unsigned text[160], n = 0, title;
+        while (t && *t && n < 100) text[n++] = *t++;
+        title = n;
+        if (n && a && *a) text[n++] = ' ', text[n++] = 0xb7, text[n++] = ' ';
+        while (a && *a && n < sizeof text / sizeof *text) text[n++] = *a++;
+        canvas_set_font(canvas, (void *)0, 14); /* draw_centred's */
+        if (title && canvas_measure_text(canvas, text, n) > VIS_W) n = title;
+        while (n > 1 && canvas_measure_text(canvas, text, n) > VIS_W) text[--n - 1] = 0x2026; /* … */
+        int r[4] = { VIS_X, VIS_H - 22, VIS_W, 20 };
+        if (n) draw_centred(canvas, text, n, r, 14, rgba(0xaaaaaa, 255));
+    }
     I(canvas, CANVAS_X) -= x;
     I(canvas, CANVAS_Y) -= y;
     canvas_set_clip_rect(canvas, old);
@@ -461,6 +500,7 @@ static int gone(void *win, void *event) {
     (void)event;
     if (win == vz.win) {
         stop_timer(&vz.timer);
+        stop_timer(&vz.retry);
         vz.win = vz.slide = vz.page = vz.art = vz.cover = 0;
     }
     return 0;

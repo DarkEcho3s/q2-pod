@@ -9,6 +9,7 @@ dist/*
 *.squashfs
 
 __pycache__/
+q2remote.key
 .build-number
 docs/manual/*.pdf
 graphify-out/

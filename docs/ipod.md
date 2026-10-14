@@ -48,7 +48,9 @@ still positions the children, preserving the title's left edge, artwork, row hei
 and padding. Its clone/destruction and parameter functions remain native; neither
 the shared widget implementation nor album grids are hooked. The folder rebind's
 140/190-pixel resize call is disabled so recycled titles retain their computed
-width. Title styles and scrolling/ellipsis settings are untouched.
+width. Title styles and ellipsis settings are untouched; the title scrolls only while focused
+(`hscroll_label_set_only_focus`), which no row is, so a long title keeps its ellipsis instead of
+every row's scrolling once as the page opens.
 
 ## Flat rows and selection
 
@@ -85,7 +87,8 @@ selection rectangle or chevron. **Theme: Classic** styles the menu as before 1.0
 (below).
 
 The seven destinations remain Now Playing, Library, Coverflow, Folder, Rockbox, Streaming and
-Settings. Rockbox is visible only when its binary is on the card. Settings opens Playback and
+Settings. Rockbox is visible only when its binary is on the card, unless Display's **Shortcut**
+(`IPOD/SHORTCUT` 0-3) turns that row into Artists, Albums or Favorites (`home_shortcut_open`). Settings opens Playback and
 System; Return restores the menu's previous selection. The native stock handlers, translation
 keys, full-row tap targets, wheel hard ends and submenu animation remain intact.
 
@@ -160,7 +163,9 @@ inits destroy the navbar's children and create an unnamed title `hscroll_label`,
 back, Home and Now Playing buttons; none has a control the keys lack, except the on/off switches
 of the sleep timer, Startup volume (`img_bootswitch`, which `playset_bootvol_page_init` puts in
 the navbar; Crossfade reuses the page) and Lock screen (`img_switch`), whose fields hide while off:
-those three pages (`TOOLBAR_SWITCHES`) keep it. Lists hold
+those three pages (`TOOLBAR_SWITCHES`) keep it. There the switch takes the toolbar's right-hand
+slot and the title runs up to it (225 pixels); the Home and Now Playing buttons are 0 wide, as the
+keys do what they did (`immediates` in `ipod.json`). Lists hold
 settings rows (see [Settings](#settings)); other panels move up 50 pixels and keep
 their size. The settings inits never move or resize
 these widgets. Left out: `wifitransport_page` (its image starts above the
@@ -389,7 +394,9 @@ the label. There is no on-screen transport row: the buttons play, pause and skip
 
 The art, title, artist and album are the slide_view's first page, so a swipe replaces all of them
 with the stock lyrics or info page. Those keep their stock 225-pixel column, centred: stock creates
-each lyric line 225 pixels wide. The play/pause overlay has zero opacity, retaining its original gesture target without
+each lyric line 225 pixels wide. The info page's lines read `Label: value`, with spaced units
+(`35.92 MB`, `16-bit`, `950 kbps`, `44.1 kHz`), **Genre** and **Year** for stock's Genres and Era,
+`Unknown` for a missing value and `Location:` before the folder (`ringnav_np_info`, both builds). The play/pause overlay has zero opacity, retaining its original gesture target without
 a transport glyph; stock may update its visibility without making it appear. The loading
 spinner stays centred on the artwork. The on-screen Return icon moves off-screen, as on the pages whose navbars are
 hidden; the hardware Return does the same. More keeps its place at the top row's right. The play
@@ -419,7 +426,8 @@ track. Both times and the bar follow the target at once;
 the track jumps there once, when the scrub ends. A press of the centre button confirms it at once
 and leaves the screen on (a double press does too), as do Return, a touch and
 3 seconds without a tick, and each gives the wheel back to the volume; Return then stays on the
-page. Ending without having moved the target does not seek. Outside a scrub a single press turns
+page. Ending without having moved the target does not seek. Paused, the track stays paused and
+plays from the target at Play. Outside a scrub a single press turns
 the screen off, as on every other page. The jump is stock's key seek, which can pause the player briefly, but only once, when the
 scrub ends, instead of after each pause between ticks. Values are `SCRUB_*` in
 `patch/offsets.inc`; see [internals.md](internals.md#scrub-ipod).
@@ -450,7 +458,8 @@ at the bottom for a second and a half:
 
 Everything is anti-aliased vector drawing (AWTK's vgcanvas) within the 375x186 page: 16-pixel side
 margins (`NP_MARGIN`), labels in the stock grey `#AAAAAA`. It animates at `VIS_FPS` only while the
-page shows with the screen on, and comes to rest when playback pauses. Tunables are `VIS_*` in
+page shows with the screen on, and comes to rest when playback pauses; at rest the track's title
+and artist show at the bottom, in the style name's place. Tunables are `VIS_*` in
 `patch/offsets.inc`; `VIS_LATENCY_MS` sets how far the picture runs behind the decoder, to match
 what you hear. See [internals.md](internals.md#visualizer-ipod).
 
@@ -502,11 +511,12 @@ builds three rows with `0x4c19bc`: a `list_item_create(view, 0, 0, 0, 0)` in `s_
 `s_btn_listitem` with a click handler, and in it a 52-pixel icon at x 10, a
 `s_scrlabel_white24l` `hscroll_label` at (72, 0, 210, 70) and `list_into` at x 282. The rows
 show no value; each opens a sub-page (iPod's [settings rows](#settings) then lay them out 68
-pixels high). iPod runs the stock init, then adds four rows the same way: "Theme: Minimal" and
+pixels high). iPod runs the stock init, then adds six rows the same way: "Theme: Minimal" and
 "Accent: Graphite" with the System settings Display icon (`system_display`), "Home: Split" with Play settings' cover
 mode icon (`playset_covermode`), "Battery: Icon" (Icon, Percent, Icon + Percent, Percent Inside; see
 [Status bar and clock](#status-bar-and-clock)) with the power manager icon
-(`system_powermanager`), all among the [settings icons](#settings-icons)
+(`system_powermanager`), then "Shortcut: Rockbox" and "Unknown Covers: Standard" (`IPOD/COLORCOVERS`:
+Colored Vinyl redraws the built-in missing-art images as a record in `ringnav_image_add`), all among the [settings icons](#settings-icons)
 the build pre-sizes. The value is in the label (260 pixels wide, to where the chevron ends) and there is no
 chevron, since Centre or a tap changes them in place.
 Both variants also append **Boot to: Rockbox / Q2-Pod** to System settings when Rockbox is present; see [Boot](boot.md#rockbox).
@@ -551,7 +561,8 @@ the Accent row follows Theme and every accent applies as before.
 
 A change applies at once, as Accent does: the image cache is dropped and the screen repaints
 (icons and chevrons reload in the new theme's colours), Home re-lays its menus and art, an open
-Now Playing gets its bar and glyph, and the Display page shows or hides the Accent row. Nothing needs a restart.
+Now Playing gets its bar and glyph, and the Display page shows or hides the Accent row, the
+selection staying on Theme. Nothing needs a restart.
 
 What Classic does not restore: the pinned theme edit of `s_btn_listitem`'s pressed colour
 (`#3D1920` to `#333333`), so a touched row flashes grey rather than an accent tint, and the

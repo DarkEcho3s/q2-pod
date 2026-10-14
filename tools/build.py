@@ -21,7 +21,7 @@ def dev_tag(number, edition):
     for _ in range(3): n, d = divmod(n, 36); digits = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'[d] + digits
     return 'V' + digits + edition.lower()
 BASE = 0xb00000
-SCRATCH = 0xb40000
+SCRATCH = 0xb50000
 RING_STEP = 48
 HOOKS = {
     'on_wm_keydown_before_fun': (0x4e8424, 'ringnav_keydown', 'keydown'),
@@ -168,6 +168,11 @@ WATCHDOG = 'usr/bin/checkappprocess.sh'
 WATCHDOG_SLEEP = (b'\tsleep 2\n', b'\tsleep 10\n')
 # toolsSetRtcTime's command, with its padding; -u keeps the RTC in UTC. See docs/internals.md#clock.
 RTC_WRITE = (b'hwclock -w\0\0', b'hwclock -wu\0')
+# The lock window's 12-hour clock format (after its 24-hour hh:mm, by clock_time): stock's HH:TT shows
+# "05:PM"; H:mm is the hour 1-12 unpadded and the minutes (tk_date_time_format_impl), "5:07".
+LOCK_CLOCK_12H = (b'hh:mm\0\0\0HH:TT\0', b'hh:mm\0\0\0H:mm\0\0')
+# Now Playing's info page: its one fill (0x52a508), a bal, becomes jal ringnav_np_info, which tidies the lines.
+NP_INFO_CALL = 0x52baf4
 # mclNextSong's shuffle pick; the payload calls the stock pick, then applies a pending Play next.
 SHUFFLE_CALL = (0x5addf0, 0x0411e8cb)  # bal mcl_shuffle_pick; its delay slot (a0=1) stays
 # Hold Return: only on_wm_keylong_fun's final Home call (bal) changes; all stock gates and its release
@@ -199,8 +204,8 @@ ALBUM_ART = ((0x4a388c, 'ringnav_art_name'), (0x4a421c, 'ringnav_albumcovers'), 
 ALBUM_ART_ROW = ((0x4a3890, 0x24c66c04, 0x02603025), (0x4ab808, 0x24c66c04, 0x02403025))
 # Library Artists rows: the row bind's bal to class_icon becomes jal ringnav_class_icon, which hides the head.
 CLASS_ICON = 0x4b0cec
-# Album grids' scroll start no longer pauses the cover worker (sw $3,0($2) -> nop); see docs/internals.md.
-COVER_PAUSE = ((0x4aab60, 0xac430000, 0), (0x4a22d0, 0xac430000, 0))
+# Album grids' and Songs' scroll start no longer pauses the cover worker (sw $3,0($2) -> nop); see docs/internals.md.
+COVER_PAUSE = ((0x4aab60, 0xac430000, 0), (0x4a22d0, 0xac430000, 0), (0x4a7bb0, 0xac430000, 0))
 # An artist's albums scroll end divides yoffset by its 160 px rows, not 256; see docs/internals.md.
 ARTIST_COVER_ROW = ((0x4ad878, 0x244400ff, 0x240400a0),   # addiu $4,$2,0xff -> li $4,160
                     (0x4ad880, 0x28430000, 0x0044001a),   # slti $3,$2,0 -> div $zero,$2,$4
@@ -247,7 +252,8 @@ LABELS = tuple((k.encode(), o.encode(), n.encode()) for k, o, n in (
      '2. PNG or JPG, exactly 375 x 320 pixels, under 1 MB each.'),
     ('screenlock_info3', '3.Maximum of 5 images in folder.', '3. Up to 5 pictures.'),
     ('about_sn', 'Serial number', 'Serial Number'), ('about_version', 'FW. Version', 'Version'),
-    ('list_baidu', 'Baidu Netdisk(BETA)', 'Baidu Netdisk'), ('msg_poweroff', 'Confirm Shutdown?', 'Shut Down?')))
+    ('list_baidu', 'Baidu Netdisk(BETA)', 'Baidu Netdisk'), ('msg_poweroff', 'Confirm Shutdown?', 'Shut Down?'),
+    ('genre', 'Genres', 'Genre'), ('player_era', 'Era', 'Year'), ('batch_addplaylist', 'Add to playlist', 'Add to Playlist')))
 
 # The stock font (Arial merged with a CJK font) gives curly quotes the CJK em advance, a wide gap
 # inside words wherever a tag has one; its cmaps map them to the straight glyphs instead. Its hearts
@@ -405,6 +411,7 @@ FUNCTIONS = {
  'widget_get_prop_int': ('int', 'void *, const char *, int'),
  'widget_get_prop_str': ('const char *', 'void *, const char *, const char *'),
  'widget_get_text': ('const unsigned *', 'void *'),
+ 'widget_get_text_utf8': ('int', 'void *, char *, unsigned'),
  'widget_get_type': ('const char *', 'void *'),
  'widget_count_children': ('unsigned', 'void *'),
  'widget_get_child': ('void *', 'void *, unsigned'),
@@ -585,6 +592,9 @@ FUNCTIONS = {
  'album_row': ('int', 'void *, int, char **, char **'),
  'albumcoverinfo_init': ('int', 'void *'),  # a list's cover tasks, each a copy of its row's name and path
  'class_icon': ('int', 'void *, int'),  # Artists, Composers and Genres rows' img_icon (CLASS_ICON)
+ 'np_info': ('int', 'void *'),  # Now Playing's info page labels (ringnav_np_info)
+ 'getFormatString': ('int', 'const char *, char *, int'),  # a string's label in the language: key, out, size
+ 'mclSetSeek': ('int', 'int'),  # the player's seek in file seconds; it plays on from there, or on Play once paused
 }
 # Local stock routines in the SHA-256-pinned V1.32 executable.
 PRIVATE_FUNCTIONS = {
@@ -600,6 +610,7 @@ PRIVATE_FUNCTIONS = {
     "folder_refresh": 0x52176c,  # folder_page's navbar and table from p_deque_showlist (its init, back)
     "class_icon": 0x4afc14,  # a category row's picture: the head for Artists, a genre icon, else .downpic
     "screensaver_rows": HOOKS['screensaver_rows'][0],  # the Lock screen page's rows and picture grid
+    "np_info": 0x52a508,  # Now Playing's info page labels, from the track (NP_INFO_CALL)
 }
 GLOBALS = ['g_playspeed_mode', 'g_time24h_flag', 'g_backlight_status', 'g_lockscreen_pageflag', 'g_testmode_flag',
            'g_bluetoothflag', 'bt_linkstatus', 'g_guideflag', 'g_poweroff_state', 'g_usblink_status', 'bt__recv_pageflag',
@@ -882,6 +893,8 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     patch_word(patched, scan, load, jal(ps['ringnav_scan_room']), 'scan up to 65,000 songs')
     patch_word(patched, scan + 4, limit, count, 'scan up to 65,000 songs')
     patch_word(patched, *DROP_CACHES, 'keep the page cache')
+    patch_word(patched, NP_INFO_CALL, branch(0x04110000, NP_INFO_CALL, PRIVATE_FUNCTIONS['np_info']),
+               jal(ps['ringnav_np_info']), "Now Playing's info lines")
     for address, old, new in LDAC_HQ:
         patch_word(patched, address, old, new, 'LDAC HQ sends 990 kbps')
     patch_word(patched, WHEEL_TS_READ[0], WHEEL_TS_READ[1], jal(ps['ringnav_ts_read']), 'wheel ticks')
@@ -928,6 +941,8 @@ def build(zip_path, out, logo, ipod=False, dev=False):
           'VERSION must be three single digits (x.y.z): the 5-character tag would shift every later file offset')
     patched = patched.replace(b'V1.32\0', version.encode()+b'\0')
     patched = patched.replace(*RTC_WRITE)
+    check(patched.count(LOCK_CLOCK_12H[0]) == 1, 'Unexpected lock clock formats')
+    patched = patched.replace(*LOCK_CLOCK_12H)
     check(re.search(r'\.pdr +PROGBITS +0+ +0*%x +0*%x ' % PDR, run('readelf', '-SW', demo)) and
           all(p[1]+p[4] <= PDR[0] for _,p in segments(patched) if p[0] == 1), '.pdr: not the audited section')
     patched[PDR[0]:PDR[0]+PDR[1]] = bytes(PDR[1])
