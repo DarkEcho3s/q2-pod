@@ -278,7 +278,8 @@ static int context_id(const char *name) {
 }
 
 /* The audited local row lists built from the compact assets: the file and music views. Grids
- * (album_page), settings menus, dynamic pages and the home carousel keep hard ends. */
+ * (album_page), settings menus, dynamic pages and the home carousel keep hard ends; iPod Home's
+ * lists wrap at once (home_menu). */
 static int ring_list(const menu_t *m) {
     return m->w && m->ctx >= 0 && (contexts[m->ctx].flags & RING) && m->rows >= 2;
 }
@@ -470,6 +471,12 @@ static int carousel_page(void *top) {
 }
 
 static int is_home(void *top, void *w) { return w && kind(w) == 3 && carousel_page(top); }
+
+/* iPod Home's lists (the main menu and its Settings list): their ends wrap at once, and Return
+ * goes back to the first row. */
+static int home_menu(void *top) {
+    return top && !tk_strcmp(widget_get_prop_str(top, "name", ""), "home_page");
+}
 
 #if IPOD
 /* A widget's own window: the top-level widget it sits in. */
@@ -1465,7 +1472,7 @@ static void paint_chevrons(void *w, void *canvas) {
     unsigned bitmap[64]; /* bitmap_t */
     rect_t old;
     void *win = window_of(w);
-    int home = win && !tk_strcmp(widget_get_prop_str(win, "name", ""), "home_page");
+    int home = home_menu(win);
     if (g_navbar_status || !kind(w) || !P(canvas, CANVAS_LCD) || !drill(w) ||
         (home && (!ipod_classic() || st.sel_w != w)) || !load_rows(&g_menu, w) ||
         widget_load_image(w, "list_into", bitmap) || !clip_surface(canvas, &g_menu, &old))
@@ -1669,7 +1676,7 @@ static void paint_selection(void *w, void *canvas) {
     }
     /* Touch hides the selection until the wheel or a button, except on Home (iPod's list) and a
      * pop-up's buttons, which open on their first (Cancel). */
-    int home = top && !tk_strcmp(widget_get_prop_str(top, "name", ""), "home_page");
+    int home = home_menu(top);
     if (i < 0 || (!shown && !home && g_menu.kind != 4)) return;
     rect_t r = bounds(&g_menu, i), old;
     /* A boundary detent nudges the selection against the end until it springs back. */
@@ -6064,6 +6071,21 @@ int ringnav(void *ctx, void *event) {
     /* Home's Settings list goes back to Home's list (coverflow_home_back). */
     if (key == KEY_RETURN && coverflow_home_back(window_manager_get_top_window(window_manager())))
         return STOP;
+    /* Return on Home's list: back to its first row, Now Playing. */
+    if (key == KEY_RETURN && usable()) {
+        void *wm = window_manager(), *top = window_manager_get_top_window(wm);
+        void *w = home_menu(top) && !window_manager_is_animating(wm)
+                      ? surface_under(top, (void *)0, (void *)0, 1)
+                      : (void *)0;
+        if (w && load(&g_menu, w, 1) && g_menu.n) {
+            drop_input();
+            st.touch_mode = 0;
+            select(&g_menu, 0);
+            reveal(&g_menu, 0, 1);
+            widget_invalidate_force(w, (void *)0);
+            return STOP;
+        }
+    }
     /* Back by button: the page behind shows its row. A sliding page is painted once more, into its
      * closing snapshot, inside stock's handling of this release; it keeps hiding its own row until
      * that is done. */
@@ -6215,12 +6237,13 @@ int ringnav(void *ctx, void *event) {
                               id < 0 ? 0 : dir * step);
         if (next == 0 || next == g_menu.rows - 1) drop_wheel();
         if (next == id) {
-            if (!ring_list(&g_menu) || id < 0) {
+            int home = IPOD && home_menu(top) && g_menu.rows >= 2;
+            if (!(home || ring_list(&g_menu)) || id < 0) {
                 stop_scroll(&g_menu);
                 widget_invalidate_force(w, (void *)0); /* a wheel wake still clears touch hiding */
                 return STOP;
             }
-            if (!edge_wraps(&g_menu, id, dir, now)) {
+            if (!home && !edge_wraps(&g_menu, id, dir, now)) {
                 st.edge_id = id;
                 st.edge_dir = dir;
                 st.edge_time = now;

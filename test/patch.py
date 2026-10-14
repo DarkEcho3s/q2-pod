@@ -3820,17 +3820,19 @@ if variant=='ipod':
     assert m.paint(w2)==0 and m.selected(w2)==5 and m.get(w2+O['SCROLL_Y'])==204
     assert [c[0] for c in m.moved()]==['scroll_view_set_offset']; passed()
 
-    # Home is an ordinary list: the wheel walks the seven rows one by one, stops hard at both ends
-    # (no carry-over, even after a pause), the bar spans the list's width and centre clicks the image.
+    # Home is an ordinary list: the wheel walks the seven rows one by one, wraps at once at both ends
+    # (no bump first), Return goes back to the first row, the bar spans the list's width and centre
+    # clicks the image.
     m=Machine(); view,imgs=home_list(m); click_target(m,imgs[2])
     m.paint(view)
     assert m.selected(view)==0
     for i in range(1,7): assert m.call()==11 and m.selected(view)==i and m.get(view+O['SCROLL_Y'])==0
-    for gap in (1000,50,1000): assert m.call(gap=gap)==11 and m.selected(view)==6
     m.paint(view); assert m.rounded[0]['rect']==(25,6*HOME_ROW+HOME_ROW//2-3,6,6)
-    for i in range(5,-1,-1): assert m.call(O['KEY_PREV'])==11 and m.selected(view)==i
-    for gap in (1000,50,1000): assert m.call(O['KEY_PREV'],gap=gap)==11 and m.selected(view)==0
-    m.call(); m.call()
+    assert m.call(gap=50)==11 and m.selected(view)==0
+    assert m.call(O['KEY_PREV'],gap=50)==11 and m.selected(view)==6
+    for i in range(5,2,-1): assert m.call(O['KEY_PREV'])==11 and m.selected(view)==i
+    assert m.call(O['KEY_RETURN'])==11 and m.selected(view)==0
+    m.call(gap=1000); m.call()
     assert not m.slides and m.confirm()==11 and m.dispatched()[0][1]==imgs[2]; passed()
 
     # Boot: if Home's first paint comes before the screen is usable, no row is chosen or drawn. The
@@ -5885,10 +5887,10 @@ if variant=='ipod':
                 else: w,es=m.page_list(count,extent=count*48)
                 m.paint(w); assert turn(m,w,gaps)==list(range(1,len(gaps)+1)),(table,count,gaps)
                 passed()
-    # Home as built: the same, its ends are hard, and Centre opens the row that is highlighted.
+    # Home as built: the same, its ends wrap at once, and Centre opens the row that is highlighted.
     m=Machine(); view,imgs=home_list(m); click_target(m,imgs[2]); m.paint(view)
-    assert turn(m,view,(1000,100,100,1000,100,100,100,100,1000))==[1,2,3,4,5,6,6,6,6]
-    assert m.get(view+O['SCROLL_Y'])==0 and turn(m,view,(1000,100),PREV)==[5,4]
+    assert turn(m,view,(1000,100,100,1000,100,100,100))==[1,2,3,4,5,6,0]
+    assert m.get(view+O['SCROLL_Y'])==0 and turn(m,view,(1000,100,100),PREV)==[6,5,4]
     assert m.confirm()==11 and m.dispatched()[0][1]==imgs[4]; passed()
     # A BUTTONS dialog: the same between its buttons, and nothing scrolls.
     m=Machine(); d=m.node('dialog','confirminfo_dialog'); m.word(d+O['W_PARENT'],m.wm); m.top=d
@@ -5935,11 +5937,11 @@ if variant=='ipod':
         n=press(m,gap=gap); assert n==0 and m.down==0 and m.u.mem_read(SOUND_LATCH,1)==b'\x01'
         got.append((n+lift(m),m.selected(view))); assert m.ret==11
     assert got==[(1,1),(1,2),(1,3),(1,4)],got; passed()
-    # Slow ticks click on every row; a turn against Home's hard end is silent; a repaint and a long
-    # wait add nothing.
+    # Slow ticks click on every row, wrapping past Home's end included; a repaint and a long wait
+    # add nothing.
     m,view=home_machine()
     assert [tick(m) for _ in range(6)]==[1]*6 and m.selected(view)==6
-    assert [tick(m,gap=gap) for gap in (1000,50,400)]==[0,0,0] and m.selected(view)==6
+    assert [tick(m,gap=gap) for gap in (1000,50,400)]==[1,1,1] and m.selected(view)==2
     m.paint(view); assert not buzzes(m)
     m.advance(10000); assert not buzzes(m); passed()
     # buzzeer_switch also runs when it is silent, so its calls are not the count: stock always calls
@@ -6208,8 +6210,8 @@ def home_settings():
         assert next(c[2] for c in m.calls if c[0]=='widget_animator_prop_create')==120
         m.advance(120); assert m.get(lst+O['W_X'])==0 and not m.props
         m.paint(view); assert m.selected(view)==6; passed()
-        # Return on Home's own list is stock's.
-        m.calls=[]; assert m.call(O['KEY_RETURN'])==0 and m.nodes[lst]['visible']; passed()
+        # Return on Home's own list goes back to its first row.
+        m.calls=[]; assert m.call(O['KEY_RETURN'])==11 and m.selected(view)==0 and m.nodes[lst]['visible']; passed()
 if variant=='ipod': home_settings()
 # Most Played opens a black mostplayed_page list (nothing played: "No plays yet", no rows); a second
 # press while it is open does nothing. Its rows are the top PLAYS_TOP, most played first and, among
