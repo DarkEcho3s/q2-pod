@@ -5111,6 +5111,9 @@ static int qm_open(const void *unused) {
         window_close(dialog);
         return 0;
     }
+    /* The Play hold is a button, as Centre and Return: it ends a click's touch hiding
+     * (hide_outline). A choice opens from a row's click, which may be a tap. */
+    if (!st.qm_choice) st.touch_mode = 0;
     void *back = widget_lookup(dialog, "img_return", 1),
          *view = widget_lookup(dialog, "scroll_view", 1);
     widget_off_by_func(dialog, EVT_KEY_UP, (void *)SORTSELECT_KEYUP, dialog);
