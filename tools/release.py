@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import importlib.util
 import io
+import itertools
 import json
 import pathlib
 import re
@@ -22,12 +23,15 @@ GUIDE = 'Q2-Pod-User-Guide.pdf'
 
 
 def notes():
-    """This version's line from docs/changelog.md, so a release edits only VERSION and the changelog:
-    its bold version heading, then one bullet a sentence."""
+    """This version's entry from docs/changelog.md, so a release edits only VERSION and the changelog:
+    its bold version heading, then one bullet a sentence, or its nested bullets as written."""
     prefix = f'- **{VERSION}**'  # entries up to V1.0 read **V1.0**, up to V7.6 **V7.6R / V7.6I**
-    entry = next((l for l in (ROOT/'docs/changelog.md').read_text().splitlines() if l.startswith(prefix)), None)
-    check(entry, f'docs/changelog.md has no {prefix} entry')
-    title, text = entry[2:].split(': ', 1)
+    lines = (ROOT/'docs/changelog.md').read_text().splitlines()
+    i = next((i for i, l in enumerate(lines) if l.startswith(prefix)), None)
+    check(i is not None, f'docs/changelog.md has no {prefix} entry')
+    title, text = lines[i][2:].split(':', 1)
+    if not text.strip():  # a nested entry: its indented bullets, one level out
+        return '\n'.join([title, *(l[2:] for l in itertools.takewhile(lambda l: l.startswith('  '), lines[i+1:]))])
     return '\n'.join([title, *('- '+s for s in re.split(r'(?<=[.!?]) +(?=[A-Z*"]|iPod)', text.strip()))])
 
 
