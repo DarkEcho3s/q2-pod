@@ -50,7 +50,7 @@
 4. **Update:** open **System settings → System Update → TF card update**. Leave the card in until the Q2 restarts.
 
 > [!TIP]
-> Prefer Shanling's original look? Download `Q2.Firmware.*-stock.zip` instead. It has the same features and fixes, without the iPod UI.
+> Prefer Shanling's original look? Download `Q2.Firmware.*-legacy.zip` instead. It has the same features and fixes, without the iPod UI.
 
 ## Extras
 

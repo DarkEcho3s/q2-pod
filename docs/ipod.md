@@ -1,7 +1,7 @@
 # iPod UI
 
-The Stock and iPod builds share one navigation payload. `--ipod` enables the compact layout
-payload helpers and build-time edits in `tools/ipod.py`; Stock receives no
+The Legacy and iPod builds share one navigation payload. `--ipod` enables the compact layout
+payload helpers and build-time edits in `tools/ipod.py`; Legacy receives no
 compact executable sites or UI assets. `patch/ipod.json` records the original
 asset hashes and full MIPS instructions. The builder also pins the complete stock
 ZIP and executable, rejects mismatches, and records every changed asset/site.
@@ -226,7 +226,7 @@ packaged bytes, the sizes, and that each icon's average colour on black and on t
 selection grey matches the stock icon's, and that Minimal's runtime grey is neutral on black. Other 52-pixel images that land in settings rows, such as
 Streaming's Tidal logo (`list_tidal`, which the folder root may also use) and the Spotify row's
 build-added icon ([internals.md](internals.md#spotify)), keep their bytes and still scale down. The
-Spotify row's Now Playing page uses Now Playing's layout (`NP_*`), rounded art included. The Stock build keeps every icon stock. The recolouring of accent-red artwork
+Spotify row's Now Playing page uses Now Playing's layout (`NP_*`), rounded art included. The Legacy build keeps every icon stock. The recolouring of accent-red artwork
 (`ringnav_image_add`) works on the decoded bitmap, so it applies at either size.
 
 The Brightness, Balance, Maximum Volume, Default Volume and Crossfade editors keep their thick stock sliders,
@@ -267,7 +267,7 @@ the artist under that in 20-pixel grey (`#AAAAAA`, stock secondary text), and bo
 track list's title and rows and the progress and empty messages, keep 36 pixels (`CF_EDGE`) from
 each side, where the lowest visible track row's text clears the bottom corners. Long names still
 scroll within that. The Refresh card uses the album line.
-Values are `CF_*` in `patch/offsets.inc`; Stock keeps its track list layout.
+Values are `CF_*` in `patch/offsets.inc`; Legacy keeps its track list layout.
 
 ## Rounded corners
 
@@ -380,7 +380,7 @@ placeholder cover at this size, so real art and the placeholder match. The paylo
 over the image in the page's black, with an anti-aliased
 edge pixel. The title is 22 pixels
 white (`NP_TITLE_PX`) over the 18-pixel (`NP_META_PX`) artist, `#CCCCCC` (`NP_ARTIST_RGB`), and
-album, `#BBBBBB` (`NP_ALBUM_RGB`); "3 of 12" and both times remain `#AAAAAA`. Spotify uses the same hierarchy in the iPod build; Stock
+album, `#BBBBBB` (`NP_ALBUM_RGB`); "3 of 12" and both times remain `#AAAAAA`. Spotify uses the same hierarchy in the iPod build; Legacy
 keeps its existing artist color. Long lines scroll, as stock.
 
 **Theme: Minimal** draws the album in Sudo Music's small capitals (`NP_CAPS_PX`, 15 pixels,

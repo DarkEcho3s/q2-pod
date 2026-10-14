@@ -15,8 +15,8 @@ import zipfile
 from build import ROOT, VERSION, VERSIONS, ZIP_SHA, DEMO_SHA, build, check, run, sha, source_sha256
 
 REPO = 'DiamondBond/q2-pod'
-# iPod is the main build; Stock keeps the stock UI.
-ASSETS = {'ipod': f'Q2.Firmware.{VERSION}.zip', 'stock': f'Q2.Firmware.{VERSION}-stock.zip'}
+# iPod is the main build; Legacy keeps the stock UI.
+ASSETS = {'ipod': f'Q2.Firmware.{VERSION}.zip', 'stock': f'Q2.Firmware.{VERSION}-legacy.zip'}
 # Rebuilt from docs/manual every release; the README links releases/latest/download/<GUIDE>.
 GUIDE = 'Q2-Pod-User-Guide.pdf'
 

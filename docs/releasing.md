@@ -16,7 +16,7 @@ Packaging also rebuilds the user guide from `docs/manual/guide.html` (needs Chro
 
 Packaging requires a fresh output directory, builds each variant twice, runs the shared MIPS
 suite and asset checks on each build, and compares update.tar and ZIP bytes. It writes both
-ZIPs, manifests, SHA256SUMS, release notes and source revision/hash. Stock is the default for
+ZIPs, manifests, SHA256SUMS, release notes and source revision/hash. Legacy is the default for
 direct builds; a single direct build is never a release input. Upload revalidates both variants
 and refuses stale, missing or changed artifacts and published releases. An upload/download
 failure leaves the release unpublished; rerun upload to repair the draft. Packaging uses no
