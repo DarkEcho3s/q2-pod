@@ -515,9 +515,10 @@ builds three rows with `0x4c19bc`: a `list_item_create(view, 0, 0, 0, 0)` in `s_
 `s_btn_listitem` with a click handler, and in it a 52-pixel icon at x 10, a
 `s_scrlabel_white24l` `hscroll_label` at (72, 0, 210, 70) and `list_into` at x 282. The rows
 show no value; each opens a sub-page (iPod's [settings rows](#settings) then lay them out 68
-pixels high). iPod runs the stock init, then adds five rows the same way: "Theme: Minimal" and
+pixels high). iPod runs the stock init, then adds six rows the same way: "Theme: Minimal" and
 "Accent: Graphite" with the System settings Display icon (`system_display`), "Home: Split" with Play settings' cover
-mode icon (`playset_covermode`), "Battery: Icon" (Icon, Percent, Icon + Percent, Percent Inside; see
+mode icon (`playset_covermode`), "Artist Albums: Grid" (`Q2POD ARTISTCF`, same icon, see [internals.md](internals.md#artist-albums-in-coverflow)),
+"Battery: Icon" (Icon, Percent, Icon + Percent, Percent Inside; see
 [Status bar and clock](#status-bar-and-clock)) with the power manager icon
 (`system_powermanager`), then "Shortcut: Rockbox", all among the [settings icons](#settings-icons)
 the build pre-sizes. The value is in the label (260 pixels wide, to where the chevron ends) and there is no
