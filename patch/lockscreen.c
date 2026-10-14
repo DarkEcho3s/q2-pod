@@ -137,7 +137,7 @@ extern int stock_saver_trampoline(void *, void *), stock_saverrows_trampoline(vo
     stock_saverlist_trampoline(void);
 extern void pod_rows(void *win, const char *view_name, int first, int n, const char *const *icons);
 extern int ringnav_lock_clock(void); /* navigation.c: Q2POD LOCKCLOCK, 1 Large, else Standard */
-extern int ipod_battery(void);       /* navigation.c: IPOD BATTERY, 0 Icon, else a percentage */
+extern int ipod_battery(void);       /* navigation.c (iPod only): IPOD BATTERY, 0 Icon, else a percentage */
 
 /* The built-ins' names in the picture list and SYSSET SCREENSAVERPATH, by id. None is a file:
  * stock's lock window falls back to the name as an asset, finds none and draws nothing, and these
@@ -227,7 +227,9 @@ static void big_clock(void *win) {
     widget_move_resize(time, 0, 26, 375, 124);
     widget_move_resize(pct, 296, 3, 64, 24);
     widget_set_visible(batt, 0, 0);
+#if IPOD /* Legacy has no Battery setting: stock's percent stays */
     widget_set_visible(pct, ipod_battery() != 0, 0);
+#endif
     widget_set_prop_int(date, "style:normal:font_size", 22);
     widget_set_prop_int(time, "style:normal:font_size", 116);
     widget_set_prop_str(date, "style:normal:text_align_h", "center");
