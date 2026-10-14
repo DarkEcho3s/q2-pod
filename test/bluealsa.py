@@ -4,10 +4,10 @@
 Usage: python test/bluealsa.py BUILD_DIRECTORY (requires the existing Unicorn).
 """
 import pathlib, struct, subprocess, sys
-from unicorn import Uc, UC_ARCH_MIPS, UC_MODE_MIPS32, UC_MODE_LITTLE_ENDIAN, UC_HOOK_CODE
+from unicorn import UC_HOOK_CODE
 from unicorn.mips_const import *
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'tools'))
-from build import BLUEALSA, BT_DROP, BT_DROP_HANDLER, BT_PCM_CALLERS, machine, segments
+from build import BLUEALSA, BT_DROP, BT_DROP_HANDLER, BT_PCM_CALLERS, machine
 
 
 def check_drop(raw, queued, caller=None):
@@ -104,11 +104,7 @@ def check(directory):
                (0x417438, 0x280, 0x318), (0x4180e0, 0x220, 0x254),
                (0x418c50, 0x220, 0x280), (0x41a6d8, 0x2a0, None))
     for (caller, offset), (start, io, ffb) in zip(BT_PCM_CALLERS, layouts):
-        u = Uc(UC_ARCH_MIPS, UC_MODE_MIPS32 | UC_MODE_LITTLE_ENDIAN)
-        u.mem_map(0x400000, 0x10000 * 6)
-        for _, (kind, off, va, _, size, _, _, _) in segments(stock):
-            if kind == 1: u.mem_write(va, stock[off:off+size])
-        u.mem_map(0x1000000, 0x10000)
+        u = machine(stock, 0x1000000)
         stack, buffer = 0x1008000, 0x1001000
         u.reg_write(UC_MIPS_REG_SP, stack)
         if ffb is not None:

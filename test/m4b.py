@@ -2,7 +2,7 @@
 """Exercise the installed TagLib's native MP4 dispatch, without decoding audio or flashing."""
 import pathlib, struct, subprocess, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]/'tools'))
-from build import machine, fileoff
+from build import machine, fileoff, load_elf, segments, TAG_C, patch_m4b_cover
 from unicorn import Uc, UC_ARCH_MIPS, UC_MODE_MIPS32, UC_MODE_LITTLE_ENDIAN, UC_HOOK_CODE
 from unicorn.mips_const import *
 raw = subprocess.check_output(['unsquashfs','-cat',str(pathlib.Path(sys.argv[1])/'stock.squashfs'),'usr/lib/libtag.so.2.0.1'])
@@ -33,8 +33,6 @@ for ext in ('M4A','M4B','m4b','M4b','m4B','MP4'):
 print('Installed TagLib: M4B and M4A reach the same MP4 metadata constructor.')
 
 # Cover extraction has a separate vendor dispatcher; metadata support alone is insufficient.
-from build import segments
-from build import TAG_C, patch_m4b_cover
 raw = subprocess.check_output(['unsquashfs', '-cat', str(pathlib.Path(sys.argv[1])/'stock.squashfs'), TAG_C])
 patched = patch_m4b_cover(raw)
 try:
@@ -52,11 +50,7 @@ helpers = {struct.unpack_from('<I', raw, fileoff(raw, gp+slot))[0]: name for nam
 
 def cover_dispatch(data, ext, load, readable=True):
     u = Uc(UC_ARCH_MIPS, UC_MODE_MIPS32 | UC_MODE_LITTLE_ENDIAN)
-    for _, (kind, off, addr, _, size, mem, _, _) in segments(data):
-        if kind != 1: continue
-        start = (load + addr) & ~4095
-        u.mem_map(start, ((load + addr + mem + 4095) & ~4095) - start)
-        u.mem_write(load + addr, data[off:off+size])
+    load_elf(u, data, load)
     # Model the loader's rebasing of the GOT entries used by the dispatcher.
     for slot in (-0x7c64, -0x7da8, -0x7e90, -0x7fd8, *slots.values()):
         val = struct.unpack_from('<I', raw, fileoff(raw, gp+slot))[0]

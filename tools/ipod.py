@@ -225,9 +225,9 @@ HOME_RENAMED = {'localmusic': LIBRARY, 'playset': {'name': 'label_playback', 'te
                 'sysset': {'name': 'label_system', 'text': 'System'}}
 
 
-# Stock list pages paint their list_view black inline; the theme default is a light rounded card.
-LIST_BLACK = {f'style:{state}:{prop}': color for state in ('normal', 'disable', 'focused')
-              for prop, color in (('bg_color', '#000000'), ('border_color', '#00000000'))}
+# The theme default list_view is a light rounded card; Home's lists clear it to transparent.
+LIST_CLEAR = {f'style:{state}:{prop}': '#00000000' for state in ('normal', 'disable', 'focused')
+              for prop in ('bg_color', 'border_color')}
 
 
 def home_list(name, rows, extra=None):
@@ -248,7 +248,7 @@ def home_list(name, rows, extra=None):
     view = ['scroll_view', [0, 0, HOME_LIST_W, HOME_ROW * len(views)],
             {'name': 'scroll_view_' + name, 'self_layout': 'default(x=0,y=0,w=100%,h=100%)', 'yslidable': 'true'}, views]
     return ['list_view', [0, HOME_TOP, HOME_LIST_W, HOME_ROW * len(views)],
-            {'name': 'list_view_' + name, 'item_height': str(HOME_ROW), **{k: '#00000000' for k in LIST_BLACK}, **(extra or {})}, [view]]
+            {'name': 'list_view_' + name, 'item_height': str(HOME_ROW), **LIST_CLEAR, **(extra or {})}, [view]]
 
 
 def ipod_home(root):

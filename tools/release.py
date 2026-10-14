@@ -101,7 +101,7 @@ def package(stock, out):
     print(f'Both variants validated and reproducible: {out}')
 
 
-def upload(out, repo=REPO, publish=False):
+def upload(out, publish=False):
     record = json.loads((out/'release.json').read_text())
     check(record['tag'] == VERSION and record['source_sha256'] == source_sha256(), 'Wrong release source/tag')
     check(set(record['assets']) == set(ASSETS.values()), 'Both variants are required')
@@ -113,16 +113,14 @@ def upload(out, repo=REPO, publish=False):
     sums = ''.join(f'{record["assets"][name]}  {name}\n' for name in ASSETS.values())
     check((out/'SHA256SUMS').read_text() == sums, 'Release checksums mismatch')
     (out/'release-notes.md').write_text(release_body(out, record))
-    gh = ['gh', '--repo', repo, 'release']
+    gh = ['gh', '--repo', REPO, 'release']
     # Listing distinguishes an absent tag from an authentication/network failure.
     releases = json.loads(run(*gh, 'list', '--limit', '1000', '--json', 'tagName,isDraft'))
     existing = next((r for r in releases if r['tagName'] == VERSION), None)
     if existing:
         check(existing['isDraft'], 'Refusing to overwrite a published release')
-        run(*gh, 'edit', VERSION, '--draft', '--target', record['revision'], '--title', VERSION, '--notes-file', out/'release-notes.md')
-    else:
-        run(*gh, 'create', VERSION, '--draft', '--target', record['revision'], '--title', VERSION,
-            '--notes-file', out/'release-notes.md')
+    run(*gh, 'edit' if existing else 'create', VERSION, '--draft', '--target', record['revision'], '--title', VERSION,
+        '--notes-file', out/'release-notes.md')
     files = [*ASSETS.values(), GUIDE]
     run(*gh, 'upload', VERSION, *(out/name for name in files), '--clobber')
     with tempfile.TemporaryDirectory(prefix='q2-release-verify-') as tmp:
@@ -131,7 +129,7 @@ def upload(out, repo=REPO, publish=False):
             check((pathlib.Path(tmp)/name).read_bytes() == (out/name).read_bytes(), f'Remote asset mismatch: {name}')
     if publish:
         run(*gh, 'edit', VERSION, '--draft=false')
-    print(f'{"Published" if publish else "Verified draft"}: https://github.com/{repo}/releases/tag/{VERSION}')
+    print(f'{"Published" if publish else "Verified draft"}: https://github.com/{REPO}/releases/tag/{VERSION}')
 
 
 if __name__ == '__main__':

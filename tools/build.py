@@ -319,10 +319,11 @@ def segments(b):
     size, num = struct.unpack_from('<HH', b, 42)
     check(size == 32, 'Unexpected ELF program header size')
     return [(phoff+i*size, struct.unpack_from('<8I', b, phoff+i*size)) for i in range(num)]
-def load_elf(u, b):
-    """Map an ELF's LOAD segments into a Unicorn instance."""
+def load_elf(u, b, load=0):
+    """Map an ELF's LOAD segments into a Unicorn instance, shifted by load."""
     for _, (t, o, v, _, f, m, _, _) in segments(b):
         if t != 1: continue
+        v += load
         start = v & ~4095
         u.mem_map(start, ((v+m+4095) & ~4095) - start)
         u.mem_write(v, b[o:o+f])
@@ -655,9 +656,10 @@ def compile_helper(out, cat, src, name, rels):
 
 def append_payload(image, payload, base, memsz, label):
     """Map payload at base through the image's final PT_NULL header, R/W/X: payloads keep static state."""
-    nulls = [(o,p) for o,p in segments(image) if p[0] == 0]
-    check(len(nulls) == 1 and nulls[0][0] == segments(image)[-1][0], f'{label}: no final PT_NULL slot')
-    check(all(p[2]+p[5] < base for _,p in segments(image) if p[0] == 1), f'{label}: payload mapping overlaps')
+    segs = segments(image)
+    nulls = [(o,p) for o,p in segs if p[0] == 0]
+    check(len(nulls) == 1 and nulls[0][0] == segs[-1][0], f'{label}: no final PT_NULL slot')
+    check(all(p[2]+p[5] < base for _,p in segs if p[0] == 1), f'{label}: payload mapping overlaps')
     off = (len(image)+65535)&~65535
     image.extend(bytes(off-len(image)))
     image.extend(payload)
