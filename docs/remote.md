@@ -55,6 +55,7 @@ All of it is injected by writing input events to `/dev/input/eventN`, so the fir
 
 - Take a `shot` after every action, about a second after it, once the page's slide has finished, and look at it before the next step.
 - If input seems to do nothing, the screen may be off: `key centre` wakes it. While it's dark the wheel changes the volume.
+- With a cable in, the Q2 shows **USB Connected** and the wheel changes the volume. `key return` ends USB storage and the Q2 mounts its card again; eject it on the PC first.
 - With **Wake: Double press** on, a dark Q2 needs two Centre presses to wake.
 - A tap hides the wheel's selection, and the next tick only shows it again without moving.
 - Busybox has no `timeout`, `pkill` or `killall -r`. Background a command and `kill $!` it.
