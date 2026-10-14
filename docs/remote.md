@@ -23,6 +23,10 @@ It listens on TCP port 2302 and sends the key and every command **unencrypted**.
    python3 tools/q2remote.py sh id        # uid=0(root) gid=0(root)
    ```
 
+   On the development workstation, the test Q2's key is stored at
+   `$XDG_RUNTIME_DIR/q2remote.key` (`/run/user/1000/q2remote.key` for diamond).
+   This runtime location is temporary and may be cleared at logout or reboot.
+
 Each connection rereads `/mnt/mmc/q2remote.key` while the card is mounted, so replacing the file rotates the key and deleting it revokes access, the internal copy included. A change made over USB storage applies once the cable is out.
 
 ## Commands
