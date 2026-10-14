@@ -40,6 +40,8 @@ About's **FW. Version** row reads the same literal, so it shows the stock firmwa
 
 `--dev` numbers each test build from the untracked `.build-number` and tags it `V` plus that number in three base-36 digits, then the edition in lowercase (`V001i`, `V002i` … `VZZZi`; `s` for Stock). No two test builds share a tag, and none equals a release's, so the updater installs each test build over the last and the release over any of them. `--dev` applies to that build only: the release procedure never passes it, and the manifest records `dev: true`.
 
+Development builds also start `q2remote`, a key-gated root shell with screenshots and input over Wi-Fi, for developers and agents; see [remote.md](remote.md).
+
 ## Tests
 
 ```sh
@@ -50,6 +52,7 @@ python3 test/coverflow.py --captures /tmp/cf  # the same, plus the renderer's fr
 python3 test/mp3.py                        # native Xing seek bounds, CRC and truncated headers; TXXX encodings
 python3 test/build.py                      # JPEG header checks; no emulator required
 python3 test/build.py 'Q2 Firmware V1.32.zip'   # packaging checks (custom logo, quoted paths)
+python3 test/remote.py                     # q2remote protocol, auth, event and framebuffer checks
 python3 test/playback.py /tmp/q2-build     # grouped traversal, snapshots and the wheel's ticks
 python3 test/patch.py /tmp/q2-build        # the patched MIPS payload, wheel and UI scenarios
 python3 test/m4b.py /tmp/q2-build          # native TagLib M4B/MP4 metadata dispatch

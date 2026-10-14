@@ -118,6 +118,7 @@ HELPER_LIBS = ['lib/libc-2.28.so', 'lib/libpthread-2.28.so', 'usr/lib/libasound.
 # watchdog stopped in case demo's kill was not reached, then demo once more. Any other end of demo
 # ends the loop, so the watchdog reboots as stock's would.
 BOOT = 'usr/bin/q2boot'
+REMOTE = 'usr/bin/q2remote'
 S90PLAY = 'etc/init.d/S90play'
 ROCKBOX_FLAG = '/tmp/q2pod-rockbox'
 BOOT_HOOK = (b'    /release/bin/demo &\n', f'''    (
@@ -143,6 +144,8 @@ BOOT_HOOK = (b'    /release/bin/demo &\n', f'''    (
         done
     ) &
 '''.encode())
+REMOTE_HOOK = (b'/usr/bin/dbus-daemon --config-file=/etc/dbus-1/system.conf\n',
+               b'/usr/bin/dbus-daemon --config-file=/etc/dbus-1/system.conf\n/usr/bin/q2remote &\n')
 # The byte in bluealsa's AAC capability holding the 44.1 kHz bit; see docs/internals.md.
 BLUEALSA = 'usr/bin/bluealsa'
 SCROBBLE_CA = 'etc/scrobble-ca.pem'
@@ -915,7 +918,10 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         line = inode(p, path)
         check(line is not None, f'Missing {path.decode()} pseudo inode')
         return p[:line.start()]+path+b' F '+b' '.join(line.groups())+b' cat '+shlex.quote(str(src)).encode()+p[line.end():]
-    (out/'S90play').write_bytes(cat(S90PLAY).replace(*BOOT_HOOK))
+    s90play = cat(S90PLAY)
+    check(s90play.count(BOOT_HOOK[0]) == 1 and s90play.count(REMOTE_HOOK[0]) == 1, 'Unexpected S90play')
+    s90play = s90play.replace(*BOOT_HOOK)
+    (out/'S90play').write_bytes(s90play.replace(*REMOTE_HOOK) if dev else s90play)
     logo_data = logo.read_bytes()
     check(jpeg_size(logo_data) == (320, 375), 'Logo must be 320x375 like the stock splash')
     # Package exactly the validated bytes, even if the input is edited during compression.
@@ -945,11 +951,12 @@ def build(zip_path, out, logo, ipod=False, dev=False):
     for path, (like, data) in {**{xx+n: (xx+l, d) for n, (l, d) in icons.items()},
                                HELPER: (HELPER_LIKE, compile_helper(out, cat, 'video', 'q2video', HELPER_LIBS)),
                                SCROBBLE_CA: ('etc/hosts', (ROOT/'assets/scrobble-ca.pem').read_bytes()),
-                               BOOT: (HELPER_LIKE, compile_helper(out, cat, 'boot', 'q2boot', HELPER_LIBS[:1]))}.items():
+                               BOOT: (HELPER_LIKE, compile_helper(out, cat, 'boot', 'q2boot', HELPER_LIBS[:1])),
+                               **({REMOTE: (HELPER_LIKE, compile_helper(out, cat, 'remote', 'q2remote', HELPER_LIBS[:1]))} if dev else {})}.items():
         stock = inode(p, like.encode())
         check(stock is not None, f'Missing stock inode for {path}')
         name = path.rsplit('/', 1)[-1]
-        if path not in (HELPER, BOOT): (out/name).write_bytes(data)  # package the hashed bytes, as the logo
+        if path not in (HELPER, BOOT, REMOTE): (out/name).write_bytes(data)  # package the hashed bytes, as the logo
         path = path.encode()
         entry = path+b' F '+b' '.join(stock.groups())+b' cat '+shlex.quote(str(out/name)).encode()+b'\n'
         at = p.index(b'# START OF DATA')  # definitions precede the embedded data
@@ -1013,7 +1020,7 @@ def build(zip_path, out, logo, ipod=False, dev=False):
         rootfs_sha256=sha(newsq.read_bytes()), kernel_sha256=sha(blobs['recovery-update/xImage']),
         patch_bytes=len(payload), ring_step_pixels=RING_STEP,
         audio_extension_calls=[dict(address=hex(a), original='0x0320f809', replacement=hex(jal(ps['ringnav_audio_extension']))) for a in AUDIO_EXTENSION_CALLS],
-        version=version, variant=variant, dev=dev, peq=audio, bluealsa_sha256=sha(bluealsa), q2video_sha256=sha((out/'q2video').read_bytes()), q2boot_sha256=sha((out/'q2boot').read_bytes()), compact_code=code_changes, changed_assets=changed_assets, logo_sha256=sha(logo_data),
+        version=version, variant=variant, dev=dev, peq=audio, bluealsa_sha256=sha(bluealsa), q2video_sha256=sha((out/'q2video').read_bytes()), q2boot_sha256=sha((out/'q2boot').read_bytes()), **({'q2remote_sha256': sha((out/'q2remote').read_bytes())} if dev else {}), compact_code=code_changes, changed_assets=changed_assets, logo_sha256=sha(logo_data),
         patch_symbols={n:hex(v) for n,v in ps.items() if n.startswith('stock_')},
         tools={t:run(t,'--version').splitlines()[0] for t in ['clang','ld.lld','llvm-objcopy']} |
               ({'imagemagick': imagemagick('-version', data=b'').decode().splitlines()[0]} if ipod else {}))

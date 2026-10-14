@@ -87,7 +87,7 @@ boot_check()
 
 def validate_assets(directory):
     import functools, json, re, struct, subprocess
-    from build import sha, run, fileoff, symbols, BLUEALSA, AAC_44K1, IPOD_HOOKS, IPOD_LEAF, WM_PAINT_LEAF, HELPER, HELPER_LIKE, BOOT, BOOT_HOOK, S90PLAY, RTC_WRITE, WATCHDOG, WATCHDOG_SLEEP, DROP_CACHES, WHEEL_TS_READ, PDR
+    from build import sha, run, fileoff, symbols, BLUEALSA, AAC_44K1, IPOD_HOOKS, IPOD_LEAF, WM_PAINT_LEAF, HELPER, HELPER_LIKE, BOOT, BOOT_HOOK, REMOTE, REMOTE_HOOK, S90PLAY, RTC_WRITE, WATCHDOG, WATCHDOG_SLEEP, DROP_CACHES, WHEEL_TS_READ, PDR
     from ipod import (AUDIT, TOOLBAR_SWITCHES, BOTTOM, CHEVRON_W, CONFIRM, VOLUME, QUICK_SETTINGS, QS_TOP, QS_LABEL_GAP, QS_LABEL_H,
                       QS_LABEL_W, QS_ROW_GAP, QS_PITCH, QS_BAR, QS_TOUCH, QS_EDGE, QS_SUN, HOME_LABEL_END, HOME_LIST_W, HOME_TEXT_X, HOME_TOP, PITCH, ARTIST_PAGE, HOME_PAGE, HOME_ROW, HOME_ROWS, NAVBAR_ONLY, PLAYING_PAGE, SET_ROW, SET_ROWS, SET_TOP, UI_ASSETS,
                       NP_BAR, NP_MARGIN, NP_POS_X, NP_TOP, STATUS_BAR, STATUS_HIDDEN, STATUS_LEFT, STATUS_MARGIN, STATUS_RIGHT, CLOCK_MIN, CLOCK_TEXT, corner_inset, corner_x,
@@ -195,7 +195,19 @@ def validate_assets(directory):
     # Rockbox's dual boot: q2boot likewise, and S90play differs from stock only in starting demo.
     boot = read('rootfs.squashfs', BOOT)
     assert sha(boot) == manifest['q2boot_sha256'] and boot[:4] == b'\x7fELF' and boot[36:40] == helper[36:40]
-    assert read('rootfs.squashfs', S90PLAY) == read('stock.squashfs', S90PLAY).replace(*BOOT_HOOK)
+    expected_start = read('stock.squashfs', S90PLAY).replace(*BOOT_HOOK)
+    if manifest['dev']:
+        remote = read('rootfs.squashfs', REMOTE)
+        assert sha(remote) == manifest['q2remote_sha256'] and remote[:4] == b'\x7fELF'
+        assert remote[36:40] == helper[36:40]
+        expected_start = expected_start.replace(*REMOTE_HOOK)
+    else:
+        assert 'q2remote_sha256' not in manifest
+        assert not (directory/'q2remote').exists()
+        absent = subprocess.run(['unsquashfs', '-cat', str(directory/'rootfs.squashfs'), REMOTE],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        assert absent.returncode != 0, 'release rootfs contains q2remote'
+    assert read('rootfs.squashfs', S90PLAY) == expected_start
     # bluealsa: AAC capability, the two DROP jumps, and one appended LOAD payload.
     from build import BT_DROP, BT_DROP_HANDLER, BT_DROP_PAYLOAD, patch_bluealsa, segments
     old, new = read('stock.squashfs', BLUEALSA), read('rootfs.squashfs', BLUEALSA)

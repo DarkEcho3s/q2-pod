@@ -1,0 +1,71 @@
+# q2remote: drive a development Q2 over Wi-Fi
+
+`q2remote` gives a developer, or an AI agent working on the project, a root shell, screenshots and input on a Q2 over the local network, so a change can be tried and checked without touching the device. It ships **only in `--dev` builds** ([building.md](building.md)): `tools/build.py --dev` compiles `patch/remote.c` into `/usr/bin/q2remote` and starts it from `S90play` after dbus; release builds don't contain it, and `test/build.py` checks that.
+
+It listens on TCP port 2302 and sends the key and every command **unencrypted**. Use it only on a network you trust, such as your own phone's hotspot, and never leave a key on a card you lend or sell.
+
+## Setup
+
+1. Install a `--dev` update on the Q2 and join it to the same Wi-Fi network as your PC.
+2. Put a key on the card: 16-127 characters from `A-Z a-z 0-9 _ -`, one line. With the Q2 connected over USB storage:
+
+   ```sh
+   openssl rand -hex 16 > /run/media/$USER/<card>/q2remote.key
+   ```
+
+3. **Eject and unplug the USB cable.** While the card is shared over USB storage the Q2 unmounts it, so it can't read a new key until the cable comes out. After the first connection it keeps a copy in `/mnt/data/q2remote.key` and uses that while the card is away, so later a cable in, even from boot, doesn't lock you out.
+4. Find the Q2's address: the hotspot's or router's client list, or `ip neigh` after a ping sweep of the subnet.
+5. Load the key into the environment without echoing it:
+
+   ```sh
+   export Q2_HOST=10.0.0.42
+   export Q2_KEY="$(cat path/to/q2remote.key)"
+   python3 tools/q2remote.py sh id        # uid=0(root) gid=0(root)
+   ```
+
+Each connection rereads `/mnt/mmc/q2remote.key` while the card is mounted, so replacing the file rotates the key and deleting it revokes access, the internal copy included. A change made over USB storage applies once the cable is out.
+
+## Commands
+
+| Command | Does |
+|---|---|
+| `sh 'COMMAND'` | Runs `COMMAND` with busybox `sh` as root, printing stdout and stderr together. There is no exit status: append `; echo $?` if you need it. |
+| `shot OUT.png` | Saves the displayed framebuffer as an upright 375×320 PNG. |
+| `key NAME [MS]` | Presses a button for `MS` ms (default 80). |
+| `wheel N` | Turns the wheel `N` ticks: positive is down/next, negative up/back. |
+| `tap X Y` | Taps the screen at upright screenshot coordinates (0-374, 0-319). |
+| `events N [S]` | Prints raw events from `/dev/input/eventN` for `S` seconds (default 5). |
+| `devices` | Lists the input devices and their key and axis codes. |
+| `reboot` | Syncs and reboots into the saved boot target; q2remote answers again once the Q2 rejoins Wi-Fi, which can take a few minutes. |
+
+## Input
+
+| Control | How | Device |
+|---|---|---|
+| Centre | `key centre`; hold 5 s (`key centre 5000`) for the shutdown prompt | `md-gpio-keys`, `KEY_POWER` 116 |
+| Return | `key return` | `md-gpio-keys`, `KEY_UP` 103 |
+| Play/Pause | `key play` | `md-gpio-keys`, `KEY_DOWN` 108 |
+| Next, Previous | `key next`, `key prev` | `md-gpio-keys`, 163, 165 |
+| Wheel | `wheel N` | `hyn_sliderbar`: x 1-200 a turn, read through tslib |
+| Touch | `tap X Y` | `hyn_ts`: the portrait panel's axes, which `tap` converts |
+
+All of it is injected by writing input events to `/dev/input/eventN`, so the firmware sees exactly what the hardware would send and `demo` needs no change. `wheel` reads the saved **Wheel sensitivity** from `/mnt/data/config.ini`, so one tick is one tick of the firmware at any setting ([internals.md](internals.md), the wheel). The PMIC's 10-15 s Centre reset is wired in hardware and can't be injected; use `reboot`.
+
+## Working with it
+
+- Take a `shot` after every action, about a second after it, once the page's slide has finished, and look at it before the next step.
+- If input seems to do nothing, the screen may be off: `key centre` wakes it. While it's dark the wheel changes the volume.
+- With **Wake: Double press** on, a dark Q2 needs two Centre presses to wake.
+- A tap hides the wheel's selection, and the next tick only shows it again without moving.
+- Busybox has no `timeout`, `pkill` or `killall -r`. Background a command and `kill $!` it.
+- Logs and settings: `/mnt/data/config.ini`, the card at `/mnt/mmc`, and `ps` for `demo`.
+
+## Troubleshooting
+
+- **`authentication rejected`:** the key differs from the card's file, the file is malformed, or the key is new and the USB cable is still connected (setup step 3).
+- **`cannot reach Q2` / `No route to host`:** the Q2 isn't on the network yet (after a boot or a reboot it can take a few minutes), or is in Rockbox, which has no q2remote. Make sure the PC is on the same network and not still on wired Ethernet.
+- **`no md-gpio-keys input device`:** run `devices`; the firmware may name its devices differently.
+
+## Protocol
+
+The client sends the key, a newline, the command, a newline, then any stdin. The helper answers `OK\n` and then streams the command's output until it exits, or answers `ERR\n` and closes. A handshake has to arrive within 10 seconds. `q2remote --shot` writes `Q2FB\0`, then the width, height, stride and size as little-endian 32-bit integers, then the displayed page, which `tools/q2remote.py` rotates and encodes. `python3 test/remote.py` builds the helper for the host and checks authentication, rotation, revocation, the internal copy, framing and the input encoders.
