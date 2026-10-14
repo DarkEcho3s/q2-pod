@@ -722,6 +722,11 @@ def patch_asset(path, data, ipod):
             for key, value in props.items():
                 if key.endswith(':bg_color') and value == '#000000':
                     props[key] = '#00000000'
+        if kind == 'table_client' and props.get('self_layout', '').startswith('default(x=0,y=0,w=365,'):
+            # the full width, as the Library's scroll_view: the scroll bar overlays the row's right
+            # edge, and the selection card and chevrons line up with every other list
+            props['self_layout'] = props['self_layout'].replace('w=365', 'w=375')
+            g[2] = 375
         in_row = in_row or kind in ('list_item', 'table_row') and g[3] in (0, 78)
         for prop in ('row_height', 'default_item_height'):
             if props.get(prop) == '78':
@@ -781,6 +786,12 @@ def patch_code(data, symbols):
     # iPod settings rows: the list_view layouter's layout slot (data, vtable 0x926928 + 8).
     word(inc('LIST_VIEW_LAYOUT_SLOT'), inc('LIST_VIEW_LAYOUT'), symbols['ipod_list_layout'],
          'settings lists stack SET_ROW rows and map their children')
+    # toolsTimeItoa's formats, as an iPod writes times: 0:02 and 1:02:03, not 00:02 and 01:02:03.
+    for address, old, new in ((0x7778a0, 0x64323025, 0x253a6425), (0x7778a4, 0x3230253a, 0x3a643230),
+                              (0x7778a8, 0x30253a64, 0x64323025), (0x7778ac, 0x00006432, 0),
+                              (0x7778b0, 0x64323025, 0x253a6425), (0x7778b4, 0x3230253a, 0x00643230),
+                              (0x7778b8, 0x00000064, 0)):
+        word(address, old, new, 'times without a leading zero')
     # home_page_init's memory-play resume opens Now Playing; outside car mode it runs the page's player_start alone.
     word(0x523de0, 0x0320f809, jal(symbols['ringnav_boot']),
          'boot resume restores the queue paused and stays on Home')

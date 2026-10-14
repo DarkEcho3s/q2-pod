@@ -104,8 +104,9 @@ void *text(void *parent, int x, int y, int w, int h);
 void *page_open(const char *name, int (*closed)(void *, void *), int (*keyup)(void *, void *));
 void *page_title(void *body, const char *caption);
 void *page_list(void *page, void *body, void **title, const char *caption, int n, int item_h);
-void page_row_detail(void *view, int index, const char *caption, const char *detail,
-                     int (*click)(void *, void *));
+void *page_row_detail(void *view, int index, const char *caption, const char *detail,
+                      int (*click)(void *, void *));
+void page_row_into(void *view, int index, const char *caption, int (*click)(void *, void *));
 void *bottom_caption(void *parent, int h);
 int visual(void *s, int n, int *c, int *frac);
 int thumb(const char *src, const char *dst, int w, int h);

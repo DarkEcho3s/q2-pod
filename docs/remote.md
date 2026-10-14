@@ -53,14 +53,14 @@ Each connection rereads `/mnt/mmc/q2remote.key` while the card is mounted, so re
 | Wheel | `wheel N` | `hyn_sliderbar`: x 1-200 a turn, read through tslib |
 | Touch | `tap X Y` | `hyn_ts`: the portrait panel's axes, which `tap` converts |
 
-All of it is injected by writing input events to `/dev/input/eventN`, so the firmware sees exactly what the hardware would send and `demo` needs no change. `wheel` reads the saved **Wheel sensitivity** from `/mnt/data/config.ini`, so one tick is one tick of the firmware at any setting ([internals.md](internals.md), the wheel). The PMIC's 10-15 s Centre reset is wired in hardware and can't be injected; use `reboot`.
+All of it is injected by writing input events to `/dev/input/eventN`, so the firmware sees exactly what the hardware would send and `demo` needs no change. `wheel` reads the saved **Wheel Sensitivity** from `/mnt/data/config.ini`, so one tick is one tick of the firmware at any setting ([internals.md](internals.md), the wheel). The PMIC's 10-15 s Centre reset is wired in hardware and can't be injected; use `reboot`.
 
 ## Working with it
 
 - Take a `shot` after every action, about a second after it, once the page's slide has finished, and look at it before the next step.
 - If input seems to do nothing, the screen may be off: `key centre` wakes it. While it's dark the wheel changes the volume.
 - With a cable in, the Q2 shows **USB Connected** and the wheel changes the volume. `key return` ends USB storage and the Q2 mounts its card again; eject it on the PC first.
-- With **Wake: Double press** on, a dark Q2 needs two Centre presses to wake.
+- With **Wake: Double Press** on, a dark Q2 needs two Centre presses to wake.
 - A tap hides the wheel's selection, and the next tick only shows it again without moving.
 - Busybox has no `timeout`, `pkill` or `killall -r`. Background a command and `kill $!` it.
 - Logs and settings: `/mnt/data/config.ini`, the card at `/mnt/mmc`, and `ps` for `demo`.

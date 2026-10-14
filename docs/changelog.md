@@ -1,5 +1,19 @@
 # Changelog
 
+- **1.1.9**:
+  - Hold menus: rows are 66 px instead of 78, so three whole rows always show and none is cut in half under the title.
+  - Wording: the Library uses Artists, Albums, Songs and Playlists. Settings rows are in Title Case, stock strings are reworded (e.g. "Shut Down?", "Enlarged Album Art"), and the Shuffle and Repeat choices say Album or Folder. "Boot to: Q2 Pod" now matches the product name.
+  - Song rows: untagged songs show the file name without the extension, and the FLAC/MP3 badges are gone.
+  - Coverflow: the Sort and Refresh cards no longer show the previous album's artist.
+  - Feedback: "Playing Next" or "Added to Queue" appears after those actions. An empty Albums, Artists, Composers or Genres list says so instead of opening to a black page.
+  - Quick settings: the pull-down closes on Return or Centre.
+  - Folder: the OTG row only appears when a drive is plugged in.
+  - Visuals:
+    - Baidu's icon is a disc like the others.
+    - The rating panel is opaque.
+    - Folder and song lists use the full width, so the selection and chevrons line up with Library and Settings.
+    - Shuffle, Ratings, Radio and the Coverflow tracks are left-aligned like every other list, with chevrons on rows that open lists.
+  - Times: they read "0:02" instead of "00:02".
 - **1.1.8**: Coverflow, Photos and Spotify now show WebP covers and large high-resolution covers that used to show the placeholder, decoding them with the Q2's own ffmpeg; `cover`/`folder` `.png` and `.webp` files are found too. Albums already marked as having no art need **Refresh library**. Crossfade no longer carries the previous queue's album decision into a new queue that starts at the same position. Scrobbling on a full card no longer resends or duplicates uploaded listens. A new boot logo: a thin-lined Q and 2 in off-white with a small grey POD beneath. iPod: turning the volume no longer briefly shows Shanling's full-screen volume slider while a page slides. **ReplayGain** now applies to MP3s whose gains sit after embedded cover art or a long tag, or are written in UTF-8 (most ID3v2.4 taggers); before, only some MP3s got their gain.
 - **1.1.7**: Now Playing's artist and album are larger, 18 pixels instead of 16, with the album in a lighter grey, and Minimal's album capitals grow from 13 to 15 pixels; Spotify and Internet Radio follow. Now Playing's hold menu lists **Rate** after **Next album** and **Previous album** instead of first.
 - **1.1.6**: In Shuffle, Previous then Next goes back to the song you skipped back from instead of a new random one. Coverflow leaves out audiobooks: albums whose tracks are all `.m4b` files or sit under the card's **Audiobooks** folder, while the library's own lists keep them. Turning the wheel while an artist's page or its Coverflow is up, or still opening, no longer moves the Artists list hidden beneath it, and returning to Albums, Artists, Composers or Genres after opening an artist restores your place in the list. Now Playing's play-mode control sits further from the favourite heart, so a tap meant for the heart doesn't change shuffle or repeat. Internet Radio pairs a .pls's TitleN= with its FileN= in any order, and a favourites file longer than the list shows is never rewritten short. A read-only card no longer stalls the TIDAL download worker. Opening Rockbox from Home with Bluetooth headphones connected sets their volume to the maximum volume limit first, so Rockbox's volume reaches full instead of stopping at the Q2's level; the Q2's own volume comes back on return. **System settings → Display → Lock screen** gains six built-in wallpapers, Aurora, Sunrise, Graphite, Tide, Ember and plain Black, next to Shanling's own and your card images, and a **Clock: Large** row under Time show that sets the time in large type across the top of the lock screen.

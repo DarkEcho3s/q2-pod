@@ -574,16 +574,20 @@ checks+=1
 # UI wiring in both variants: stock-style choice menu, selected marker, touch and wheel slider.
 m=PlaybackMachine(); m.top=m.node('window','playing_page'); m.stack=[m.top]; m.word(m.top+O['W_PARENT'],m.wm)
 m.press(100); assert m.hold()==11
-assert m.labels()[-5:]==['Shuffle','Repeat','Group by: Album','Next album','Previous album']
+assert m.labels()[-5:]==['Shuffle','Repeat','Group by: Album','Next Album','Previous Album']
 m.pick(6); m.advance(0,clear=False)
-assert m.labels()==['Off','All','Songs','Categories','Songs/Categories']
+assert m.labels()==['Off','All Songs','Songs in Album','Albums','Albums and Songs']
 assert any(n.get('image')=='select' for n in m.nodes.values())
 m.pick(3); m.advance(0,clear=False); assert m.fn('playback_option',0)==3
+# Grouped by folder, the choices name folders.
+m=PlaybackMachine(); m.options(3,2,1); m.top=m.node('window','playing_page'); m.stack=[m.top]; m.word(m.top+O['W_PARENT'],m.wm)
+m.press(100); assert m.hold()==11; m.pick(m.labels().index('Repeat')); m.advance(0,clear=False)
+assert m.labels()==['Play One Song','Play One Folder','Play All','Repeat Song','Repeat Folder','Repeat All']
 for folder in (0,1):
     m=PlaybackMachine(); m.options(3,2,folder)
     m.top=m.node('window','playing_page'); m.stack=[m.top]; m.word(m.top+O['W_PARENT'],m.wm)
     m.press(100); assert m.hold()==11
-    assert m.labels()[:2]==(['Next folder','Previous folder'] if folder else ['Next album','Previous album'])
+    assert m.labels()[:2]==(['Next Folder','Previous Folder'] if folder else ['Next Album','Previous Album'])
     m.pick(0); m.advance(0,clear=False); assert m.current() not in (0,2,6)
     checks+=1
 m=PlaybackMachine(); m.handlers[ps['stock_display_trampoline']]='stock_display'
@@ -591,7 +595,7 @@ view=m.node('scroll_view','scroll_view_display'); lst=m.node('list_view','list_v
 m.top=m.node('window','display_page',[lst]); m.stack=[m.top]
 for child,parent in ((view,lst),(lst,m.top),(m.top,m.wm)): m.word(child+O['W_PARENT'],parent)
 assert m.fn('ringnav_display',m.top,0)==0
-assert [n['text'] for n in m.nodes.values() if 'Wheel' in str(n.get('text'))]==['Wheel sensitivity: 50%']  # the row, test/patch.py's
+assert [n['text'] for n in m.nodes.values() if 'Wheel' in str(n.get('text'))]==['Wheel Sensitivity: 50%']  # the row, test/patch.py's
 checks+=1
 
 # Manual Next/Prev at the queue ends runs stock player_change_music through ringnav_change. Stock

@@ -506,15 +506,21 @@ static void show(int level) {
         for (int r = rd.list.n || !access(RADIO_LAST, 0) ? R_PLAYING : R_FAVS; r <= R_GENRE; ++r)
             ui.rows[n++] = r;
         ui.view = page_list(ui.page, ui.page, 0, "Internet Radio", n, 48);
-        for (int i = 0; i < n; ++i) page_row_detail(ui.view, i, menu[ui.rows[i]], 0, menu_click);
+        for (int i = 0; i < n; ++i) /* Now Playing plays; the rest open lists */
+            if (ui.rows[i] == R_PLAYING)
+                page_row_detail(ui.view, i, menu[ui.rows[i]], 0, menu_click);
+            else
+                page_row_into(ui.view, i, menu[ui.rows[i]], menu_click);
     } else {
         const list_t *l = level == PICK ? &ui.pick : &ui.list;
         n = l->n;
         ui.view = page_list(ui.page, ui.page, 0,
                             level == PICK ? ui.genre ? "Genres" : "Countries" : ui.caption, n, 48);
         for (int i = 0; i < n; ++i)
-            page_row_detail(ui.view, i, name_of(l, i), 0,
-                            level == PICK ? pick_click : station_click);
+            if (level == PICK)
+                page_row_into(ui.view, i, name_of(l, i), pick_click);
+            else
+                page_row_detail(ui.view, i, name_of(l, i), 0, station_click);
     }
     if (n) ringnav_select(ui.view, ui.sel[level] < n ? ui.sel[level] : n - 1, n);
 }

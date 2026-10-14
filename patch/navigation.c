@@ -13,12 +13,13 @@ extern int stock_keyup_trampoline(void *, void *), stock_touch_trampoline(void *
     stock_sleep_trampoline(void *), stock_color_trampoline(void *, void *, const char *, unsigned),
     stock_image_trampoline(void *, const char *, void *), stock_about_trampoline(void *, void *),
     stock_folder_trampoline(void *, void *), stock_folder_back_trampoline(void *, void *),
-    stock_input_trampoline(void *, void *), stock_buzzer_trampoline(int),
-    stock_localclass_trampoline(int), stock_detail_trampoline(int, void *),
-    stock_artist_trampoline(int), stock_power_trampoline(void *, void *),
-    stock_systemset_trampoline(void *, void *), stock_audioset_trampoline(void *, void *),
-    stock_btrows_trampoline(void *, void *), stock_playlist_trampoline(void *),
-    stock_stream_trampoline(void *, void *), stock_start_player_trampoline(void);
+    stock_folder_top_trampoline(void), stock_input_trampoline(void *, void *),
+    stock_buzzer_trampoline(int), stock_localclass_trampoline(int),
+    stock_detail_trampoline(int, void *), stock_artist_trampoline(int),
+    stock_power_trampoline(void *, void *), stock_systemset_trampoline(void *, void *),
+    stock_audioset_trampoline(void *, void *), stock_btrows_trampoline(void *, void *),
+    stock_playlist_trampoline(void *), stock_stream_trampoline(void *, void *),
+    stock_start_player_trampoline(void);
 extern void *coverflow_tracks(void *page);
 extern int coverflow_jump(void *w, int from, int dir, unsigned *letter), coverflow_bounded(void *w);
 extern void *coverflow_album(void *page), *coverflow_album_tracks(void *r);
@@ -150,6 +151,7 @@ typedef struct {
      * and the list it opened, with its tracks. */
     unsigned *rates, *album_rates;
     void *rate_win, *rate_fav, *rate_ctx, *rate_badge, *rate_on;
+    int empty_kind; /* the empty Library list empty_toast names */
     int rate_pick, rate_held;
     unsigned rate_hold, rate_tick, rate_album;
     void *rt_menu, *rt_page, *rt_list;
@@ -1856,13 +1858,13 @@ int ringnav_bt_connect_start(int pause) {
 }
 static void pod_text(int i) {
     static const char *const names[][2] = {
-        { "Charge limit: Off", "Charge limit: " STR(CHARGE_STOP) "%" },
-        { "Low power: Off", "Low power: On" },
-        { "Wake: Single press", "Wake: Double press" },
-        { "Artist albums: Grid", "Artist albums: Coverflow" },
-        { "Year order: Newest first", "Year order: Oldest first" },
+        { "Charge Limit: Off", "Charge Limit: " STR(CHARGE_STOP) "%" },
+        { "Low Power: Off", "Low Power: On" },
+        { "Wake: Single Press", "Wake: Double Press" },
+        { "Artist Albums: Grid", "Artist Albums: Coverflow" },
+        { "Year Order: Newest First", "Year Order: Oldest First" },
         { "Artists: Artist", "Artists: Album Artist" },
-        { "Resume on connect: Off", "Resume on connect: On" },
+        { "Resume on Connect: Off", "Resume on Connect: On" },
         { "Clock: Standard", "Clock: Large" },
     };
     int v = i != POD_ARTISTS ? *pod_values[i] : I(artist_type, 0) == 1;
@@ -2689,6 +2691,22 @@ int ringnav_image_add(void *manager, const char *name, void *bitmap) {
                 !tk_strcmp(name, "wifitransport")) &&
                tk_strcmp(name, "play_defaultcover") && tk_strcmp(name, "playlist_default") &&
                !tk_str_start_with(name, "tidal_shan") && tk_strcmp(name, "tidal_user");
+    /* Baidu's is a white square, the only list icon without a disc: cut to one, its edge a pixel
+     * soft. Minimal greys it inverted below (a grey disc, the logo white), as its neighbours. */
+    int square = s && !*s && !tk_strcmp(name, "list_baidu");
+    unsigned char *cut = square && format < 4 ? bitmap_lock_buffer_for_write(bitmap) : (void *)0;
+    if (cut) {
+        int w = I(bitmap, 0), h = I(bitmap, 4), r = (w < h ? w : h) - 2; /* radius x2 */
+        for (int y = 0; y < h; ++y)
+            for (int x = 0; x < w; ++x) {
+                unsigned char *a = cut + y * bitmap_get_line_length(bitmap) + 4 * x + at[format][3];
+                int dx = 2 * x + 1 - w, dy = 2 * y + 1 - h, d = dx * dx + dy * dy;
+                int q = r - 2; /* sqrt(d), in the two-pixel band only */
+                while (q < r + 2 && (q + 1) * (q + 1) <= d) ++q;
+                *a = (unsigned char)(*a * (r + 2 - q) / 4);
+            }
+        bitmap_unlock_buffer(bitmap);
+    }
     unsigned char *px = (icon || into) && format < 4 && !ipod_classic()
                             ? bitmap_lock_buffer_for_write(bitmap)
                             : (void *)0;
@@ -2709,9 +2727,11 @@ int ringnav_image_add(void *manager, const char *name, void *bitmap) {
                     }
                     if (sat > disc) sat = disc;
                     if (icon && !disc) continue; /* already grey: keep the disc/glyph contrast */
+                    int ink = (255 - (MINIMAL_CHEVRON & 255)) * sat / disc;
                     p[o[0]] = p[o[1]] = p[o[2]] =
-                        (unsigned char)(icon ? 255 - (255 - (MINIMAL_CHEVRON & 255)) * sat / disc
-                                             : MINIMAL_CHEVRON & 255);
+                        (unsigned char)(!icon    ? MINIMAL_CHEVRON & 255
+                                        : square ? (MINIMAL_CHEVRON & 255) + ink
+                                                 : 255 - ink);
                 }
         bitmap_unlock_buffer(bitmap);
     }
@@ -2845,7 +2865,7 @@ void toast(const char *text);
 #define BOOT_TARGET "/mnt/data/boot-target"
 static int boot_rockbox __attribute__((section(".scratch")));
 static void boot_text(void *label) {
-    widget_set_text_utf8(label, boot_rockbox ? "Boot to: Rockbox" : "Boot to: Q2-Pod");
+    widget_set_text_utf8(label, boot_rockbox ? "Boot to: Rockbox" : "Boot to: Q2 Pod");
 }
 static int boot_click(void *label, void *event) {
     (void)event;
@@ -3589,6 +3609,13 @@ int ringnav_art_header(char *buf, unsigned size, const char *fmt, const char *al
                     key && !strncasecmp(key, album, n) && key[n] == 0x1f ? key : album);
 }
 
+static int empty_toast(const void *unused) {
+    static const char *const none[] = { "No albums", "No artists", "No composers", "No genres" };
+    (void)unused;
+    toast(none[st.empty_kind]);
+    return 0;
+}
+
 /* Library Artists rows have no head picture, so the name gets its width (compact_row_layout skips
  * hidden siblings). Composers and Genres share the rows, which are rebound, so they show theirs
  * again. */
@@ -3605,21 +3632,42 @@ int ringnav_class_icon(void *row, int i) {
  * which picks the album-artist queries for Artists and an artist's albums, so those lists always
  * went by the Artist tag; it follows artist_type, the setting the artist page itself uses.
  * getAllAlbum groups by name alone: Albums is split as Coverflow is (album artist, else folder),
- * and the name's songs an album row opens (0xff10) keep only that album (album_open). */
+ * and the name's songs an album row opens (0xff10) keep only that album (album_open). An empty
+ * list toasts what it lacks. */
+/* list_get_img_pic: a song row's format badge (img_flac, img_mp3, ...) by its extension. "null" is
+ * stock's no badge, which hides it, as an iPod's rows carry none. */
+int ringnav_badge(const char *path, char *out, int size) {
+    (void)path;
+    tk_snprintf(out, (unsigned)size, "null");
+    return 0;
+}
 int ringnav_localclass(int cls) {
     I(g_artist_type, 0) = I(artist_type, 0) == 1;
     int n = stock_localclass_trampoline(cls);
     void *list = P(p_deque_showlist, 0), *dir = P(tools_pdeq_directory, 0), *a = album_opened();
     if (n > 0 && cls == 0xff10 && a) album_only(list, a, 0), n = (int)deque_size(list);
     if (n > 0 && cls == CLASS_ALBUMS) n = coverflow_split(list);
-    if (n <= 0 || cls < CLASS_ALBUMS || cls > 0xf006 ||
-        I(deque_at(list, (unsigned)n - 1), REC_ID) != -1)
-        return n;
-    class_query((unsigned)cls, deque_at(list, (unsigned)n - 1));
-    int empty = !deque_size(dir);
-    deque_clear(dir);
-    if (empty) deque_pop_back(list);
-    return n - empty;
+    if (IPOD) /* an untagged song's row reads its file name without the extension (track_name) */
+        for (int i = 0; i < n; ++i) {
+            void *r = deque_at(list, (unsigned)i);
+            char buf[512], **title = (char **)((char *)r + REC_TITLE), *t;
+            if (I(r, REC_TYPE) != 8 || (*title && **title) ||
+                !(t = strdup(track_name(buf, sizeof buf, r) ?: "")))
+                continue;
+            free(*title), *title = t;
+        }
+    if (cls < CLASS_ALBUMS || cls > 0xf006) return n;
+    if (n > 0 && I(deque_at(list, (unsigned)n - 1), REC_ID) == -1) {
+        class_query((unsigned)cls, deque_at(list, (unsigned)n - 1));
+        int empty = !deque_size(dir);
+        deque_clear(dir);
+        if (empty) deque_pop_back(list), n--;
+    }
+    if (n <= 0) { /* say so, not a black page; once the page that loads it is up */
+        st.empty_kind = cls - CLASS_ALBUMS;
+        timer_add(empty_toast, (void *)0, 0);
+    }
+    return n;
 }
 
 /* The tracks stock would play for that row, in its order. */
@@ -3793,7 +3841,7 @@ static int shuffle_menu(void *ctx, void *event) {
     void *note = text(st.sp_page, 20, 200, 335, 24);
     widget_set_prop_int(note, "style:normal:text_color", (int)0xffaaaaaau);
     widget_set_prop_int(note, "style:normal:font_size", 16);
-    widget_set_text_utf8(note, "Shuffling albums or folders may take a while");
+    widget_set_text_utf8(note, "Albums and folders take a moment to shuffle");
     return 0;
 }
 
@@ -4014,7 +4062,7 @@ static void *rate_panel(void *win) {
     int h = 110, w = 5 * 56 + 24;
     panel = text(win, (I(win, W_W) - w) / 2, (I(win, W_H) - h) / 2, w, h);
     widget_set_name(panel, "rate_panel");
-    widget_set_prop_int(panel, "style:normal:bg_color", (int)((LETTER_ALPHA << 24) | FILL_RGB));
+    widget_set_prop_int(panel, "style:normal:bg_color", (int)(0xff000000u | FILL_RGB)); /* opaque */
     widget_set_prop_int(panel, "style:normal:round_radius", LETTER_RADIUS);
     text(panel, 0, 8, w, 28);
     for (int i = 0; i < 5; i++) {
@@ -4257,8 +4305,8 @@ static int ratings_menu(void *ctx, void *event) {
     if (st.rt_menu || !(st.rt_menu = page_open("ratings_page", page_closed, page_keyup))) return 0;
     void *view = page_list(st.rt_menu, st.rt_menu, 0, "Ratings", 5, 48);
     for (int i = 0; i < 5; i++)
-        page_row_detail(view, i, i == RT_ALBUMS ? "Albums" : rt_names[i - (i > RT_ALBUMS)], 0,
-                        i == RT_ALBUMS ? rated_albums : rated_open);
+        page_row_into(view, i, i == RT_ALBUMS ? "Albums" : rt_names[i - (i > RT_ALBUMS)],
+                      i == RT_ALBUMS ? rated_albums : rated_open);
     return 0;
 }
 
@@ -4555,6 +4603,14 @@ int ringnav_folder(void *win, void *ctx) {
     return result;
 }
 
+/* folder_load_top: stock lists SD and OTG whatever is plugged in, and OTG alone opens a full
+ * page saying there is none; without a drive (g_otg_status) the card is the only root. */
+void ringnav_folder_top(void) {
+    stock_folder_top_trampoline();
+    void *roots = P(p_deque_showlist, 0);
+    if (!g_otg_status && deque_size(roots) == 2) deque_pop_back(roots);
+}
+
 /* Back at the media root leaves the page (stock's layer 0) instead of climbing to the card. */
 int ringnav_folder_back(void *yoffset, void *index) {
     if (st.media_root[0] && g_folder_layer == 3 &&
@@ -4832,6 +4888,8 @@ static int qm_run(const void *unused) {
         void *add = r ? qm_collect(r) : (void *)0;
         if (!add || !(a == QA_SHUFFLE ? shuffle_play(add) : qm_apply(add, a == QA_NEXT)))
             toast("Queue unchanged");
+        else if (a != QA_SHUFFLE) /* as Favourites confirms; Shuffle answers by playing */
+            toast(a == QA_NEXT ? "Playing Next" : "Added to Queue");
         if (add) deque_destroy(add);
     }
     return 0;
@@ -4849,6 +4907,9 @@ static int qm_pick(void *action, void *event) {
 
 /* Deferred out of the long-press dispatch. The sortselect init is synchronous and non-modal
  * (it clears to_modal), so the dialog is the top window once navigator_to returns. */
+/* Hold menu rows: stock sortselect's list is 210, so three whole rows and the reading margin
+ * (SCROLL_MARGIN) show at every scroll, never a half row under the title. */
+#define QM_ROW 66
 static int qm_open(const void *unused) {
     (void)unused;
     st.qm_timer = 0;
@@ -4870,29 +4931,40 @@ static int qm_open(const void *unused) {
     widget_on(back, EVT_CLICK, qm_back, dialog);
     widget_on(dialog, EVT_DESTROY, qm_gone, dialog);
     if (st.qm_choice) {
-        static const char *const shuffle[] = { "Off", "All", "Songs", "Categories",
-                                               "Songs/Categories" };
-        static const char *const repeat[] = { "Play Single Song",    "Play Category",
-                                              "Play All Categories", "Repeat Song",
-                                              "Repeat Category",     "Repeat All Categories" };
+        /* stock's play modes, its category named as Group by sets it (album or folder) */
+        static const char *const shuffle[2][5] = {
+            { "Off", "All Songs", "Songs in Album", "Albums", "Albums and Songs" },
+            { "Off", "All Songs", "Songs in Folder", "Folders", "Folders and Songs" }
+        };
+        static const char *const repeat[2][6] = { { "Play One Song", "Play One Album", "Play All",
+                                                    "Repeat Song", "Repeat Album", "Repeat All" },
+                                                  { "Play One Song", "Play One Folder", "Play All",
+                                                    "Repeat Song", "Repeat Folder",
+                                                    "Repeat All" } };
         static const char *const groups[] = { "Album", "Folder" };
-        int kind = st.qm_choice - 1, count = kind == 0 ? 5 : kind == 1 ? 6 : 2;
-        const char *const *names = kind == 0 ? shuffle : kind == 1 ? repeat : groups;
+        int kind = st.qm_choice - 1,
+            count = kind == 0   ? 5
+                    : kind == 1 ? 6
+                                : 2,
+            folder = playback_option(2);
+        const char *const *names = kind == 0   ? shuffle[folder]
+                                   : kind == 1 ? repeat[folder]
+                                               : groups;
         widget_set_text_utf8(widget_lookup(dialog, "scrlabel_title", 1), kind == 0   ? "Shuffle"
                                                                          : kind == 1 ? "Repeat"
                                                                                      : "Group by");
         widget_destroy_children(view);
         for (int i = 0; i < count; ++i) {
-            void *item = list_item_create(view, 0, i * 78, 375, 78);
+            void *item = list_item_create(view, 0, i * QM_ROW, 375, QM_ROW);
             widget_use_style(item, "s_listitem_black");
-            void *label = hscroll_label_create(item, 30, 0, 310, 70);
+            void *label = hscroll_label_create(item, 30, 0, 310, QM_ROW);
             widget_use_style(label, "s_scrlabel_white24l");
             widget_set_text_utf8(label, names[i]);
             if (i == playback_option(kind))
-                image_base_set_image(image_create(item, 340, 0, 24, 70), "select");
+                image_base_set_image(image_create(item, 340, 0, 24, QM_ROW), "select");
             widget_on(item, EVT_CLICK, qm_pick, (void *)(long)(100 + i));
         }
-        widget_set_prop_int(view, "virtual_h", count * 78);
+        widget_set_prop_int(view, "virtual_h", count * QM_ROW);
         st.qm_dialog = dialog;
         ringnav_select(view, playback_option(kind), count);
         return 0;
@@ -4941,29 +5013,30 @@ static int qm_open(const void *unused) {
         if (!group_first) acts[n++] = QA_NEXT_GROUP, acts[n++] = QA_PREV_GROUP;
         if (!group_first && st.rate_win) acts[n++] = QA_RATE;
     }
-    static const char *const rows[] = { "Play next",
-                                        "Add to queue",
+    static const char *const rows[] = { "Play Next",
+                                        "Add to Queue",
                                         "Shuffle",
                                         "Add to Favourites",
                                         "Remove from Favourites",
-                                        "Add to playlist",
-                                        "Go to album",
-                                        "Go to artist",
+                                        "Add to Playlist",
+                                        "Go to Album",
+                                        "Go to Artist",
                                         "Shuffle",
                                         "Repeat",
                                         "Group by",
-                                        "Next album",
-                                        "Previous album",
+                                        "Next Album",
+                                        "Previous Album",
                                         "Rate" };
     char rated[32];
-    for (int i = 0; i < n; ++i) { /* stock sortselect row geometry and styles */
-        void *item = list_item_create(view, 0, i * 78, 375, 78);
+    /* stock sortselect row styles */
+    for (int i = 0; i < n; ++i) {
+        void *item = list_item_create(view, 0, i * QM_ROW, 375, QM_ROW);
         widget_use_style(item, "s_listitem_black");
-        void *label = hscroll_label_create(item, 30, 0, 266, 70);
+        void *label = hscroll_label_create(item, 30, 0, 266, QM_ROW);
         widget_use_style(label, "s_scrlabel_white24l");
         if (acts[i] == QA_RATE) {
             int h = aid ? album_hearts : checkFavExist(r) ? 5 : rate_kept(0, listen_key(r));
-            const char *row = aid ? "Rate album" : "Rate";
+            const char *row = aid ? "Rate Album" : "Rate";
             char hs[16];
             tk_snprintf(rated, sizeof rated, h ? "%s  %s" : "%s", row, hearts_text(hs, h));
         }
@@ -4971,12 +5044,12 @@ static int qm_open(const void *unused) {
                              acts[i] == QA_RATE ? rated
                              : acts[i] == QA_GROUP
                                  ? (playback_option(2) ? "Group by: Folder" : "Group by: Album")
-                             : acts[i] == QA_NEXT_GROUP && playback_option(2) ? "Next folder"
-                             : acts[i] == QA_PREV_GROUP && playback_option(2) ? "Previous folder"
+                             : acts[i] == QA_NEXT_GROUP && playback_option(2) ? "Next Folder"
+                             : acts[i] == QA_PREV_GROUP && playback_option(2) ? "Previous Folder"
                                                                               : rows[acts[i] - 1]);
         widget_on(item, EVT_CLICK, qm_pick, (void *)(long)acts[i]);
     }
-    widget_set_prop_int(view, "virtual_h", n * 78);
+    widget_set_prop_int(view, "virtual_h", n * QM_ROW);
     st.qm_dialog = dialog;
     return 0;
 }
@@ -5776,6 +5849,17 @@ int ringnav(void *ctx, void *event) {
     if (key == KEY_CENTER || key == KEY_RETURN) st.held = 0; /* a button ends a held turn */
     /* The rating picker's keys, before the page's own (its Return would leave it) */
     if (usable() && rate_key(window_manager_get_top_window(window_manager()), key)) return STOP;
+#if IPOD
+    /* Return or Centre closes quick settings, as its swipe up does (dialog_quit); stock leaves
+     * Return to its Home button and Centre to turning the screen off. */
+    if ((key == KEY_RETURN || key == KEY_CENTER) && usable()) {
+        void *top = window_manager_get_top_window(window_manager());
+        if (top && !tk_strcmp(widget_get_prop_str(top, "name", ""), "statusbar_dialog")) {
+            dialog_quit(top, 0);
+            return STOP;
+        }
+    }
+#endif
     int result = stock_keyup_trampoline(ctx, event);
     if (key == KEY_PLAY && hold_released()) return STOP;
     /* Media controls follow the active source, including when local Now Playing is visible. */

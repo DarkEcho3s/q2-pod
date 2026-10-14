@@ -156,7 +156,7 @@ with tempfile.TemporaryDirectory(prefix='q2-ui-preview-') as tmp:
                     if case==3: text(a,'•  ·  ·',168,258,70,12,12,'#AAAAAA')
                     bh=inc('NP_BAR_CLASSIC') if old else inc('NP_BAR_MINIMAL'); by=251 if case==4 else 270+(30-bh)//2
                     rect(a,21,by,333,bh,'#1C1C1C'); rect(a,21,by,132,bh,'#FFFFFF' if case in (4,12) else f'#{palette[2]:06x}')
-                    text(a,'01:23',46,295,80,16,14,'#AAAAAA'); text(a,'-02:34',249,295,80,16,14,'#AAAAAA')
+                    text(a,'1:23',46,295,80,16,14,'#AAAAAA'); text(a,'-2:34',249,295,80,16,14,'#AAAAAA')
                 elif case<8:
                     rows = [('Shuffle','local_shuffle'),('Most Played','local_frequentplay'),('Audiobooks','local_audiobooks'),('Podcasts','local_podcasts')]
                     if case==6: rows=[('Albums','list_folder'),('音楽 — 長いフォルダー名','list_folder'),('A very long track title','local_frequentplay'),('Live recordings','list_folder')]
@@ -195,7 +195,7 @@ with tempfile.TemporaryDirectory(prefix='q2-ui-preview-') as tmp:
                         iw,ih=png_header(p.read_bytes())[:2]
                         image(a,p,x+(w-iw)//2,y+(h-ih)//2,iw,ih)
                 elif case in (27,28):
-                    rows=[('Boot to: Q2-Pod','system_powermanager')] if case==27 else []
+                    rows=[('Boot to: Q2 Pod','system_powermanager')] if case==27 else []
                     rows += [('Reset Settings','system_reset'),('System Update','system_update'),('About','system_about')]
                     for i,(label,icon) in enumerate(rows):
                         y=38+i*68; p=asset(build,'images/xx/'+icon+'.png')
@@ -282,7 +282,7 @@ with tempfile.TemporaryDirectory(prefix='q2-ui-preview-') as tmp:
                 text(a,'A very long album name',x+pad,y+116-inc('TILE_INSET'),size,24 if dynamic else 20,20,ink)
                 text(a,'Artist / Collection',x+pad,y+140-inc('TILE_INSET'),size,16,16,ink)
             rect(a,0,0,375,30,f'#{inc("BAR_COLOR"):06x}')
-            text(a,f'{"Artist albums" if dynamic else "Albums"} / scroll {offset}',16,5,340,20,16)
+            text(a,f'{"Artist Albums" if dynamic else "Albums"} / scroll {offset}',16,5,340,20,16)
             frame=tmp/f'album-{dynamic}-{offset}-{selected}.png'
             assert render(a,frame)==(375,320)
             album_frames.append(frame)

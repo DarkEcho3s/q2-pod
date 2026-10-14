@@ -51,6 +51,8 @@ HOOKS = {
     # Podcasts and Audiobooks: folder_page opened at their folder, and Back there leaving it
     'folder_page_init': (0x523330, 'ringnav_folder', 'folder'),
     'folder_back': (0x507ac8, 'ringnav_folder_back', 'folder_back'),
+    # Folder's roots: OTG only with a drive plugged in (g_otg_status)
+    'folder_load_top': (0x507348, 'ringnav_folder_top', 'folder_top'),
     # Videos: no input reaches the UI while q2video plays
     'window_manager_dispatch_input_event': (0x66d49c, 'ringnav_input', 'input'),
     # Key Tone: no click while music plays, and none on the buzzer while headphones or Bluetooth listen
@@ -91,7 +93,9 @@ IPOD_HOOKS = {'playlist_rebuild': (0x4b2dac, 'ringnav_playlist', 'playlist'),
               'widget_on_paint_background': (0x65c77c, 'ringnav_paint_bg', 'paint_bg'),
               'bigcover_page_init': (0x5200ec, 'ringnav_bigcover', 'bigcover'),
               'style_get_color': (0x649f6c, 'ringnav_style_color', 'color'),
-              'image_manager_add': (0x6445d4, 'ringnav_image_add', 'image')}
+              'image_manager_add': (0x6445d4, 'ringnav_image_add', 'image'),
+              # Song rows: no format badge (navigation.c ringnav_badge)
+              'list_get_img_pic': (0x501948, 'ringnav_badge', None)}
 # The payload's stock_<name>_trampoline, the hooks' third element, resumes each hook past its 3-word PIC
 # prologue.
 # Every audited stock PIC prologue resolves this GOT base.
@@ -215,10 +219,35 @@ DROP_CACHES = (0x5120a8, 0x12220006, 0x10000006)
 # The encoder thread's ts_read call (jalr $t9) becomes jal ringnav_ts_read, which makes the wheel's
 # ticks from the samples (playback.c wheel_sample).
 WHEEL_TS_READ = (0x625b6c, 0x0320f809)
-# English labels renamed: Now Playing More's queue, which stock calls "Playlists" (player_playlist,
-# used nowhere else; Local Music's are "Playlist"), System settings' Idle (system_powermanager) and
-# its standby/shutdown row.
-LABELS = ((b'player_playlist', b'Playlists', b'Queue'), (b'system_powermanager', b'Idle', b'Power'), (b'powerm_deep_off', b'standby/shutdown', b'Standby'))
+# English labels renamed, as an iPod words them: Now Playing More's queue, which stock calls "Playlists"
+# (player_playlist, used nowhere else); the Library's plural categories; settings rows in title case
+# and plain words; the Lock screen help; and Baidu without its (BETA).
+LABELS = tuple((k.encode(), o.encode(), n.encode()) for k, o, n in (
+    ('player_playlist', 'Playlists', 'Queue'), ('system_powermanager', 'Idle', 'Power'),
+    ('powerm_deep_off', 'standby/shutdown', 'Standby'),
+    ('local_songer', 'Artist', 'Artists'), ('local_album', 'Album', 'Albums'),
+    ('local_allsongs', 'All Songs', 'Songs'), ('local_playlist', 'Playlist', 'Playlists'),
+    ('playset_bootvol', 'Default Vol', 'Default Volume'),
+    ('playset_covermode', 'Enlarged album art(10s wait)', 'Enlarged Album Art'),
+    ('playset_filter', 'Digital filters', 'Digital Filters'),
+    ('playset_memplay', 'Memory playback', 'Memory Playback'),
+    ('small_playset', 'Playback Setting', 'Playback'), ('small_sysset', 'System Setting', 'System'),
+    ('system_wifiset', 'Wireless Setting', 'Wireless'), ('system_display', 'Display setting', 'Display'),
+    ('system_netservice', 'Network Service', 'Network'), ('system_time', 'Date and time', 'Date & Time'),
+    ('system_keylock', 'Buttons lock', 'Buttons Lock'), ('system_keytone', 'Key tone', 'Key Tone'),
+    ('system_carmode', 'In-Vehicle mode', 'In-Vehicle Mode'), ('system_reset', 'Reset settings', 'Reset Settings'),
+    ('reset_initset', 'Reset only settings', 'Reset Settings Only'),
+    ('reset_factory', 'Full factory reset', 'Full Factory Reset'),
+    ('display_lighttime', 'Screen off time', 'Screen Off Time'), ('display_screenlock', 'Lock screen', 'Lock Screen'),
+    ('screenlock_timeshow', 'Lockscreen Time Display', 'Show Time'),
+    ('screenlock_about', 'Custom lock screen', 'Custom Lock Screen'),
+    ('screenlock_info1', '1.Custom lock screen:Images must be stored in "lockscreenimage" folder,located in root folder of micro SD card;',
+     '1. Put the pictures in a folder named "lockscreenimage" at the top of the card.'),
+    ('screenlock_info2', '2.Supports PNG and JPG，resolution exactly 375 x 320，under 1MB;',
+     '2. PNG or JPG, exactly 375 x 320 pixels, under 1 MB each.'),
+    ('screenlock_info3', '3.Maximum of 5 images in folder.', '3. Up to 5 pictures.'),
+    ('about_sn', 'Serial number', 'Serial Number'), ('about_version', 'FW. Version', 'Version'),
+    ('list_baidu', 'Baidu Netdisk(BETA)', 'Baidu Netdisk'), ('msg_poweroff', 'Confirm Shutdown?', 'Shut Down?')))
 
 # The stock font (Arial merged with a CJK font) gives curly quotes the CJK em advance, a wide gap
 # inside words wherever a tag has one; its cmaps map them to the straight glyphs instead. Its hearts
@@ -442,6 +471,7 @@ FUNCTIONS = {
  'hscroll_label_set_ellipses': ('int', 'void *, int'),
  'widget_off_by_func': ('int', 'void *, unsigned, void *, void *'),
  'window_close': ('int', 'void *'),
+ 'dialog_quit': ('int', 'void *, unsigned'),  # quick settings' close, as its swipe up ends (0x4a0a28)
  'window_manager_close_window_force': ('int', 'void *, void *'),
  'navigator_to': ('int', 'const char *'),
  'navigator_to_with_context': ('int', 'const char *, const void *'),
@@ -574,7 +604,7 @@ PRIVATE_FUNCTIONS = {
 GLOBALS = ['g_playspeed_mode', 'g_time24h_flag', 'g_backlight_status', 'g_lockscreen_pageflag', 'g_testmode_flag',
            'g_bluetoothflag', 'bt_linkstatus', 'g_guideflag', 'g_poweroff_state', 'g_usblink_status', 'bt__recv_pageflag',
            'g_power_longkey', 'g_ingore_bootkey_flag', 'g_equalizer_flag', 'g_navbar_status', 'g_playcover_type',
-           'g_keytone_flag', 'g_folder_layer', 'g_delete_flag', 'g_volume', 'g_maxvolume',
+           'g_keytone_flag', 'g_folder_layer', 'g_otg_status', 'g_delete_flag', 'g_volume', 'g_maxvolume',
            'g_po_status', 'g_bal_status',  # 3.5 mm and 4.4 mm jacks: 1 plugged (check_headset_status)
            'g_usbvol_mode',  # USB DAC volume: 0 fixed, else the volume (config_usbvolmode, device_set_volume)
            'g_usbdac_chargeflag',  # USB mode's charge choice, which switch_charge_enable gets there

@@ -1,2 +1,2 @@
-- Goal: an AI agent that can view and drive the Q2 live over Wi-Fi or USB.
 - Update repo artwork & user guide (after being able to actually get screenshots of the Q2)
+- Make Shuffle songs faster

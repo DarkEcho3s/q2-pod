@@ -516,6 +516,6 @@ void photos_open(const char *root) {
     }
     ph.screen = ALBUMS;
     void *view = page_list(page, ph.albums, 0, "Photos", ph.nalbums + 1, 48);
-    page_row_detail(view, 0, "All Photos", 0, open_album);
-    for (int k = 0; k < ph.nalbums; ++k) page_row_detail(view, k + 1, ph.album[k], 0, open_album);
+    page_row_into(view, 0, "All Photos", open_album);
+    for (int k = 0; k < ph.nalbums; ++k) page_row_into(view, k + 1, ph.album[k], open_album);
 }

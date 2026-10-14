@@ -35,7 +35,7 @@
 - **Browsing and playback:** favourites, playlists, Most Played, Long Songs, Crossfade, and shuffle by song, album or folder.
 - **Podcasts and audiobooks:** `.m4b` audiobooks and podcasts resume where you stopped, with per-folder playback speed.
 - **AirPods:** stem controls, ear detection and two-way volume sync.
-- **Battery:** an optional 80% charge limit and Low power mode.
+- **Battery:** an optional 80% charge limit and Low Power mode.
 
 ## Install
 

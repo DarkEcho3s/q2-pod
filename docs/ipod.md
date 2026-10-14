@@ -170,7 +170,7 @@ buttons. A page with a visible navbar keeps its own title.
 
 ## Settings
 
-Settings, Playback Setting, Audio settings and Streaming lists hold four complete 68-pixel rows
+Settings, Playback, Audio settings and Streaming lists hold four complete 68-pixel rows
 (`SET_ROW`, `SET_ROWS`), starting 8 pixels (`SET_TOP`) below the status bar: the list is
 272 pixels high at y 8 and ends 10 pixels above the bottom. The `navbar_only` assets set their
 `list_view`'s `default_item_height` from 78 to 68, which no stock asset uses, and nothing else.
@@ -491,7 +491,7 @@ minutes), the pull-down quick settings (`statusbar_dialog`, whose wheel sets the
 
 ## Boot
 
-The iPod build starts on Home with the remembered queue and track restored paused; In-Vehicle mode
+The iPod build starts on Home with the remembered queue and track restored paused; In-Vehicle Mode
 keeps the stock start on Now Playing. See [internals.md](internals.md#boot-resume-ipod).
 
 ## Display settings

@@ -967,21 +967,31 @@ static void *list(const char *title, int n) {
 }
 
 /* One 48px row of a page_list or, with a detail (navigation.c's Most Played), a 64px one: the caption
- * over the detail in 16px #AAAAAA, stock's s_scrlabel_gray24l grey. Shared with photos.c. */
-void page_row_detail(void *view, int index, const char *caption, const char *detail,
-                     int (*click)(void *, void *)) {
+ * over the detail in 16px #AAAAAA, stock's s_scrlabel_gray24l grey. iPod left-aligns them, as every
+ * stock list. Returns the row. Shared with photos.c. */
+void *page_row_detail(void *view, int index, const char *caption, const char *detail,
+                      int (*click)(void *, void *)) {
     int h = detail ? 64 : 48;
     void *item = list_item_create(view, 0, index * h, 375, h);
     widget_use_style(item, "s_listitem_black");
     void *label = text(item, CF_ROW_X, detail ? 4 : 0, CF_ROW_W, detail ? 32 : 48);
+    if (IPOD) widget_use_style(label, "s_scrlabel_white20l");
     widget_set_text_utf8(label, caption);
     if (detail) {
         label = text(item, CF_ROW_X, 36, CF_ROW_W, 24);
+        if (IPOD) widget_use_style(label, "s_scrlabel_white20l");
         widget_set_prop_int(label, "style:normal:text_color", (int)0xffaaaaaau);
         widget_set_prop_int(label, "style:normal:font_size", 16);
         widget_set_text_utf8(label, detail);
     }
     widget_on(item, EVT_CLICK, click, (void *)(long)index);
+    return item;
+}
+
+/* A page_list row that opens another list: iPod adds stock's list_into chevron, as the Library's. */
+void page_row_into(void *view, int index, const char *caption, int (*click)(void *, void *)) {
+    void *item = page_row_detail(view, index, caption, 0, click);
+    if (IPOD) image_base_set_image(image_create(item, 302, 0, 50, 48), "list_into");
 }
 
 /* clip: the canvas clip, read into old, narrowed to x, y, w, h; false when nothing shows. Shared
@@ -1371,7 +1381,7 @@ static int changed(void *ctx, void *event) {
     void *r = c + CARDS < n ? deque_at(cf.albums, c) : (void *)0;
     if (r && !cf.scoped) cf.saved_album = album_key(r);
     widget_set_text_utf8(cf.name, r ? P(r, REC_ALBUM) : c + CARDS == n ? sort_names[cf.sort] : "Refresh library");
-    widget_set_text_utf8(cf.artist, r ? P(r, REC_ARTIST) : 0);
+    widget_set_text_utf8(cf.artist, r ? P(r, REC_ARTIST) : ""); /* NULL leaves the old one */
     return 0;
 }
 

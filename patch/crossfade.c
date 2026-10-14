@@ -48,7 +48,7 @@ void xfade_row(void *label) {
 
 static void wheel_text(void *label) {
     char t[32];
-    tk_snprintf(t, sizeof t, "Wheel sensitivity: %d%%", wheel_pct());
+    tk_snprintf(t, sizeof t, "Wheel Sensitivity: %d%%", wheel_pct());
     widget_set_text_utf8(label, t);
 }
 
@@ -152,7 +152,7 @@ int xfade_open(void *ctx, void *event) {
     widget_on(xf.slider, EVT_VALUE_CHANGING, slid, 0);
     widget_on(xf.slider, EVT_VALUE_CHANGED, slid, 0);
     widget_on(page, EVT_DESTROY, gone, page);
-    widget_set_text_utf8(title, wheel ? "Wheel sensitivity" : "Crossfade");
+    widget_set_text_utf8(title, wheel ? "Wheel Sensitivity" : "Crossfade");
     widget_set_visible(xf.view, 1, 0); /* stock shows it only while Boot volume's switch is on */
     if (wheel) widget_set_visible(xf.sw, 0, 0);
     slider_set_min(xf.slider, wheel ? 50 : 0);
