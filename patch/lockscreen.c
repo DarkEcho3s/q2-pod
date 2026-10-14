@@ -134,7 +134,7 @@ int wall_render(unsigned *dst, int stride, int w, int h, int id) {
 #include "stock.h"
 
 extern int stock_saver_trampoline(void *, void *), stock_saverrows_trampoline(void *),
-    stock_saverlist_trampoline(void);
+    stock_saverlist_trampoline(void), stock_savercover_trampoline(void *);
 extern void pod_rows(void *win, const char *view_name, int first, int n, const char *const *icons);
 extern int ringnav_lock_clock(void); /* navigation.c: Q2POD LOCKCLOCK, 1 Large, else Standard */
 
@@ -250,6 +250,16 @@ int lockscreen_init(void *win, void *ctx) {
         widget_on(img, EVT_DESTROY, forget, img);
     }
     if (ringnav_lock_clock()) big_clock(win);
+    return result;
+}
+
+/* The lock window's cover (stock 0x52d844, from the window's timer once a new track's cover is
+ * parsed, and from its init): stock sets img_playcover to the same file name and never invalidates
+ * it, so the old art stayed until something else repainted over it. */
+int lockscreen_cover(void *win) {
+    int result = stock_savercover_trampoline(win);
+    void *img = widget_lookup(win, "img_playcover", 1);
+    if (img) widget_invalidate_force(img, 0);
     return result;
 }
 

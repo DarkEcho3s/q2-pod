@@ -65,6 +65,8 @@ HOOKS = {
     'get_screensaver_image': (0x4facd4, 'lockscreen_images', 'saverlist'),
     'screensaver_rows': (0x4c9134, 'lockscreen_rows', 'saverrows'),
     'saverscreen_page_init': (0x52db70, 'lockscreen_init', 'saver'),
+    # The lock window's cover (unnamed, from its 20 ms timer): repainted once it changes
+    'saver_cover': (0x52d844, 'lockscreen_cover', 'savercover'),
     'save_memoryplay_info': (0x516344, 'ringnav_savequeue', 'savequeue'),
     'mclLoadPlayList': (0x5aa8d4, 'ringnav_load', 'load'),
     'mclNextSong': (0x5adbbc, 'ringnav_next', 'next'),
@@ -610,6 +612,7 @@ PRIVATE_FUNCTIONS = {
     "folder_refresh": 0x52176c,  # folder_page's navbar and table from p_deque_showlist (its init, back)
     "class_icon": 0x4afc14,  # a category row's picture: the head for Artists, a genre icon, else .downpic
     "screensaver_rows": HOOKS['screensaver_rows'][0],  # the Lock screen page's rows and picture grid
+    "saver_cover": HOOKS['saver_cover'][0],  # the lock window's img_playcover from the playing track
     "np_info": 0x52a508,  # Now Playing's info page labels, from the track (NP_INFO_CALL)
 }
 GLOBALS = ['g_playspeed_mode', 'g_time24h_flag', 'g_backlight_status', 'g_lockscreen_pageflag', 'g_testmode_flag',

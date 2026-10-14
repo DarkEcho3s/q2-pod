@@ -7501,7 +7501,7 @@ class LockMachine(QueueMachine):
         return super().hook(u,address,size,unused)
 def lock_machine(picture='screensaver_default',config={}):
     m=LockMachine(); m.config.update(config); m.restack=True
-    for h in ('saverlist','saverrows','saver'): m.handlers[int(manifest['patch_symbols'][f'stock_{h}_trampoline'],16)]='stock_'+h
+    for h in ('saverlist','saverrows','saver','savercover'): m.handlers[int(manifest['patch_symbols'][f'stock_{h}_trampoline'],16)]='stock_'+h
     m.u.mem_write(syms['g_screensaver_picture'],picture.encode()+b'\0')
     return m
 cards=['/mnt/mmc/lockscreenimage/a.jpg','/mnt/mmc/lockscreenimage/b.png']
@@ -7563,6 +7563,10 @@ for mode in range(4 if variant=='ipod' else 0):
 passed()
 m,w,info,box=lock_window(cards[0])
 assert m.nodes[w['img_screensaver']]['image']==cards[0] and 'style:normal:font_size' not in m.nodes[w['clock_time']]; passed()
+# A new cover: stock sets img_playcover by the same name and never invalidates it; the hook does.
+m=lock_machine(); cover=m.node('image','img_playcover'); m.top=m.node('window','saverscreen_page',[m.node('view','view_playinfo',[cover])])
+assert m.call(address=HOOKS['saver_cover'][0],args=(m.top,0,0,0),gap=0)==0
+assert [c[:2] for c in m.calls if c[0] in ('stock_savercover','widget_invalidate_force')]==[('stock_savercover',m.top),('widget_invalidate_force',cover)]; passed()
 
 # The power poll, on the UI loop. Charge limit: the charger stops (switch_charge_enable(0), the
 # active-low charge enable) at CHARGE_STOP, again whenever it charges meanwhile, and is handed
