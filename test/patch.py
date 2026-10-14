@@ -6398,10 +6398,10 @@ class PhotosMachine(DepthMachine):
     """The card as a tree of {path: [(name, d_type)]}, photo bytes by path, and the cache's files."""
     def __init__(self,tree,data):
         super().__init__()
-        self.tree=tree; self.data=data; self.cache=set(); self.thumbs=[]; self.bad=set(); self.open_files={}; self.dirs={}
+        self.tree=tree; self.data=data; self.cache=set(); self.thumbs=[]; self.forks=0; self.bad=set(); self.open_files={}; self.dirs={}
         for n in ('opendir@GLIBC_2.0','readdir@GLIBC_2.0','closedir@GLIBC_2.0','qsort@GLIBC_2.0','fopen@GLIBC_2.2',
                   'fread@GLIBC_2.0','fclose@GLIBC_2.2','access@GLIBC_2.0','rename@GLIBC_2.0','unlink@GLIBC_2.0',
-                  'memcmp@GLIBC_2.0','toolsThumbSpecCover','pthread_mutex_lock@GLIBC_2.0','pthread_mutex_unlock@GLIBC_2.0'):
+                  'memcmp@GLIBC_2.0','toolsThumbSpecCover','fork@GLIBC_2.0','pthread_mutex_lock@GLIBC_2.0','pthread_mutex_unlock@GLIBC_2.0'):
             self.handlers[syms[n]]='p:'+n
         tramp=int(manifest['patch_symbols']['stock_localmusic_trampoline'],16)
         self.handlers[tramp]='stock_localmusic'; self.u.hook_add(UC_HOOK_CODE,self.hook,begin=tramp,end=tramp)  # fast() ran
@@ -6420,7 +6420,7 @@ class PhotosMachine(DepthMachine):
         elif name=='canvas_draw_image':
             self.draws.append(tuple(tuple(signed(self.get(r+4*i)) for i in range(4)) for r in (c,d))); ret=0
         elif name.startswith('p:'):
-            name=name[2:].split('@')[0]; ret=0; text=self.text(a) if name not in ('readdir','closedir','qsort','fread','fclose','memcmp') else ''
+            name=name[2:].split('@')[0]; ret=0; text=self.text(a) if name not in ('readdir','closedir','qsort','fread','fclose','memcmp','fork') else ''
             if name=='opendir':
                 ret=0 if text not in self.tree else self.alloc(4); self.dirs[ret]=list(self.tree.get(text,[]))
             elif name=='readdir' and self.dirs.get(a):
@@ -6439,6 +6439,7 @@ class PhotosMachine(DepthMachine):
                 if ret: self.cache.add(self.text(b))
             elif name=='rename': self.cache.discard(text); self.cache.add(self.text(b))
             elif name=='unlink': self.cache.discard(text)
+            elif name=='fork': self.forks+=1; ret=-1  # thumb()'s ffmpeg fallback, refused
             elif name=='memcmp': ret=0 if bytes(self.u.mem_read(a,c))==bytes(self.u.mem_read(b,c)) else 1
         else: return super().hook(u,address,size,unused)
         self.calls.append((name,a,b,c))
@@ -6485,7 +6486,7 @@ assert m.thumbs==[(paths[0],cache(0,'.tmp'),SW,SH),(cache(0,'.jpg'),cache(0,'.tm
                   (paths[1],cache(1,'.tmp'),SH,SW),(cache(1,'.jpg'),cache(1,'.tmp'),TH,TW),
                   (paths[2],cache(2,'.tmp'),SW,SH),
                   (paths[3],cache(3,'.tmp'),SW,SH),(cache(3,'.jpg'),cache(3,'.tmp'),TW,TH)],m.thumbs
-assert m.bad=={cache(2,'.bad')} and cache(2,'.jpg') not in m.cache
+assert m.forks==1 and m.bad=={cache(2,'.bad')} and cache(2,'.jpg') not in m.cache
 m.advance(250); assert m.joins==[77]; passed()
 # The turned photo's thumbnail is drawn upright, centred in its tile; the bad one stays grey.
 border(tiles[1]); assert m.draws[-1]==((0,0,54,72),((O['PH_TILE_W']-54)//2,(O['PH_TILE_H']-O['PH_THUMB_H'])//2,54,72))
