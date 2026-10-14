@@ -56,6 +56,12 @@ with tempfile.TemporaryDirectory() as tmp:
     body = (out/'release-notes.md').read_text()
     assert body.startswith(f'**{release.VERSION}**\n- One.\n- iPod: two.\n\nSHA-256:\n- {release.ASSETS["ipod"]}: ')
     assert release.ASSETS['ipod'] == f'Q2.Firmware.{release.VERSION}.zip'
+    # A nested entry keeps its bullets as written, one level out, up to the next version.
+    changelog = pathlib.Path(tmp)/'docs/changelog.md'
+    single = changelog.read_text()
+    changelog.write_text(f'- **{release.VERSION}**:\n  - A.\n    - B.\n- **V7.6R / V7.6I**: Old.\n')
+    assert release.notes() == f'**{release.VERSION}**\n- A.\n  - B.'
+    changelog.write_text(single)
     (out/'SHA256SUMS').write_text(''.join(f'{v}  {k}\n' for k, v in assets.items()))
     for failure in ('upload', 'download', 'corrupt', None):
         calls = []
@@ -72,7 +78,7 @@ with tempfile.TemporaryDirectory() as tmp:
             return ''
         with patch('release.run', side_effect=gh):
             try:
-                release.upload(out, 'owner/repo', True)
+                release.upload(out, True)
             except (ValueError, subprocess.CalledProcessError):
                 assert failure
             else:
@@ -81,7 +87,7 @@ with tempfile.TemporaryDirectory() as tmp:
     # A missing variant must fail before contacting GitHub.
     (out/release.ASSETS['ipod']).unlink()
     with patch('release.run') as gh:
-        try: release.upload(out, 'owner/repo')
+        try: release.upload(out)
         except OSError: pass
         else: raise AssertionError('Accepted a missing variant')
         gh.assert_not_called()

@@ -16,6 +16,8 @@ for name,key in (('demo','demo_sha256'),('stock-demo','stock_demo_sha256'),('pat
     if sha((B/name).read_bytes()) != manifest.get(key):
         raise SystemExit(f'{B/name} does not match manifest.json; rebuild into a fresh directory')
 variant = manifest.get('variant')
+# iPod writes times as 0:02 and -1:02:05; Legacy keeps stock's 00:02 and -01:02:05.
+def mmss(t): return t if variant=='ipod' else re.sub(r'^(-?)(\d):',r'\g<1>0\2:',t)
 v = VERSIONS.get(variant, '')
 assert v and manifest['version'] == (dev_tag(manifest['dev'], v[-1]) if manifest.get('dev') else v), 'Wrong variant/version'
 assert (manifest.get('compact_code') != []) == (variant == 'ipod')
@@ -1522,7 +1524,7 @@ m.top=m.node('dialog','statusbar_dialog',[m.node('view','view_backlight',[bright
 assert m.call()==11 and m.nodes[bright]['value']==100
 assert m.call()==11 and m.nodes[bright]['value']==100
 assert m.call(O['KEY_PREV'])==11 and m.nodes[bright]['value']==99
-for key in ('KEY_CENTER','KEY_RETURN'):
+for key in ('KEY_CENTER','KEY_RETURN')*(variant=='ipod'):  # Legacy keeps stock's keys
     assert m.call(O[key])==11 and [c[1:3] for c in m.calls if c[0]=='dialog_quit']==[(m.top,0)]
 passed()
 
@@ -3528,7 +3530,7 @@ for cls,last,rows in ((0xf004,1,3),(0xff01,-1,3),(0xf007,-1,3),(0xf004,-1,0)):
 m=ClassMachine(page='localclass_page',cls=0xf001,rows=2); m.word(m.row(1)+O['REC_TITLE'],m.string('Tagged'))
 m.word(m.row(0)+O['REC_NAME'],m.string('a.flac')); m.word(m.row(0)+O['REC_PATH'],m.string('/p/a.flac'))
 m.call(address=HOOKS['load_localclass_list'][0],args=(0xf001,0,0,0),gap=0)
-assert [m.text(m.get(m.row(i)+O['REC_TITLE'])) for i in (0,1)]==['a','Tagged']; passed()
+assert variant!='ipod' or [m.text(m.get(m.row(i)+O['REC_TITLE'])) for i in (0,1)]==['a','Tagged']; passed()
 # An empty category list says so once its page is up, instead of a black page.
 m=ClassMachine(page='localclass_page',cls=0xf001,rows=0)
 assert m.call(address=HOOKS['load_localclass_list'][0],args=(0xf006,0,0,0),gap=0)==0 and not m.toasts
@@ -6231,7 +6233,7 @@ assert m.texts()==['Most Played']+[x for p in zip(ranked,details) for x in p]
 rows=m.nodes[m.find('scroll_view')]['children']; assert len(rows)==O['PLAYS_TOP']
 assert [(m.get(rows[1]+O['W_Y']),m.get(rows[1]+O['W_H']))]==[(64,64)]
 title,detail=m.nodes[rows[1]]['children']
-assert m.nodes[title]['style']==m.nodes[detail]['style']=='s_scrlabel_white20l' and m.get(title+O['W_Y'])+m.get(title+O['W_H'])<=m.get(detail+O['W_Y'])
+assert m.nodes[title]['style']==m.nodes[detail]['style'] and (variant!='ipod' or m.nodes[title]['style']=='s_scrlabel_white20l') and m.get(title+O['W_Y'])+m.get(title+O['W_H'])<=m.get(detail+O['W_Y'])
 assert m.nodes[detail]['style:normal:text_color']==-0x555556 and m.nodes[detail]['style:normal:font_size']==16
 assert m.get(detail+O['W_Y'])+m.get(detail+O['W_H'])<=64
 r=m.nodes[m.find('scroll_view')]['children'][2]; g,c=m.handler(r,O['EVT_CLICK'])
@@ -6963,11 +6965,11 @@ m.way=0; m.poll(); assert OUT not in m.files; passed()
 m.state('playing',position=10000,at=m.now+500,cover=1); m.files[STATE+'.jpg']=bytearray(b'cover'); m.poll(); m.advance(0)
 assert m.nodes[info]['visible'] and not m.nodes[msg]['visible']
 assert m.thumbs==[(STATE+'.jpg','/tmp/q2spot.jpg',166,166)] and 'file:///tmp/q2spot.jpg' in [m.text(c[2]) for c in m.calls if c[0]=='widget_load_image']
-assert texts(info)==['Spotify','Song','A, B','LP','0:10','-3:10']
+assert texts(info)==['Spotify','Song','A, B','LP',mmss('0:10'),mmss('-3:10')]
 for text, rgb in [('Song', 0xffffff), ('A, B', O['NP_ARTIST_RGB'] if variant=='ipod' else 0xaaaaaa), ('LP', O['NP_ALBUM_RGB'] if variant=='ipod' else 0xaaaaaa)]:
     label=next(w for w in m.nodes if under(w,info) and m.nodes[w].get('text')==text)
     assert m.nodes[label]['style:normal:text_color']==signed(color_t(rgb))
-m.advance(2500); assert texts(info)[4:]==['0:12','-3:08'] and len(m.thumbs)==1
+m.advance(2500); assert texts(info)[4:]==[mmss('0:12'),mmss('-3:08')] and len(m.thumbs)==1
 for w in [x for x in m.nodes if m.nodes[x]['type'] in ('hscroll_label','image','view') and under(x,info) and x!=info]:
     x,y,bw,bh=cf_geometry(m,w); inset=max(corner_inset(30+y),corner_inset(30+y+bh))  # the window starts at y 30
     assert inset<=x and x+bw<=375-inset,(m.nodes[w].get('text'),x,y,bw,bh)
@@ -7005,7 +7007,7 @@ assert m.key(O['KEY_NEXT'])!=11
 m.mock('on_wm_keyup_fun')  # stock's screen toggle
 def double(): return m.key(O['KEY_CENTER'])==11 and m.key(O['KEY_CENTER'])==11
 assert double() and m.key(O['KEY_NEXT'])==11 and m.key(O['KEY_NEXT'])==11 and m.key(O['KEY_PREV'])==11 and not m.sent
-m.advance(250); assert texts(info)[4]=='1:05' and 'on_wm_keyup_fun' not in [c[0] for c in m.calls]
+m.advance(250); assert texts(info)[4]==mmss('1:05') and 'on_wm_keyup_fun' not in [c[0] for c in m.calls]
 m.poll(O['SCRUB_MS']-260); assert not m.sent; m.poll(); assert m.sent[0][1]=='S65000'  # 250 ms already passed
 assert double() and m.key(O['KEY_PREV'])==11 and m.key(O['KEY_CENTER'])==11 and m.sent[0][1]=='S55000'
 m.advance(200); assert m.key(O['KEY_CENTER'])==11; m.advance(200); assert 'on_wm_keyup_fun' in [c[0] for c in m.calls] and not m.sent
@@ -7146,7 +7148,7 @@ assert m.nodes[heart]['image']=='play_unfav' and [m.get(heart+O[k]) for k in ('W
 m.word(syms['g_dacoff_time'],5)
 m.files[RSTATE]=bytearray(f'state=playing\ntitle=Some Artist - A Song\ncodec=MP3\nbitrate=128\nat={m.now}\n'.encode())
 m.poll(); assert ('reset_poweroptions_timer',1,1,0) in [c[:4] for c in m.calls] and m.get(syms['g_dacoff_time'])==0
-m.advance(3000); assert m.labels(np)==['Internet Radio','Three','Some Artist','A Song','MP3  128 kbps','0:03']
+m.advance(3000); assert m.labels(np)==['Internet Radio','Three','Some Artist','A Song','MP3  128 kbps',mmss('0:03')]
 # The volume reaches q2video for Bluetooth's and USB's soft volume, once a change.
 m.byte(syms['g_volume'],44); m.poll(); assert m.sent==[(m.sent[0][0],'v,',2,0x40,1,RSOCK,110)]; m.poll(); assert not m.sent; passed()
 # Play/Pause stops it (q, then its end) and starts it again; the side buttons step through the
@@ -7554,8 +7556,8 @@ assert m.nodes[w['img_screensaver']]['image']=='' and box('clock_time')[::2]==(0
 assert m.nodes[w['clock_time']]['style:normal:text_align_h']=='center' and m.nodes[w['clock_time']]['style:normal:font_size']>70
 assert signed(m.get(info+O['W_Y']))+box('clock_time')[1]+box('clock_time')[3]<=190 and not m.nodes[w['img_battery']]['visible']
 assert box('label_battery')[2]>=60 and box('label_battery')[0]+box('label_battery')[2]<=375; passed()
-# Battery: Icon keeps the percentage off the Large clock; every percentage mode shows it.
-for mode in range(4):
+# Battery: Icon keeps the percentage off the Large clock; every percentage mode shows it (iPod only).
+for mode in range(4 if variant=='ipod' else 0):
     CONFIG.update(BATTERY=str(mode)); m,w,_,_=lock_window('q2pod:aurora',{'LOCKCLOCK':'1'}); CONFIG.clear()
     assert m.nodes[w['label_battery']]['visible']==(mode!=0) and not m.nodes[w['img_battery']]['visible']
 passed()

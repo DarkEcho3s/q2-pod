@@ -137,7 +137,6 @@ extern int stock_saver_trampoline(void *, void *), stock_saverrows_trampoline(vo
     stock_saverlist_trampoline(void);
 extern void pod_rows(void *win, const char *view_name, int first, int n, const char *const *icons);
 extern int ringnav_lock_clock(void); /* navigation.c: Q2POD LOCKCLOCK, 1 Large, else Standard */
-extern int ipod_battery(void);       /* navigation.c (iPod only): IPOD BATTERY, 0 Icon, else a percentage */
 
 /* The built-ins' names in the picture list and SYSSET SCREENSAVERPATH, by id. None is a file:
  * stock's lock window falls back to the name as an asset, finds none and draws nothing, and these
