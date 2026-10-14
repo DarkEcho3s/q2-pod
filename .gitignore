@@ -11,3 +11,4 @@ dist/*
 __pycache__/
 .build-number
 docs/manual/*.pdf
+graphify-out/
