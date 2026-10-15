@@ -315,7 +315,8 @@ def source_sha256():
     """Hash every build input, so a test run cannot silently use a stale output directory."""
     h = hashlib.sha256()
     manual = [ROOT/'docs/manual'/f for f in ('build.py', 'guide.html')]
-    for path in sorted([*(p for p in ROOT.glob('assets/**/*') if p.is_file()), *ROOT.glob('patch/*'),
+    for path in sorted([*(p for p in ROOT.glob('assets/**/*') if p.is_file()),
+                        *(p for p in ROOT.glob('patch/**/*') if p.is_file()),
                         *ROOT.glob('tools/*.py'), *manual]):
         h.update(str(path.relative_to(ROOT)).encode() + b'\0')
         h.update(path.read_bytes())

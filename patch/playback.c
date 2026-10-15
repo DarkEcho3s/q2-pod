@@ -43,10 +43,12 @@ static int back_to __attribute__((section(".scratch"))), back_at __attribute__((
  * carries; a reversal starts the count again, so turning back is as precise as starting. The
  * encoder's ts_read call (build.py WHEEL_TS_READ) runs through ringnav_ts_read, which posts the
  * ticks as stock does and then hands stock a still finger (the touch-down x), so it posts none. */
+#if !M1PLUS /* the M1's encoder posts whole detents */
 static int wh_last __attribute__((section(".scratch")));
 static int wh_acc __attribute__((section(".scratch")));
 static int wh_anchor __attribute__((section(".scratch"))); /* touch-down x (1-200); 0 lifted */
 static int wh_units __attribute__((section(".scratch")));  /* wh_acc's tick, both in 1/16 unit */
+#endif
 
 /* Wheel sensitivity (System settings -> Display, crossfade.c's page): 50-200% in tens, Q2POD
  * WHEELSENSITIVITY in config.ini, anything else 50%. The travel per tick is 50% / sensitivity of
@@ -83,6 +85,7 @@ void wheel_set_pct(int n) {
     write_int_config(n, "Q2POD", "WHEELSENSITIVITY");
 }
 
+#if !M1PLUS /* the Q2's touch wheel; the M1's encoder posts whole detents as keys */
 static void wheel_post(char *info, int key) {
     for (int type = 0x110; type <= 0x114; type += 4) { /* key down, then up */
         *(int *)(info + WHEEL_INFO_KEY) = key;
@@ -131,6 +134,7 @@ __asm__(".set noreorder\n.globl ringnav_ts_read\nringnav_ts_read:\n"
         "sw $v0, 16($sp)\nlw $a0, 20($sp)\nmove $a1, $v0\n"
         "jal wheel_sample\nmove $a2, $s1\n"
         "lw $v0, 16($sp)\nlw $ra, 28($sp)\njr $ra\naddiu $sp, $sp, 32\n.set reorder\n");
+#endif
 static void *queue(void) { return P(mcl_pdeqplaylist, 0); }
 static void close_preload(void) {
     if (M(MCL_PRELOAD) == 1 && M(MCL_FD) != -1) send(M(MCL_FD), "{mcl-closegapless\\null}", 23, 0);
@@ -204,7 +208,7 @@ int ringnav_speed(int mode) {
 
 int ringnav_open_preload(void) {
     /* A gapless handoff does not run player_initconfig: reopen at a speed boundary. */
-    if (speed_read(M(MCL_PREPOS)) != g_playspeed_mode) return 1;
+    if ((int)speed_read(M(MCL_PREPOS)) != (int)g_playspeed_mode) return 1;
     return stock_open_preload_trampoline();
 }
 static void release(void) {
@@ -504,6 +508,10 @@ int ringnav_mode(int mode) {
      * resume too: not a choice, so advanced play stays. */
     if (s.restoring || __builtin_return_address(0) == (void *)INITCONFIG_MODE_RET)
         return stock_mode_trampoline(mode);
+#if M1PLUS
+    /* The M1's config_init applies the saved mode at boot itself, before hciplayer connects. */
+    if (__builtin_return_address(0) == (void *)CONFIG_INIT_MODE_RET) return stock_mode_trampoline(mode);
+#endif
     /* Stock Shuffle (2) on Shuffle Albums/Folders keeps the groups; any other mode ends them. */
     if (!(s.active && s.shuffle >= 3 && mode == 2)) playback_clear();
     return stock_mode_trampoline(mode);

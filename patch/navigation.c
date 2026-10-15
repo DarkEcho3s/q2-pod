@@ -4,6 +4,12 @@
 #include "playback.h"
 #include "stock.h"
 #undef select /* the UI selection helper below; headset.c uses libc select */
+#if M1PLUS
+/* The M1 has no stock key-up filter before the pages; m1plus/input.c does its part (the auto-off
+ * timer, the centre key's wheel lockout). */
+#define stock_keyup_trampoline m1_keyup_filter
+extern int m1_keyup_filter(void *, void *);
+#endif
 extern int stock_keyup_trampoline(void *, void *), stock_touch_trampoline(void *, void *),
     stock_paint_trampoline(void *, void *), stock_dispatch_trampoline(void *, void *),
     stock_keylong_trampoline(void *, void *), stock_paint_bg_trampoline(void *, void *),
@@ -56,6 +62,14 @@ extern unsigned album_dir(const char *, int);
 extern volatile unsigned library_gen;
 extern const char *track_name(char *buf, unsigned size, void *t);
 #define STOP 11
+/* The space between a slide_menu's items: the M1's older AWTK has none (its items are as wide as
+ * the menu is high). */
+#if M1PLUS
+#define slide_spacer(w) 0
+#else
+#define slide_spacer(w) I(w, SLIDE_SPACER)
+#endif
+
 #define GLIDE_MS 300
 #define SCROLL_MARGIN 12
 #define HOME_FAST_WINDOW_MS 200
@@ -509,7 +523,7 @@ static int slide_index(void *w) {
     int n = (int)widget_count_children(w);
     if (!n) return -1;
     int id = I(w, SLIDE_INDEX);
-    int stride = slide_menu_item_width(w) + I(w, SLIDE_SPACER);
+    int stride = slide_menu_item_width(w) + slide_spacer(w);
     if (a && stride > 0) id -= I(a, ANIM_X_TO) / stride;
     id %= n;
     return id < 0 ? id + n : id;
@@ -534,7 +548,7 @@ static int cf_letter_expire(const void *info) {
 
 static void home_step(void *w, int dir, unsigned now, int jump) {
     int n = (int)widget_count_children(w);
-    int stride = slide_menu_item_width(w) + I(w, SLIDE_SPACER);
+    int stride = slide_menu_item_width(w) + slide_spacer(w);
     int fast =
         st.home_surface == w && st.home_dir == dir && now - st.last_home <= HOME_FAST_WINDOW_MS;
     void *a = P(w, SLIDE_ANIMATOR);
@@ -1230,6 +1244,10 @@ static int pull_event(void *page, void *event) {
 
 static void pull_begin(void *event) {
     pull_cancel();
+#if M1PLUS
+    (void)event;
+    return; /* ponytail: the M1's search page is not mapped yet (docs/m1plus.md#status) */
+#endif
     if (!event || I(event, EVENT_Y) < QUICK_EDGE_PX) return;
     void *page = window_manager_get_top_window(window_manager());
     if (!page) return;
@@ -1839,6 +1857,23 @@ static void *list_button(void *view) {
  * (no icon: at x 10, as the Bluetooth page's rows), into adding stock's list_into trailing image
  * with the label narrowed clear of it, as the stock Local Music categories place it. Returns the
  * label. */
+#if M1PLUS
+/* The M1's settings rows (display_listitem_layout, 0x4a5d08): a list_item in list_item_style the
+ * list sizes, its label at x 12 in srlabel_leftwhite21_style, clicked as a whole; its trailing
+ * right_arrow (into) at x 295. The M1's rows carry no icon. Returns the label. */
+static void *list_row_core(void *view, const char *icon, int (*click)(void *, void *), void *ctx,
+                           int w, int into) {
+    (void)icon;
+    void *item = list_item_create(view, 0, 0, 0, 0);
+    widget_use_style(item, "list_item_style");
+    if (click) widget_on(item, EVT_CLICK, click, ctx);
+    void *label = hscroll_label_create(item, 12, 20, w, 21);
+    widget_use_style(label, "srlabel_leftwhite21_style");
+    set_hscroll_label_attribute(label);
+    if (into) image_base_set_image(image_create(item, 295, 0, 13, 60), "right_arrow");
+    return label;
+}
+#else
 static void *list_row_core(void *view, const char *icon, int (*click)(void *, void *), void *ctx,
                            int w, int into) {
     void *button = list_button(view);
@@ -1850,6 +1885,7 @@ static void *list_row_core(void *view, const char *icon, int (*click)(void *, vo
     if (into) image_base_set_image(image_create(button, 282, 0, 50, 70), "list_into");
     return label;
 }
+#endif
 
 void *list_row(void *view, const char *icon, int (*click)(void *, void *), void *ctx) {
     return list_row_core(view, icon, click, ctx, 260, 0);
@@ -2989,6 +3025,7 @@ int ringnav_playing(void *win, void *ctx) {
  * writes "Label:value" lines and the folder alone. Each line gets ": ", a number its unit's space
  * ("35.92 MB", "16-bit", "950 kbps", "44.1 kHz"), the folder its Location label, and an unknown
  * value, en_US's first player_unknown ("Unknown Artist"), reads "Unknown". */
+#if !M1PLUS /* its stock call site is not patched on the M1 yet (docs/m1plus.md#status) */
 int ringnav_np_info(void *win) {
     static const char *const names[] = { "label_album", "label_genre",  "label_size",
                                          "label_year",  "label_encode", "label_bits",
@@ -3026,6 +3063,7 @@ int ringnav_np_info(void *win) {
     }
     return result;
 }
+#endif
 
 /* systemset_display_page_init: stock builds its three rows (0x4c19bc: a s_listitem_black list_item
  * holding a 335x70 s_btn_listitem button with a 52px icon, a 24px label at x 72 and list_into); the
@@ -3795,6 +3833,7 @@ int ringnav_artist_covers(void *list) {
 }
 /* The album page's big cover, snprintf of classinfo +0xd (0x4a72a4): its Albums row's cover task
  * name, as the thread hashed it, when that is this album's key. */
+#if !M1PLUS /* its stock call site is not patched on the M1 yet (docs/m1plus.md#status) */
 int ringnav_art_header(char *buf, unsigned size, const char *fmt, const char *album) {
     void *covers = P(pdeq_albumcoverlist, 0);
     unsigned i = (unsigned)I(ALBUMINFO_ROW, 0), n = strlen(album);
@@ -3802,6 +3841,7 @@ int ringnav_art_header(char *buf, unsigned size, const char *fmt, const char *al
     return snprintf(buf, size, fmt,
                     key && !strncasecmp(key, album, n) && key[n] == 0x1f ? key : album);
 }
+#endif
 
 static int empty_toast(const void *unused) {
     static const char *const none[] = { "No albums", "No artists", "No composers", "No genres" };
@@ -3813,11 +3853,13 @@ static int empty_toast(const void *unused) {
 /* Library Artists rows have no head picture, so the name gets its width (compact_row_layout skips
  * hidden siblings). Composers and Genres share the rows, which are rebound, so they show theirs
  * again. */
+#if !M1PLUS /* its stock call site is not patched on the M1 yet (docs/m1plus.md#status) */
 int ringnav_class_icon(void *row, int i) {
     int artists = I(g_class_type, 0) == 0xf004;
     widget_set_visible(widget_lookup(row, "img_icon", 1), !artists, 0);
     return artists ? 0 : class_icon(row, i);
 }
+#endif
 
 /* load_localclass_list: stock fills p_deque_showlist and returns its size. getAllAlbum,
  * getAllArtist (and its album-artist twin), getAllComposer and getAllGenre end with an Unknown row
@@ -5121,8 +5163,10 @@ static int qm_open(const void *unused) {
     if (!st.qm_choice) st.touch_mode = 0;
     void *back = widget_lookup(dialog, "img_return", 1),
          *view = widget_lookup(dialog, "scroll_view", 1);
+#if !M1PLUS
     widget_off_by_func(dialog, EVT_KEY_UP, (void *)SORTSELECT_KEYUP, dialog);
     widget_off_by_func(back, EVT_CLICK, (void *)SORTSELECT_CLOSE, dialog);
+#endif
     widget_on(dialog, EVT_KEY_UP, qm_back, dialog);
     widget_on(back, EVT_CLICK, qm_back, dialog);
     widget_on(dialog, EVT_DESTROY, qm_gone, dialog);
@@ -5254,6 +5298,9 @@ static int qm_open(const void *unused) {
  * else stays stock. */
 static int qm_hold(void) {
     st.qm_choice = 0;
+#if M1PLUS
+    return 0; /* ponytail: the M1's sortselect_dialog is laid out apart; the menu is not ported yet */
+#endif
     void *wm = window_manager(), *top = window_manager_get_top_window(wm);
     const char *name = top ? widget_get_prop_str(top, "name", "") : "";
     int playing = !tk_strcmp(name, "playing_page");
@@ -5529,7 +5576,11 @@ static void charge_poll(void) {
     if (st.charge_at && now - st.charge_at < CHARGE_POLL_MS) return;
     st.charge_at =
         now | !now; /* never 0, no poll yet; |1 would eat a millisecond when now is even */
+#if M1PLUS
+    int level = I(g_power_capacity, 0), charging = (unsigned)toolsGetChargeStatus() - 1 < 2;
+#else
     int level = I(g_power_capacity, 0), charging = (unsigned)I(g_power_chargestate, 0) - 1 < 2;
+#endif
     int hold = st.charge_limit && level > CHARGE_RESUME && (st.charge_held || level >= CHARGE_STOP);
     if (hold && (!st.charge_held || charging))
         switch_charge_enable(0);

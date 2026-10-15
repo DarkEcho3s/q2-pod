@@ -46,11 +46,21 @@ void xfade_row(void *label) {
     row_text(label);
 }
 
+#if M1PLUS
+/* The M1's wheel has detents, so it needs no sensitivity: Display's row turns its direction
+ * instead (m1plus/input.c reads Q2POD WHEELREVERSE). */
+extern int m1_wheel_reverse(void);
+extern void m1_wheel_reverse_set(int on);
+static void wheel_text(void *label) {
+    widget_set_text_utf8(label, m1_wheel_reverse() ? "Wheel: Reversed" : "Wheel: Normal");
+}
+#else
 static void wheel_text(void *label) {
     char t[32];
     tk_snprintf(t, sizeof t, "Wheel Sensitivity: %d%%", wheel_pct());
     widget_set_text_utf8(label, t);
 }
+#endif
 
 /* Display's row (navigation.c ringnav_display makes it): the label, named for refresh(). */
 void wheel_row(void *label) {
@@ -95,6 +105,7 @@ static void set_value(int n) {
     refresh(1);
 }
 
+#if !M1PLUS /* the Q2's Crossfade page; the M1's row steps instead */
 static int toggle(void *ctx, void *event) {
     (void)ctx, (void)event;
     if (xf.wheel) return 0;
@@ -118,6 +129,30 @@ static int gone(void *ctx, void *event) {
     return 0;
 }
 
+#endif
+#if M1PLUS
+/* The M1's Boot volume page is a list (playset_bootvol_page_init), so Crossfade gets no page: its
+ * row steps the length on each click, Off and then XF_STEPS, and Display's Wheel row turns the
+ * wheel's direction. */
+static const unsigned char xf_steps[] = { 0, 2, 4, 6, 8, 10 };
+int xfade_open(void *ctx, void *event) {
+    (void)event;
+    settings();
+    if (ctx) {
+        m1_wheel_reverse_set(!m1_wheel_reverse());
+        refresh(0);
+        return 0;
+    }
+    unsigned i = 0, n = sizeof xf_steps;
+    while (i < n && xf_steps[i] <= (unsigned)value()) ++i;
+    set_value(xf_steps[i % n]);
+    return 0;
+}
+int xfade_key(void *top, unsigned key) {
+    (void)top, (void)key;
+    return 0;
+}
+#else
 /* The row's click: stock's Boot volume page, its handlers swapped for these; ctx 1 for Wheel
  * sensitivity's row. */
 int xfade_open(void *ctx, void *event) {
@@ -188,6 +223,8 @@ int xfade_key(void *top, unsigned key) {
     set_value(value() + (key == KEY_NEXT ? 1 : -1) * (xf.wheel ? 10 : 1));
     return 1;
 }
+
+#endif
 
 /* playback_poll, each UI pass: the next change's fade into XFADE_FILE, made whole under another
  * name first as the visualizer's tap is. A fade only when Crossfade and stock's Gapless are on and

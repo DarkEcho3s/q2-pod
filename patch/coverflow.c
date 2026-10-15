@@ -15,14 +15,20 @@
 #define LAST_ALBUM ART_DIR "/album" /* the centre album's key, so a reboot opens on it */
 #if IPOD /* iPod insets its text from the rounded glass (offsets.inc CF_*); Stock keeps its layout */
 #define CF_X CF_EDGE
-#define CF_W (375 - 2 * CF_EDGE)
+#define CF_W (SCREEN_W - 2 * CF_EDGE)
 #define CF_ROW_X CF_X /* one text column throughout */
 #define CF_ROW_W CF_W
 #else
 #define CF_X 8
-#define CF_W 359
+#define CF_W (SCREEN_W - 16)
 #define CF_ROW_X 12
-#define CF_ROW_W 350
+#define CF_ROW_W (SCREEN_W - 25)
+#endif
+/* The space between a slide_menu's items (navigation.c's too): none on the M1's older AWTK. */
+#if M1PLUS
+#define slide_spacer(w) 0
+#else
+#define slide_spacer(w) I(w, SLIDE_SPACER)
 #endif
 #define MIN_FREE_MB 16 /* no new cache files below this much free space on the card */
 #define ART_NEAR 3 /* real art only this many covers either side, like PictureFlow's cache */
@@ -174,9 +180,13 @@ static void build_art(const job_t *j) {
      * either lock (parse_albumcovertask_thd, player_parsecover_thd); hold both. Stock never
      * nests them, so this order cannot deadlock. */
     pthread_mutex_lock((void *)parse_cover_mutex);
+#if !M1PLUS /* the M1's cover threads share parse_cover_mutex (parseplaycover_thd) */
     pthread_mutex_lock((void *)g_playcover_mutex);
+#endif
     int ok = toolsGetAlbumCover(j->track, tmp, ART_SIZE, ART_SIZE) == 1;
+#if !M1PLUS
     pthread_mutex_unlock((void *)g_playcover_mutex);
+#endif
     pthread_mutex_unlock((void *)parse_cover_mutex);
     const char *slash = strrchr(j->track, '/');
     int folder = slash ? (int)(slash - j->track) : 0;
@@ -944,18 +954,18 @@ void *page_title(void *body, const char *caption) {
 /* The peq_ui.c page: a title bar (*title, unless 0) over n whole item_h rows in body, shrunk so the list's
  * white background never shows below a short list. Shared with photos.c. */
 void *page_list(void *page, void *body, void **title, const char *caption, int n, int item_h) {
-    int h = widget_get_prop_int(page, "h", 290), rows = (h - 48) / item_h * item_h;
+    int h = widget_get_prop_int(page, "h", APP_H), rows = (h - 48) / item_h * item_h;
     if (n * item_h < rows) rows = n * item_h;
     widget_destroy_children(body);
     widget_set_visible(body, 1, 0);
     void *t = page_title(body, caption);
     if (title) *title = t;
-    void *lv = list_view_create(body, 0, 48, 375, rows);
+    void *lv = list_view_create(body, 0, 48, SCREEN_W, rows);
     widget_set_prop_int(lv, "item_height", item_h);
     /* The theme's default list_view is a light card; stock pages paint theirs black inline. */
     widget_set_prop_int(lv, "style:normal:bg_color", (int)0xff000000u);
     widget_set_prop_int(lv, "style:normal:border_color", 0);
-    void *view = scroll_view_create(lv, 0, 0, 375, rows);
+    void *view = scroll_view_create(lv, 0, 0, SCREEN_W, rows);
     widget_set_prop_int(view, "yslidable", 1);
     widget_set_prop_int(view, "xslidable", 0);
     widget_set_prop_int(view, "virtual_h", n * item_h);
@@ -973,7 +983,7 @@ static void *list(const char *title, int n) {
 void *page_row_detail(void *view, int index, const char *caption, const char *detail,
                       int (*click)(void *, void *)) {
     int h = detail ? 64 : 48;
-    void *item = list_item_create(view, 0, index * h, 375, h);
+    void *item = list_item_create(view, 0, index * h, SCREEN_W, h);
     widget_use_style(item, "s_listitem_black");
     void *label = text(item, CF_ROW_X, detail ? 4 : 0, CF_ROW_W, detail ? 32 : 48);
     if (IPOD) widget_use_style(label, "s_scrlabel_white20l");
@@ -1326,7 +1336,7 @@ static int floor_div(int a, int b) { /* floor division, b > 0 */
 /* The visual position from the slide_menu's index and live offset (the wheel's animator): album c
  * (of n) at the centre and frac past it. Stock completion commits index - offset / stride. */
 int visual(void *s, int n, int *c, int *frac) { /* shared with photos.c */
-    int stride = slide_menu_item_width(s) + I(s, SLIDE_SPACER), d = -I(s, SLIDE_OFFSET);
+    int stride = slide_menu_item_width(s) + slide_spacer(s), d = -I(s, SLIDE_OFFSET);
     if (n <= 0 || stride <= 0) return 0;
     int q = floor_div(2 * d + stride, 2 * stride);
     *frac = (d - q * stride) * CF_ONE / stride;
@@ -1343,12 +1353,20 @@ int coverflow_bounded(void *w) { return w && w == cf.slide && cf.scoped == ARTIS
  * position or a texture has changed. */
 void coverflow_paint(void *w, void *canvas) {
     int c, frac, n;
-    if (!w || w != cf.slide || !fx.frame || cf.screen != COVERS ||
-        !visual(w, n = (int)widget_count_children(w), &c, &frac))
+#if M1PLUS
+    /* The M1's slide_menu is only a stride high (no spacer), so the frame is painted over it from
+     * the covers' view, whose canvas holds the whole of it. */
+    void *s = cf.slide;
+    if (!w || w != cf.covers) return;
+#else
+    void *s = w;
+#endif
+    if (!s || s != cf.slide || !fx.frame || cf.screen != COVERS ||
+        !visual(s, n = (int)widget_count_children(s), &c, &frac))
         return;
     const unsigned *ring[CF_RING];
     fx_window(c, n, ring);
-    if (coverflow_bounded(w)) /* no wrap: only the artist's real neighbours, never repeats */
+    if (coverflow_bounded(s)) /* no wrap: only the artist's real neighbours, never repeats */
         for (int j = 0; j < CF_RING; ++j)
             if ((unsigned)(c + j - CF_REACH) >= (unsigned)n) ring[j] = 0;
     if (!fx.drawn || c != fx.c || frac != fx.frac) {
@@ -1404,10 +1422,16 @@ static void covers(void) {
     if (!cf.covers) {
         void *f = widget_factory();
         int depth = fx_open();
-        cf.covers = widget_factory_create_widget(f, "view", cf.page, 0, 0, 375, 290);
-        cf.slide = widget_factory_create_widget(f, "slide_menu", cf.covers, 0, depth ? 0 : 24, 375,
+        cf.covers = widget_factory_create_widget(f, "view", cf.page, 0, 0, SCREEN_W, APP_H);
+#if M1PLUS
+        /* No spacer on the M1: the menu is a stride high, the frame drawn over it from cf.covers. */
+        cf.slide = widget_factory_create_widget(f, "slide_menu", cf.covers, 0, depth ? 0 : 24, SCREEN_W,
+                                                depth ? CF_STRIDE : ART_SIZE);
+#else
+        cf.slide = widget_factory_create_widget(f, "slide_menu", cf.covers, 0, depth ? 0 : 24, SCREEN_W,
                                                 depth ? CF_VIEW_H : ART_SIZE);
         if (depth) slide_menu_set_spacer(cf.slide, CF_STRIDE - CF_VIEW_H);
+#endif
         widget_set_sensitive(cf.slide, 0);
         for (unsigned i = 0, n = deque_size(cf.albums); i < n + CARDS; ++i) {
             void *img = image_create(cf.slide, 0, 0, 0, 0);
@@ -1418,9 +1442,9 @@ static void covers(void) {
         }
         /* Album over artist under the frame, white and larger, then grey, clear of the rounded
          * glass (docs/ipod.md#coverflow); the same in both builds. */
-        cf.name = text(cf.covers, CF_EDGE, CF_TEXT_Y, 375 - 2 * CF_EDGE, CF_NAME_H);
+        cf.name = text(cf.covers, CF_EDGE, CF_TEXT_Y, SCREEN_W - 2 * CF_EDGE, CF_NAME_H);
         widget_set_prop_int(cf.name, "style:normal:font_size", CF_NAME_PX);
-        cf.artist = text(cf.covers, CF_EDGE, CF_TEXT_Y + CF_NAME_H, 375 - 2 * CF_EDGE, CF_ARTIST_H);
+        cf.artist = text(cf.covers, CF_EDGE, CF_TEXT_Y + CF_NAME_H, SCREEN_W - 2 * CF_EDGE, CF_ARTIST_H);
         widget_set_prop_int(cf.artist, "style:normal:font_size", CF_ARTIST_PX);
         widget_set_prop_int(cf.artist, "style:normal:text_color", (int)CF_GREY);
         slide_menu_set_value(cf.slide, cf.album);
@@ -1468,7 +1492,7 @@ static void load(void) {
     widget_destroy_children(cf.page);
     cf.covers = cf.slide = cf.name = cf.artist = 0; /* destroyed with the page's children */
     cf.album = 0;
-    cf.body = widget_factory_create_widget(widget_factory(), "view", cf.page, 0, 0, 375, 290);
+    cf.body = widget_factory_create_widget(widget_factory(), "view", cf.page, 0, 0, SCREEN_W, APP_H);
     int n = 0;
     unsigned gen = library_gen;
     if (cf.albums_gen != gen && !cf.scoped) drop_albums();
@@ -1828,7 +1852,7 @@ static int home_repaint(const void *unused) {
  * it, so the native fill draws it whole and the clip crops it evenly; unknown sizes fill the
  * panel. */
 static void home_fit(unsigned w, unsigned h) {
-    int x = HOME_SPLIT_W, pw = 375 - x, ph = 290, fw = pw, fh = ph;
+    int x = HOME_SPLIT_W, pw = SCREEN_W - x, ph = APP_H, fw = pw, fh = ph;
     if (w && h && w <= 8192 && h <= 8192) {
         if ((unsigned)pw * h > (unsigned)ph * w)
             fh = (int)(((unsigned)pw * h + w - 1) / w);
@@ -1877,10 +1901,10 @@ void coverflow_home_clip(void *w, void *canvas, int begin) {
         home.clipped = 0;
         return;
     }
-    int clip[4], art = w == home.art, x = HOME_SPLIT_W, pane = widget_get_visible(home.art) ? x : 375;
+    int clip[4], art = w == home.art, x = HOME_SPLIT_W, pane = widget_get_visible(home.art) ? x : SCREEN_W;
     clip_within(canvas, home.clip, clip, I(canvas, CANVAS_X) - I(w, W_X) + (art ? x : 0),
-                I(canvas, CANVAS_Y) - I(w, W_Y) + (art ? 0 : I(w, W_Y)), art ? 375 - x : pane,
-                art ? 290 : I(w, W_H));
+                I(canvas, CANVAS_Y) - I(w, W_Y) + (art ? 0 : I(w, W_Y)), art ? SCREEN_W - x : pane,
+                art ? APP_H : I(w, W_H));
     canvas_set_clip_rect(canvas, clip);
     home.clipped = 1;
 }
@@ -1919,13 +1943,13 @@ void coverflow_home_layout(void) {
         widget_set_visible(rockbox, shown, 0);
         widget_set_text_utf8(widget_lookup(home.win, "label_rockbox", 1), ipod_home_shortcut());
     }
-    int split = HOME_SPLIT_W, outer = full ? 375 : split,
+    int split = HOME_SPLIT_W, outer = full ? SCREEN_W : split,
         inner = !full ? split : classic ? HOME_CLASSIC_ROW : HOME_FULL_ROW,
         x = classic ? HOME_CLASSIC_TEXT_X : HOME_DOT_X + HOME_DOT + HOME_DOT_GAP,
         end = classic ? HOME_CLASSIC_LABEL_END : full ? HOME_LABEL_END : HOME_SPLIT_LABEL_END;
     home_width(home.list, outer, inner, x, end, 0);
     if (home.sets) home_width(home.sets, outer, inner, x, end, 0);
-    widget_move_resize(home.art, split, 0, 375 - split, 290);
+    widget_move_resize(home.art, split, 0, SCREEN_W - split, APP_H);
     widget_set_visible(home.art, !full, 0);
     home.key = ~0u; /* Split shows the current cover again */
 }

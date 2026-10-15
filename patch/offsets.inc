@@ -1,9 +1,20 @@
 /* Stock V1.32 layout and ABI constants shared by patch/navigation.c and test/patch.py.
  * The test harness parses this file, so a field change cannot leave the mocks behind.
  * Fields marked "same slot" are class-specific views of one offset. */
+#if M1PLUS
+#include "m1plus/abi.inc" /* the M1 Plus V2.1 values of the blocks marked !M1PLUS below */
+#endif
 #define I(p, o) (*(int *)((char *)(p) + (o)))
 #define P(p, o) (*(void **)((char *)(p) + (o)))
 #define FNV_SEED 2166136261u /* FNV-1a offset basis */
+#if !M1PLUS
+/* The 375x320 screen (landscape, the framebuffer turned): a 30px status bar over a 375x290 window. */
+#define SCREEN_W 375
+#define SCREEN_H 320
+#define BAR_H 30
+#define APP_H 290
+#endif
+#if !M1PLUS
 #define W_X 0x00
 #define W_Y 0x04
 #define W_W 0x08
@@ -66,6 +77,7 @@
 #define LCD_TEXT_COLOR 0xb8     /* lcd_set_text_color @0x6474c4 */
 #define CANVAS_ALIGN_V 0x30     /* canvas_set_text_align @0x63419c; middle = 1 */
 #define CANVAS_ALIGN_H 0x34     /* center = 1 */
+#endif
 /* Selection outline tuning. RADIUS > 2 or the stock rounded path squares off; tests read these.
  * The shade uses the same stock dark surface as the fill at an alpha that keeps the outline
  * above 3:1 on pure white art (0x99 is the floor); on dark rows it matches the stock background
@@ -113,7 +125,9 @@
 /* bitmap_t (docs/internals.md#accent): format u16 @0xe, 1 RGBA, 2 ABGR, 3 BGRA, 4 ARGB, 4 bytes a pixel
  * by bitmap_get_bpp_of_format; per format, the byte offsets of r, g, b and a. */
 #define BITMAP_RGBA_AT { { 0, 1, 2, 3 }, { 3, 2, 1, 0 }, { 2, 1, 0, 3 }, { 1, 2, 3, 0 } }
+#if !M1PLUS
 #define STYLE_COLOR_GRADIENT_RET 0x649ff0 /* style_get_color's bal style_get_gradient (0x649fe8) returns here */
+#endif
 #define STOCK_RED 0xff1448
 #define RED_TOLERANCE 8 /* per channel, 0-255: how far a color may sit from a red/neutral blend */
 /* iPod black status chrome (Classic: BAR_CLASSIC); TRACK_COLOR is Now Playing's progress track. */
@@ -124,6 +138,7 @@
 #define VOL_POLL_MS 50 /* how often the volume indicator checks for a change */
 /* The volume panel off Now Playing (vol_paint): exactly over Quick Settings' brightness row
  * (tools/ipod.py checks it), its rounded corners clear of the 80px glass corners. */
+#if !M1PLUS
 #define VOL_PANEL_X 26
 #define VOL_PANEL_Y 256
 #define VOL_PANEL_H 48
@@ -132,8 +147,11 @@
 #define VOL_PANEL_TEXT 52
 #define VOL_PANEL_PX 20 /* the panel's number */
 #define VOL_PANEL_TRACK 0x5a5a5a
+#endif
 /* The centred 16px clock and battery clear the rounded glass; widths are checked with the stock font. */
+#if !M1PLUS
 #define CLOCK_EDGE 57
+#endif
 #define STATUS_GAP 4
 #define BATT_PCT_W 42
 #define BATT_PCT_PX 16
@@ -153,7 +171,9 @@
 #define BATT_PCT_DY 1
 #define BATT_CHARGE_RGB 0x34c759
 #define BATT_LOW_RGB 0xff1448
+#if !M1PLUS
 #define BATT_ROOM 94
+#endif
 /* Plain Bluetooth ink and codec reaches from the right edge of their stock canvases. */
 #define BT_REACH 10
 #define BT_CODECS { "bar_sbc", "bar_aac", "bar_aptx", "bar_aptxhd", "bar_ldac" }
@@ -176,6 +196,7 @@
  * Minimal's Full rows are full width. Labels end HOME_LABEL_END from the row's edge. The selection
  * dot (HOME_DOT px) sits at HOME_DOT_X, clear of the bottom row's corner, HOME_DOT_GAP before the
  * labels (HOME_TEXT_X in tools/ipod.py). */
+#if !M1PLUS
 #define HOME_FULL_ROW 375
 #define HOME_LABEL_END 33
 #define HOME_SPLIT_LABEL_END 8 /* Split: the art, not a corner, is beside the labels */
@@ -192,6 +213,7 @@
 #define HOME_CLASSIC_ROW 369
 #define HOME_CLASSIC_TEXT_X 33
 #define HOME_CLASSIC_LABEL_END (CHEVRON_W - 10)
+#endif
 #define BAR_CLASSIC 0x242424
 #define NP_BAR_CLASSIC 8
 #define NP_BAR_MINIMAL 4
@@ -239,6 +261,7 @@
  * SET_ROW. The icon shrinks to SET_ICON at SET_ICON_X, the text starts SET_GAP after it (or at
  * SET_TEXT_X without one) and trailing images end SET_EDGE from the right edge; test/build.py
  * and test/patch.py check them against the rounded glass in the first and last visible rows. */
+#if !M1PLUS
 #define SET_ROW 68
 #define SET_TOP 8
 #define SET_ROWS 4
@@ -259,6 +282,7 @@
 #define LIST_VIEW_LAYOUT_SLOT 0x926930 /* its vtable slot (vtable 0x926928 + 8) */
 #define IMAGE_DRAW_SCALE_DOWN 5        /* "scale_down" in the stock draw type table @0x9272c0 */
 #define IMAGE_DRAW_CENTER 1            /* "center", the same table */
+#endif
 /* iPod fast-scroll letter: the selected row's first character in white, LETTER_PX high, on a
  * LETTER_BOX square of the stock dark surface at LETTER_ALPHA, centred over the list. */
 #define LETTER_BOX 80
@@ -318,6 +342,7 @@
 #define BUMP_PX 6
 #define BUMP_MS 120
 #define EDGE_PAUSE_MS 300 /* well above WHEEL_RUN_MS, so a spin never counts as a pause */
+#if !M1PLUS
 #define BAR_VALUE 0x7c /* scroll_bar native value, maintained by list/table scroll callbacks */
 #define KEY_CENTER 218
 #define KEY_PREV 172
@@ -345,9 +370,11 @@
 #define WHEEL_INFO_KEY 0x38   /* the event's key (EVENT_KEY) */
 #define BOOT_KEY_GUARD 0xa37c8a /* no symbol: set after a Standby resume, on_wm_keyup_fun drops the next centre release */
 #define RETURN_RELEASE_LATCH 0xa37c8b /* stock long Return arms it; the key-up filter consumes it */
+#endif
 
 /* slide_menu_scroll_to @0x5f3400 and completion @0x5f3654; animator
  * start @0x665ab0, time_elapse @0x6660d4, scroll_set_params @0x682124. */
+#if !M1PLUS
 #define SLIDE_SPACER 0x84
 #define SLIDE_OFFSET 0x94
 #define SLIDE_ANIMATOR 0xc8
@@ -357,16 +384,20 @@
 #define ANIM_X_TO 0x60
 #define SLIDE_EASING 8          /* stock scroll_to easing */
 #define EVT_ANIM_END 0x125
+#endif
 
 /* Play/Pause hold queue menu (docs/internals.md). AWTK input_device_status lives at
  * wm+0x98 (window_manager_get_input_device_status @0x66e734): 16 key records of 0x18 bytes from
  * +0x30, each {key, long fired, u64 press time @8, aborted @0x10}. */
+#if !M1PLUS
 #define EVT_KEY_LONG 0x111
 #define INPUT_KEYS 0x30
 #define INPUT_KEY_SIZE 0x18
 #define INPUT_KEY_COUNT 16
 #define INPUT_KEY_TIME 0x08
+#endif
 /* stSongInfo rows of p_deque_showlist and the mcl queue. */
+#if !M1PLUS
 #define REC_ID 0x00             /* -1/-2: unknown album/artist */
 #define REC_NAME 0x08           /* the file name; REC_TITLE is the tag's, empty when untagged */
 #define REC_PATH 0x0c
@@ -405,11 +436,13 @@
  * allmusic reload and scroll to the top on return. */
 #define SORTSELECT_KEYUP 0x49f3e0
 #define SORTSELECT_CLOSE 0x49f3c0
+#endif
 
 /* Coverflow (docs/internals.md). slide_menu dispatches EVT_VALUE_CHANGED after its
  * index moves (0x5f320c). The stock scan thread handle (dialog_updatemusic_dialog_init) and its
  * done flag (wait_scan sets it) have no symbols: a scan runs while the handle is set and the
  * flag is clear. */
+#if !M1PLUS
 #define EVT_VALUE_CHANGED 0x0e
 #define EVT_VALUE_CHANGING 0x0f
 /* playset_bootvol_page_init (0x4b4a80) binds these, each with the window as context; Crossfade
@@ -421,6 +454,7 @@
 #define BOOTVOL_CHANGED 0x4b4300  /* slider_bootvol's EVT_VALUE_CHANGED */
 #define SCAN_THREAD 0xa271d8
 #define SCAN_DONE 0xa271d4
+#endif
 /* Coverflow text: iPod keeps every label CF_EDGE from the sides, where the lowest track row's text
  * clears the bottom corners; both builds keep the captions there. Album names and artists scroll
  * within that. Under the covers (CF_TEXT_Y), the album name is CF_NAME_PX white and the artist
@@ -439,6 +473,7 @@
  * one cover out and CF_BRIGHT2 two out, reaching 0 three out. Each cover's reflection is
  * CF_REFLECT px high at native size, from CF_REFLECT_TOP (of 256) of its brightness down to black.
  * The wheel moves one album every CF_STRIDE px. Starting values, to be tuned together on the Q2. */
+#if !M1PLUS
 #define CF_VIEW_W 375
 #define CF_VIEW_H 210
 #define CF_CX 187 /* the centre line lies between screen columns 186 and 187 */
@@ -454,11 +489,13 @@
 #define CF_REFLECT_TOP (IPOD ? 48 : 64)
 #define CF_STRIDE 110
 #define CF_TEXT_Y 212 /* the album caption's top, under the frame; the artist follows */
+#endif
 /* Photos (patch/photos.c, docs/internals.md#photos): under a 48px title, PH_COLS columns of
  * PH_TILE_W x PH_TILE_H tiles from x PH_GRID_X, three whole rows in the 240px below it, each a
  * thumbnail of at most PH_THUMB_W x PH_THUMB_H centred in its tile, so the selection shows round
  * it. The viewer's screen-size copy fits PH_SHOT_W x PH_SHOT_H (the client area). PH_GREY marks a
  * thumbnail not made yet or a file that will not open. */
+#if !M1PLUS
 #define PH_COLS 4
 #define PH_GRID_X 1
 #define PH_TILE_W 93
@@ -467,6 +504,8 @@
 #define PH_THUMB_H 72
 #define PH_SHOT_W 375
 #define PH_SHOT_H 290
+#define PH_GRID_H 240 /* three rows of tiles under the 48px title */
+#endif
 #define PH_GREY 0xff333333 /* color_t #333333 */
 #define PHOTOS_MAX 500 /* ponytail: ringnav navigates at most MAX_ENTRIES (512) rows; page beyond */
 /* PEQ editor (patch/peq_ui.c): on the main and band screens a PEQ_GRAPH_H view under the title
