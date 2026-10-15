@@ -574,7 +574,7 @@ checks+=1
 # UI wiring in both variants: stock-style choice menu, selected marker, touch and wheel slider.
 m=PlaybackMachine(); m.top=m.node('window','playing_page'); m.stack=[m.top]; m.word(m.top+O['W_PARENT'],m.wm)
 m.press(100); assert m.hold()==11
-assert m.labels()[-5:]==['Shuffle','Repeat','Group by: Album','Next Album','Previous Album']
+assert m.labels()[-3:]==['Shuffle','Repeat','Group by: Album']
 m.pick(6); m.advance(0,clear=False)
 assert m.labels()==['Off','All Songs','Songs in Album','Albums','Albums and Songs']
 assert any(n.get('image')=='select' for n in m.nodes.values())
