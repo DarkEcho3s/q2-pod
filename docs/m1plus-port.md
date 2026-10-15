@@ -1,8 +1,13 @@
 # Shanling M1 Plus port assessment
 
-Status: feasibility investigation completed on 2026-10-15. A port is technically
-plausible, including context-sensitive volume-wheel navigation. There is no
-working M1 Plus Q2-pod build yet. Nothing here should be flashed to a player.
+Status: an initial M1-specific application prototype builds and passes host/MIPS
+emulator checks as of 2026-10-15. It includes a portrait menu and context-sensitive
+wheel-navigation code. It has **not run on a player**, is not a complete Q2-pod
+port, and is not a flashable firmware update.
+
+Development branch: [DarkEcho3s/q2-pod:m1plus-port](https://github.com/DarkEcho3s/q2-pod/tree/m1plus-port).
+The local `origin` points to this fork, `upstream` to DiamondBond/q2-pod, and
+`m1plus-port` tracks `origin/m1plus-port`.
 
 The user has an M1 Plus available for staged hardware testing. The desired scope
 is Q2-pod's interface, theme and non-streaming features, without Rockbox or
@@ -36,7 +41,7 @@ root filesystem trees.
 | --- | --- | --- |
 | Update container | All three files are tar archives containing firmware_v20.info, xImage and rootfs.squashfs. Payload MD5 entries and kernel header/data CRCs pass. | Existing packaging research is relevant; changing the filename is not a port. These checks establish consistency, not updater acceptance. |
 | Operating system | Both stock uImage headers identify Linux-5.10.21+. Kernels have different hashes. | Retain the M1 Plus kernel and hardware support. |
-| Main executable | Both are ELF32 little-endian MIPS, O32 flags 0x70001405, MIPS32r2, FP ABI 6. | The payload toolchain approach is compatible in principle. Addresses and data layouts still need an M1 audit. |
+| Main executable | Both are ELF32 little-endian MIPS, O32 flags 0x70001405, MIPS32r2, FP ABI 6, NAN2008. | The payload toolchain approach is compatible in principle. Addresses and data layouts still need an M1 audit. |
 | Interface toolkit | Both contain AWTK UI binaries and exported AWTK functions. | Reuse rendering/navigation concepts and C logic after ABI adaptation. |
 | Display | Q2-pod's layout is 375×320. M1 main() initializes 320×480; Shanling documents the same resolution. | Reflow layouts, Coverflow, visualizers, touch targets and artwork; do not stretch the Q2 screen. |
 | Shared libraries | 111 of 116 common regular-file paths under lib/ and usr/lib/ are byte-identical. | Much of the runtime can remain stock. This count is per path, not unique library or feature. |
@@ -53,8 +58,11 @@ conservative size limit until the actual MTD layout is verified.
 
 ## Requested wheel behavior
 
-Proposed persisted setting: **Settings → Controls → Wheel navigation**, off by
-default for initial testing. Touch continues to work in both modes.
+Intended final setting: **Settings → Controls → Wheel navigation**, off by
+default for initial testing. The prototype exposes the toggle in its own menu
+and implements navigation only within that menu. The table below is the final
+design, not a claim that native library lists and editors are already adapted.
+Touch continues to work in both modes.
 
 | Foreground context with the setting on | Rotate wheel | Short wheel click |
 | --- | --- | --- |
@@ -81,16 +89,26 @@ Static M1 input evidence, tied to the exact demo hash above:
 - Its `0xd2` (210) path changes the screen state. `on_wm_keylong_fun`,
   `0x4cdd9c`, uses the same key for power handling. This is the wheel-click
   candidate, not a claim that Linux evdev uses code 210.
-- `window_manager_dispatch_input_event`, `0x677b74`, is a possible integration
-  boundary. Audit the earlier input path before choosing the interception point:
-  suppressing a late event is insufficient if volume has already changed.
+- `window_manager_dispatch_input_event`, `0x677b74`, records press ownership.
+  DOWN events still reach stock input bookkeeping. The prototype suppresses
+  owned releases at `widget_on_keyup`, `0x670d10`, allowing the caller to clear
+  the toolkit's pressed-key state afterward. Swallowing DOWN or UP at the
+  dispatcher itself would break that bookkeeping and/or long-press detection.
+- The volume dialog registers its key-up handler at `0x47e330`; it calls the
+  native volume adjustment functions. The prototype intercepts before that
+  handler. No earlier volume adjustment was found in the generic evdev-to-AWTK
+  path, but a hardware trace must establish the physical rotary event source.
+  The generic evdev key map does not map Linux volume keys 114/115 to 220/221.
+- M1 event types are DOWN `0x10f`, LONG `0x110`, UP `0x113`, CLICK `0x10c`;
+  the Q2 event constants must not be reused. A separate long-handler hook keeps
+  stock power behavior and prevents the held button's release from confirming.
 - M1's stock GP is `0xa03ed0`; Q2's is `0xa26cc0`. Q2's key constants, global
   addresses, trampolines and lockout bytes must not be reused unchanged.
 - Q2's named keydown-before/keyup-before callbacks are absent from M1's defined
   symbol list. Hook registration and event order need recovery on M1.
 
-The UI design and routing rules are specified here. They are not implemented in
-the firmware by the inspection scripts.
+The inspection scripts remain read-only. The prototype builder described below
+implements the initial menu and input adapter separately from the Q2 builder.
 
 ## Feature scope and work required
 
@@ -135,10 +153,80 @@ the UI. Removing menu entries alone does not produce a streaming-free build.
    hardlinks, checksums and capacity. Perform device tests for boot, updates,
    local/BT/USB audio, sleep/wake, battery, card swaps and settings persistence.
 
-This Windows host currently has no WSL, Docker or LLVM toolchain available on
-PATH. Static Python analysis works. A Linux build environment or a validated
-Windows equivalent is still needed for the upstream LLVM/squashfs build and its
-host/emulator tests. No unverified update image was generated.
+The Windows host now has a local Zig 0.15.2/Clang cross-compiler and Unicorn
+2.1.4 MIPS emulator. WSL and Docker are not needed for this application prototype.
+The complete firmware packaging and recovery path remains to be established;
+no update image was generated.
+
+## Prototype implementation and validation
+
+`targets/m1plus/v2.1.json` pins the stock executable hash, ABI, 35 symbol
+addresses/sizes, and four hook prologues. `tools/build_m1plus.py` validates them
+before compiling or writing output. It imports no Q2 target definitions.
+Compiled C and assembly objects must match the stock MIPS/FPU ABI flags; a final
+unused program header maps the payload above the existing segments at `0xb00000`.
+Only the four checked hook prologues and that header are altered in stock bytes.
+The unchanged Q2 builder continues to accept only its own target.
+
+The prototype adds an **M1-pod preview** page to the stock home carousel. Its
+menu uses the M1's 320-pixel portrait width, a light background and blue
+selection. It links to native Music, Folders, Now Playing and Audio Settings,
+offers a wheel toggle and a Stock home exit. This is a small UI foundation, not
+the completed Q2-pod theme, library enhancements, Coverflow or media viewers.
+Native navigation links, layout, touch and hardware events are not yet verified
+on a player. Native streaming entries still exist in the stock interface during
+bring-up; the new payload links no Rockbox or streaming modules.
+
+The wheel setting defaults off and is saved to `/mnt/data/m1pod-wheel-nav` using
+a checked write/flush/fsync/rename sequence. Failed saves do not change the active
+setting. The prototype menu is the only page registered for wheel selection;
+Now Playing, native pages, dialogs, screen-off, lock and transition states use
+stock handling. A press that began in the menu cannot confirm a different page
+or touched selection on release. Long power holds and playback buttons pass
+through. An observed volume change during a supposedly consumed gesture disables
+navigation for that session; this guard cannot undo a volume change that already
+happened and does not replace hardware verification.
+
+For future developer-supervised input tracing, an existing
+`/mnt/mmc/m1pod-trace.enable` marker enables `/mnt/mmc/m1pod-input.log` at process
+startup. The log is reset at that startup and capped at 256 key-event records.
+It contains event type, toolkit key, menu ownership, suppression and volume
+before/after, with no song metadata. No marker means no log. This is diagnostic
+code, not an installation instruction; do not replace the running stock demo.
+
+Install `requirements-m1plus.txt`, locate the installed `ziglang/zig.exe` (or
+`ziglang/zig` on Linux), and use a new ignored output directory:
+
+```powershell
+python tools/build_m1plus.py --stock-demo work/m1plus-analysis/m1/analysis-files/release/bin/demo --out work/m1plus-prototype-v0 --zig /path/to/zig.exe
+python test/m1plus.py --build work/m1plus-prototype-v0 --stock-demo work/m1plus-analysis/m1/analysis-files/release/bin/demo -v
+```
+
+On this host, Python dependencies are in `F:\DAP\.analysis-deps` and
+`F:\DAP\.build-deps`; the compiler is
+`F:\DAP\.build-deps\ziglang\zig.exe`. Compiler subprocesses needed execution
+outside the Windows sandbox; all outputs/caches stayed under `F:\DAP`.
+
+Two clean builds produced the same 6,556-byte payload and patched application:
+
+| Output | SHA-256 |
+| --- | --- |
+| Payload bytes | `e971cc8b01eafaea71b78807044839feb72779c57a05b6f9c5d8a588acd4f75b` |
+| demo.m1pod | `032dfaf83b0c354351a885ba3cd81ecc024ffd1f51d235d219bcb5ab964222ab` |
+
+27 tests passed: compiled MIPS policy and adapter execution, stock passthrough,
+ownership changes, touch cancellation, short/long clicks, wake, toggle persistence
+failure, exact patch reconstruction, wrong-firmware rejection, segment/jump
+bounds and real hook/trampoline instructions. Toolkit services are mocked in
+adapter tests; they do not establish GUI correctness, device bootability or
+physical wheel behavior. Seven existing inspection/container tests also passed.
+
+Local outputs are in `work/m1plus-prototype-v0/` and remain ignored because the
+patched application contains vendor code. No vendor firmware is pushed to GitHub.
+Next hardware milestone: establish recovery and an opt-in boot launcher that
+keeps an untouched stock application available, validate the update packaging,
+then collect the physical input trace. The broader non-streaming feature port
+remains work in progress.
 
 ## Reproducing the inspection
 
@@ -155,8 +243,9 @@ dependencies installed locally in `F:\DAP\.analysis-deps`. Inspection validated
 all three real containers. Seven synthetic tests passed, covering valid inputs,
 bad payload hashes, kernel CRC failure, SquashFS bounds, repeated digests,
 unexpected/duplicate paths and symlinks. `git diff --check` passed. No device
-tests, firmware build or emulator runtime tests have been performed. The
-repository asks for `graphify update .`; it was attempted but graphify is not
+tests or full firmware builds were performed during that inspection. The later
+prototype emulator checks are described above. The repository asks for
+`graphify update .`; it was attempted but graphify is not
 installed and no graphify graph was present.
 
 ## Supporting projects
@@ -168,6 +257,8 @@ installed and no graphify graph was present.
   metadata-preserving packaging and owner-reported browsing/audio playback on
   one player. This is useful evidence that M1 extensions are possible, not proof
   that a Q2-pod port works. Its streaming feature is outside this port's scope.
+  The home-carousel integration and recovered ABI informed this prototype;
+  its MIT notice is retained in [targets/m1plus/NOTICE](../targets/m1plus/NOTICE).
   A read-only reference checkout is available locally in `F:\DAP\m1plus-reference`.
 - [Upstream Q2-pod build documentation](building.md) and
   [internals](internals.md) describe the existing binary-patch architecture.

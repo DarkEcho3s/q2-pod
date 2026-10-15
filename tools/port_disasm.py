@@ -7,11 +7,12 @@ control-flow graph. This tool never runs the input binary or patches firmware.
 import argparse
 import re
 import struct
+from types import SimpleNamespace
 from elftools.elf.elffile import ELFFile
 from capstone import Cs, CS_ARCH_MIPS, CS_MODE_MIPS32, CS_MODE_LITTLE_ENDIAN
 
 
-def disassemble(path, pattern):
+def disassemble(path, pattern, region=None):
     with open(path, 'rb') as stream:
         elf = ELFFile(stream)
         if elf.elfclass != 32 or not elf.little_endian or elf.header.e_machine != 'EM_MIPS':
@@ -24,6 +25,13 @@ def disassemble(path, pattern):
                     if symbol.name and symbol.entry.st_shndx != 'SHN_UNDEF':
                         symbols[symbol.name] = symbol.entry
         addresses = {s.st_value: name for name, s in symbols.items()}
+        if region:
+            start, size = (int(part, 0) for part in region.split(':'))
+            if start % 4 or size <= 0 or size % 4 or size > 65536:
+                raise ValueError('Range must be aligned and between 4 and 65536 bytes')
+            symbols = {'selected_range': SimpleNamespace(st_value=start, st_size=size,
+                                                        st_info=SimpleNamespace(type='STT_FUNC'))}
+            pattern = '.*'
 
         def read(address, size):
             for segment in elf.iter_segments():
@@ -63,6 +71,7 @@ def disassemble(path, pattern):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('elf')
-    parser.add_argument('symbol_pattern', help='regular expression matched against symbol names')
+    parser.add_argument('symbol_pattern', nargs='?', default='^$', help='regular expression matched against symbol names')
+    parser.add_argument('--range', help='bounded virtual-address range START:SIZE, e.g. 0x637870:0x300')
     args = parser.parse_args()
-    disassemble(args.elf, args.symbol_pattern)
+    disassemble(args.elf, args.symbol_pattern, args.range)

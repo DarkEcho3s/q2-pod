@@ -1,0 +1,171 @@
+{
+  "name": "shanling-m1-plus-v2.1",
+  "demo_sha256": "29e23119bc2a0f153f3ea0ba942a39754d1aab0879c1040fae2269df8bd9b3f1",
+  "elf_flags": 1879053317,
+  "stock_gp": 10501840,
+  "payload_base": 11534336,
+  "display": [
+    320,
+    480
+  ],
+  "symbols": {
+    "application_init": {
+      "address": 5539232,
+      "size": 160
+    },
+    "window_manager_dispatch_input_event": {
+      "address": 6781812,
+      "size": 204
+    },
+    "widget_on_keyup": {
+      "address": 6753552,
+      "size": 836
+    },
+    "on_wm_keylong_fun": {
+      "address": 5037468,
+      "size": 268
+    },
+    "window_manager": {
+      "address": 6780084,
+      "size": 24
+    },
+    "window_manager_get_top_window": {
+      "address": 6780356,
+      "size": 132
+    },
+    "window_manager_is_animating": {
+      "address": 6783300,
+      "size": 84
+    },
+    "window_create": {
+      "address": 6770764,
+      "size": 72
+    },
+    "button_create": {
+      "address": 6433500,
+      "size": 140
+    },
+    "label_create": {
+      "address": 6483600,
+      "size": 120
+    },
+    "view_create": {
+      "address": 6506224,
+      "size": 72
+    },
+    "widget_lookup": {
+      "address": 6711924,
+      "size": 48
+    },
+    "widget_on": {
+      "address": 6712608,
+      "size": 52
+    },
+    "widget_set_name": {
+      "address": 6711504,
+      "size": 112
+    },
+    "widget_set_text_utf8": {
+      "address": 6747936,
+      "size": 104
+    },
+    "widget_set_prop_str": {
+      "address": 6748328,
+      "size": 108
+    },
+    "widget_get_prop_str": {
+      "address": 6718944,
+      "size": 100
+    },
+    "widget_set_prop_int": {
+      "address": 6750012,
+      "size": 108
+    },
+    "widget_set_state": {
+      "address": 6723116,
+      "size": 216
+    },
+    "widget_destroy": {
+      "address": 6743364,
+      "size": 168
+    },
+    "window_close": {
+      "address": 6773616,
+      "size": 84
+    },
+    "timer_add": {
+      "address": 6698288,
+      "size": 96
+    },
+    "navigator_to": {
+      "address": 5053824,
+      "size": 24
+    },
+    "on_backtoplayer_onclick": {
+      "address": 5035404,
+      "size": 84
+    },
+    "reset_poweroptions_timer": {
+      "address": 5077108,
+      "size": 160
+    },
+    "backlight_status": {
+      "address": 9947876,
+      "size": 1
+    },
+    "keylock_flag": {
+      "address": 10508960,
+      "size": 1
+    },
+    "standby_mode": {
+      "address": 10508768,
+      "size": 4
+    },
+    "lockscreen_pageflag": {
+      "address": 10508796,
+      "size": 4
+    },
+    "rotate_mode": {
+      "address": 10508956,
+      "size": 4
+    },
+    "volume": {
+      "address": 9947920,
+      "size": 4
+    },
+    "boot_guidestep": {
+      "address": 10513664,
+      "size": 4
+    },
+    "slide_indicator_set_max": {
+      "address": 6384496,
+      "size": 136
+    },
+    "widget_get_prop_int": {
+      "address": 6719224,
+      "size": 100
+    },
+    "widget_count_children": {
+      "address": 6725376,
+      "size": 32
+    }
+  },
+  "hooks": {
+    "application_init": {
+      "replacement": "m1_application_init",
+      "prologue": "4c001c3c30b99c2721e09903"
+    },
+    "window_manager_dispatch_input_event": {
+      "replacement": "m1_dispatch",
+      "prologue": "39001c3c5cc39c2721e09903"
+    },
+    "widget_on_keyup": {
+      "replacement": "m1_keyup",
+      "prologue": "39001c3cc0319c2721e09903"
+    },
+    "on_wm_keylong_fun": {
+      "replacement": "m1_keylong",
+      "prologue": "53001c3c34619c2721e09903"
+    }
+  }
+}
