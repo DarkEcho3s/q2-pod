@@ -2984,7 +2984,7 @@ def playing_menu(**kw):
 for state in (3,2):  # paused and playing both expose the same actions
     m=playing_menu(); m.handlers.pop(syms['mclGetPlayStatus'],None); m.word(0xa3beac,state)
     m.press(5000); assert m.release()==1
-    m.press(6000); assert m.hold()==11 and m.labels()==SONG_MENU+["Shuffle","Repeat","Group by: Album","Next Album","Previous Album"]
+    m.press(6000); assert m.hold()==11 and m.labels()==SONG_MENU+["Shuffle","Repeat","Group by: Album"]
     assert m.nodes[m.title]['text']=='B' and m.release()==0
     m.press(7000); assert m.release()==1 and m.get(0xa3beac)==state; passed()
 # A tagged song's menu is titled by its tag, not its file name.
@@ -6352,9 +6352,9 @@ assert m.tap()==11 and m.favs=={'B'} and m.kept()==[] and m.badge() is None; pas
 assert m.tap()==11 and m.favs==set(); m.heart(); m.call(O['KEY_NEXT']); m.call(O['KEY_NEXT']); m.call(O['KEY_CENTER'])
 m2=RateMachine(m.files['/mnt/data/ringnav-ratings']); assert m2.badge()=='2'
 m2.word(O['MCL_POS'],0); m2.advance(500); assert m2.badge() is None; passed()
-# Hold Play/Pause on Now Playing: Rate below Next/Previous album, with the hearts; its row opens the same picker.
+# Hold Play/Pause on Now Playing: Rate last, with the hearts, and no Next/Previous album outside Shuffle Albums/Folders; its row opens the same picker.
 m2.word(O['MCL_POS'],1); m2.handlers[syms['navigator_to']]='q:navigator_to'; m2.press(100)
-assert m2.hold()==11 and m2.labels()[-3:]==['Next Album','Previous Album','Rate  ♥♥♡♡♡'] and m2.release()==0
+assert m2.hold()==11 and m2.labels()[-2:]==['Group by: Album','Rate  ♥♥♡♡♡'] and m2.release()==0
 m2.pick(len(m2.labels())-1); m2.advance(0); m2.top=m2.np; assert m2.caption()=='2 of 5' and m2.call(O['KEY_RETURN'])==11; passed()
 # Ratings: Top Rated (4-5), Loved (5), All Rated and Disliked (1), most hearts first, then title order.
 m=RateMachine(b''.join(struct.pack('<I',(key_of(n)&~7)|h) for n,h in (('A',1),('C',4),('E',2))).ljust(4*O['RATE_SLOTS'],b'\0'))

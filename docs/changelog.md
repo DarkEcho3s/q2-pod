@@ -2,6 +2,7 @@
 
 - **1.1.9**:
   - Hold menus: rows are 66 px instead of 78, so three whole rows always show and none is cut in half under the title.
+  - Now Playing hold menu: Next Album and Previous Album only appear during Shuffle Albums or Folders.
   - Wording: the Library uses Artists, Albums, Songs and Playlists. Settings rows are in Title Case, stock strings are reworded (e.g. "Shut Down?", "Enlarged Album Art"), and the Shuffle and Repeat choices say Album or Folder. "Boot to: Q2 Pod" now matches the product name.
   - Song rows: untagged songs show the file name without the extension, and the FLAC/MP3 badges are gone.
   - Coverflow: the Sort and Refresh cards no longer show the previous album's artist.
