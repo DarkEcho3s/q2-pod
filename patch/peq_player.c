@@ -5,7 +5,8 @@ _Static_assert(__builtin_offsetof(af_instance, setup) == 16, "setup ABI");
 _Static_assert(__builtin_offsetof(af_instance, mul) == 40, "multiplier ABI");
 
 /* DSD (the vendor's dsdiff driver: dsf, dff, SACD iso; or FFmpeg's ffdsd*) reaches the chain as integer PCM,
- * possibly DoP, whose bits must arrive unchanged: detach (2); the player re-adds the filter at the next file.
+ * possibly DoP, whose bits must arrive unchanged: pass it through. Never detach (2): the insert's af_add
+ * (0x44d098) returns the filter its reinit just freed, and the caller (0x4291ac) then calls into it.
  * Codec lookup: docs/internals.md. */
 #ifdef PEQ_HOST
 extern char *peq_mpctx;
@@ -25,7 +26,11 @@ static int control(af_instance *af, int command, void *arg) {
     if (command == 0x10000100) {
         af_data *in = arg;
         if (!in || in->nch < 1 || in->nch > PEQ_CHANNELS) return -2;
-        if (in->rate < 8000 || in->rate > 384000 || (in->format & ~63) || dsd()) return 2;
+        if (in->rate < 8000 || in->rate > 384000 || (in->format & ~63) || dsd()) {
+            s->dsp.channels = 0; /* play leaves every block alone */
+            *af->data = *in;
+            return 1;
+        }
         peq_load_active(&s->preset);
         peq_reset(&s->dsp, in->rate, in->nch, &s->preset);
         *af->data = *in;

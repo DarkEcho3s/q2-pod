@@ -1056,22 +1056,28 @@ int main(void) {
     assert(peq_open(&af) == 1 && af.mul == 1 && !af.delay && af.data && af.setup);
     player_state *s = af.setup;
 
-    /* Format negotiation: bad channel counts fail, unsupported rates and formats decline,
-       other formats are asked to convert to float, and float is accepted. */
+    /* Format negotiation: bad channel counts fail, unsupported rates and formats pass through as they
+       come (never detach: af_add would hand back the freed filter), other formats are asked to convert
+       to float, and float is accepted. */
     af_data in = {0, 0, 48000, 0, 0x1d, 4};
     assert(negotiate(&af, 0) == -2);
     assert(negotiate(&af, &in) == -2);
     in.nch = PEQ_CHANNELS + 1; assert(negotiate(&af, &in) == -2);
-    in.nch = 2; in.rate = 7999; assert(negotiate(&af, &in) == 2);
-    in.rate = 384001; assert(negotiate(&af, &in) == 2);
-    in.rate = 48000; in.format = 64; assert(negotiate(&af, &in) == 2);
-    /* DSD detaches, by the vendor's dsdiff driver or an FFmpeg ffdsd codec; other codecs negotiate. */
+    in.nch = 2; in.rate = 7999; assert(negotiate(&af, &in) == 1 && af.data->rate == 7999);
+    in.rate = 384001; assert(negotiate(&af, &in) == 1 && af.data->rate == 384001);
+    in.rate = 48000; in.format = 64; assert(negotiate(&af, &in) == 1 && af.data->format == 64);
+    /* DSD passes through untouched, by the vendor's dsdiff driver or an FFmpeg ffdsd codec; other codecs negotiate. */
     static char *mp[12], *sh[2], *codec[0x3e4 / 4];
     peq_mpctx = (char *)mp; mp[0x2c / 4] = (char *)sh; sh[1] = (char *)codec;
     in.format = 0x1d;
-    codec[0x3e0 / 4] = "dsdiff"; assert(negotiate(&af, &in) == 2);
-    codec[0x3e0 / 4] = "ffmpeg"; codec[0x3d0 / 4] = "ffdsdmsbf"; assert(negotiate(&af, &in) == 2);
-    codec[0x3d0 / 4] = "ffflac"; assert(negotiate(&af, &in) == 1);
+    float dop[4] = {0.5f, -0.5f, 0.25f, -0.25f};
+    af_data pass = {dop, sizeof(dop), 48000, 2, 0x1d, 4};
+    codec[0x3e0 / 4] = "dsdiff"; assert(negotiate(&af, &in) == 1 && !memcmp(af.data, &in, sizeof(in)));
+    codec[0x3e0 / 4] = "ffmpeg"; codec[0x3d0 / 4] = "ffdsdmsbf"; assert(negotiate(&af, &in) == 1);
+    codec[0x3d0 / 4] = "ffflac"; assert(negotiate(&af, &in) == 1 && s->dsp.channels == 2);
+    codec[0x3e0 / 4] = "dsdiff"; assert(negotiate(&af, &in) == 1); /* after PCM, as a reinit would */
+    assert(af.play(&af, &pass) == &pass && pass.len == sizeof(dop) && dop[0] == 0.5f && dop[3] == -0.25f);
+    codec[0x3e0 / 4] = "ffmpeg";
     peq_mpctx = 0;
     peq_preset first = active(-6, 6);
     in.format = 0x11; in.bps = 2;
