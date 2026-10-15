@@ -26,14 +26,13 @@ static int control(af_instance *af, int command, void *arg) {
     if (command == 0x10000100) {
         af_data *in = arg;
         if (!in || in->nch < 1 || in->nch > PEQ_CHANNELS) return -2;
+        *af->data = *in;
         if (in->rate < 8000 || in->rate > 384000 || (in->format & ~63) || dsd()) {
             s->dsp.channels = 0; /* play leaves every block alone */
-            *af->data = *in;
             return 1;
         }
         peq_load_active(&s->preset);
         peq_reset(&s->dsp, in->rate, in->nch, &s->preset);
-        *af->data = *in;
         af->data->format = 0x1d;
         af->data->bps = 4;
         if (in->format != 0x1d || in->bps != 4) { *in = *af->data; return 0; }

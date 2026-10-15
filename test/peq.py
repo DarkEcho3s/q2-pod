@@ -1077,7 +1077,6 @@ int main(void) {
     codec[0x3d0 / 4] = "ffflac"; assert(negotiate(&af, &in) == 1 && s->dsp.channels == 2);
     codec[0x3e0 / 4] = "dsdiff"; assert(negotiate(&af, &in) == 1); /* after PCM, as a reinit would */
     assert(af.play(&af, &pass) == &pass && pass.len == sizeof(dop) && dop[0] == 0.5f && dop[3] == -0.25f);
-    codec[0x3e0 / 4] = "ffmpeg";
     peq_mpctx = 0;
     peq_preset first = active(-6, 6);
     in.format = 0x11; in.bps = 2;
