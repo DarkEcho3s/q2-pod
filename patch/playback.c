@@ -180,7 +180,7 @@ int ringnav_speed(int mode) {
     folder_speed saved = { { 0 }, 0 };
     char path[80], tmp[84];
     /* player_initconfig re-applies speed when the decoder connects; that is not a user edit. */
-    if (__builtin_return_address(0) == (void *)0x51339c || (unsigned)mode >= 4) {
+    if (__builtin_return_address(0) == (void *)INITCONFIG_SPEED_RET || (unsigned)mode >= 4) {
         playback_speed_start();
         return stock_speed_trampoline(g_playspeed_mode);
     }
@@ -204,7 +204,7 @@ int ringnav_speed(int mode) {
 
 int ringnav_open_preload(void) {
     /* A gapless handoff does not run player_initconfig: reopen at a speed boundary. */
-    if (speed_read(M(MCL_PREPOS)) != g_playspeed_mode) return 1;
+    if (speed_read(M(MCL_PREPOS)) != (unsigned)g_playspeed_mode) return 1;
     return stock_open_preload_trampoline();
 }
 static void release(void) {
@@ -502,7 +502,11 @@ void playback_clear(void) {
 int ringnav_mode(int mode) {
     /* player_initconfig re-applies the saved mode each time hciplayer connects, after a boot
      * resume too: not a choice, so advanced play stays. */
-    if (s.restoring || __builtin_return_address(0) == (void *)INITCONFIG_MODE_RET)
+    if (s.restoring || __builtin_return_address(0) == (void *)INITCONFIG_MODE_RET
+#ifdef M1PLUS
+        || __builtin_return_address(0) == (void *)0x4e5974 /* config_init, V2.1 */
+#endif
+       )
         return stock_mode_trampoline(mode);
     /* Stock Shuffle (2) on Shuffle Albums/Folders keeps the groups; any other mode ends them. */
     if (!(s.active && s.shuffle >= 3 && mode == 2)) playback_clear();

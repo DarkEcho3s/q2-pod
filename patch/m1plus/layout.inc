@@ -6,6 +6,16 @@
 #define HOME_SPLIT_W (POD_SCREEN_W / 2)
 #undef HOME_CLASSIC_ROW
 #define HOME_CLASSIC_ROW (POD_SCREEN_W - 6)
+#undef SET_STOCK_X
+#define SET_STOCK_X 12
+#undef SET_STOCK_W
+#define SET_STOCK_W (POD_SCREEN_W - 24)
+#undef SET_STOCK_ROW
+#define SET_STOCK_ROW 64
+#undef SET_STOCK_BODY
+#define SET_STOCK_BODY 60
+#undef SET_ROW
+#define SET_ROW 64
 #undef CF_VIEW_W
 #define CF_VIEW_W POD_SCREEN_W
 #undef CF_VIEW_H

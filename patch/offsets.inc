@@ -350,6 +350,7 @@
 /* slide_menu_scroll_to @0x5f3400 and completion @0x5f3654; animator
  * start @0x665ab0, time_elapse @0x6660d4, scroll_set_params @0x682124. */
 #define SLIDE_SPACER 0x84
+#define SLIDE_SPACING(w) I((w), SLIDE_SPACER)
 #define SLIDE_OFFSET 0x94
 #define SLIDE_ANIMATOR 0xc8
 #define ANIM_ELAPSED 0x10
@@ -385,6 +386,7 @@
 #define ID3_ARTIST 0x504
 #define ID3_TITLE 0x684
 #define CLASS_ALBUMS 0xf003     /* all albums: rows open getMusicByAlbum (load_localclass_list 0xff10) */
+#define CLASS_FAVORITES 0xf00a
 #define CLASS_ARTIST_ALBUMS 0xff01 /* an artist's albums (load_localclass_list 0xff11) */
 #define ALBUMINFO_ROW 0xa27200  /* the albums row localmusic_albuminfo_page_init opened (0x4a7ab4) */
 /* Static mcl queue state (mclLoadPlayList @0x5aa8d4, mclNextSong @0x5adbbc). */
@@ -399,6 +401,10 @@
 #define MCL_GAPLESS 0xa3be54    /* byte: stock's Gapless setting (mclGetGaplessMode); mclAutoChange preloads only with it */
 #define MCL_FD 0xa3beb4         /* player socket, -1 none */
 #define INITCONFIG_MODE_RET 0x513420 /* player_initconfig's mclSetPlayMode call (jalr 0x513418) returns here */
+#define INITCONFIG_SPEED_RET 0x51339c
+#define FAV_CLICK_ADDR 0x52b154
+#define PLAYLIST_PICK_ADDR 0x4b1d24
+#define WM_VTABLE 0x94
 /* mclUsbAudioSetVol (0x5ac574): the USB DAC's volume control, -1 before the first set, -2 when it
  * has none and hciplayer's soft volume (mcl-softvolflag) applies instead (0x5a8498 opens hw:1). */
 #define USB_MIXER 0xa3be6c
@@ -500,4 +506,7 @@
 
 #ifdef M1PLUS
 #include "m1plus/layout.inc"
+#ifdef M1_NATIVE_ABI
+#include "m1plus/abi.inc"
+#endif
 #endif

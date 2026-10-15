@@ -224,7 +224,7 @@ static void big_clock(void *win) {
     widget_move_resize(info, 0, 14, POD_SCREEN_W, 150);
     widget_move_resize(date, 0, 0, POD_SCREEN_W, 30);
     widget_move_resize(time, 0, 26, POD_SCREEN_W, 124);
-    widget_move_resize(pct, 296, 3, 64, 24);
+    widget_move_resize(pct, POD_SCREEN_W-72, 3, 64, 24);
     widget_set_visible(batt, 0, 0);
 #if IPOD /* Legacy has no Battery setting: stock's percent stays */
     extern int ipod_battery(void); /* navigation.c: IPOD BATTERY, 0 Icon, else a percentage */
@@ -240,6 +240,16 @@ static void big_clock(void *win) {
  * stock's (lockscreen_paint), and Large lays the clock out again. */
 int lockscreen_init(void *win, void *ctx) {
     int result = stock_saver_trampoline(win, ctx);
+#ifdef M1PLUS
+    void *info = widget_lookup(win, "view_timeinfo", 1);
+    if (info && !widget_lookup(win, "label_battery", 1)) {
+        char t[12];
+        void *pct = label_create(info, POD_SCREEN_W-72, 3, 64, 24);
+        widget_set_name(pct, "label_battery");
+        tk_snprintf(t, sizeof t, "%d%%", I(g_power_capacity, 0));
+        widget_set_text_utf8(pct, t);
+    }
+#endif
     void *img = widget_lookup(win, "img_screensaver", 1);
     int id = wall_id(PICTURE);
     if (img && id >= 0) {
@@ -258,7 +268,13 @@ int lockscreen_init(void *win, void *ctx) {
  * it, so the old art stayed until something else repainted over it. */
 int lockscreen_cover(void *win) {
     int result = stock_savercover_trampoline(win);
-    void *img = widget_lookup(win, "img_playcover", 1);
+    void *img = widget_lookup(win,
+#ifdef M1PLUS
+                              "view_img_icon",
+#else
+                              "img_playcover",
+#endif
+                              1);
     if (img) widget_invalidate_force(img, 0);
     return result;
 }
@@ -288,6 +304,44 @@ int lockscreen_rows(void *win) {
     }
     return result;
 }
+
+#ifdef M1PLUS
+/* M1 builds the wallpaper thumbnails directly in its settings initializer.
+ * Its view_covers asset is a scrolling viewport in this port. Keep the native
+ * image/switch callbacks, then arrange all built-ins and card pictures. */
+int m1_lockscreen_settings(void *win, void *ctx) {
+    extern int stock_saver_settings_trampoline(void *, void *);
+    int result = stock_saver_settings_trampoline(win, ctx);
+    void *view = widget_lookup(win, "view_covers", 1);
+    if (!view) return result;
+    void *time = widget_lookup(view, "listitem_time", 1), *about = widget_lookup(view, "listitem_about", 1);
+    if (time) widget_move_resize(time, 0, 0, POD_SCREEN_W, 60);
+    if (about) widget_move_resize(about, 0, 128, POD_SCREEN_W, 60);
+    static const char *const icons[] = {0};
+    pod_rows(win, "view_covers", 7, 1, icons);
+    void *row = widget_get_child(view, widget_count_children(view)-1);
+    widget_move_resize(row, 0, 64, POD_SCREEN_W, 60);
+    void *pictures = PICTURES;
+    unsigned n = pictures ? deque_size(pictures) : 0;
+    for (unsigned i = 0; i < n; ++i) {
+        char name[24];
+        tk_snprintf(name, sizeof name, "imgcover%u", i);
+        void *img = widget_lookup(view, name, 1);
+        if (!img) continue;
+        widget_move_resize(img, 12+(i%3)*100, 196+(i/3)*128, 92, 120);
+        tk_snprintf(name, sizeof name, "img_choice%u", i);
+        void *badge = widget_lookup(img, name, 1);
+        if (badge) widget_move_resize(badge, 56, 84, 32, 32);
+        int id = wall_id(deque_at(pictures, i));
+        if (id >= 0) {
+            image_base_set_image(img, ""); lk.thumb[id] = img;
+            widget_on(img, EVT_DESTROY, forget, img);
+        }
+    }
+    widget_set_prop_int(view, "virtual_h", 196+((n+2)/3)*128);
+    return result;
+}
+#endif
 
 /* ringnav_paint (the border hook, after stock painted the widget) calls this for every widget:
  * over a built-in picture it draws the wallpaper; thumbnails render on first sight. Stock painted

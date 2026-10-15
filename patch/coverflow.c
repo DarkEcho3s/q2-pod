@@ -174,9 +174,13 @@ static void build_art(const job_t *j) {
      * either lock (parse_albumcovertask_thd, player_parsecover_thd); hold both. Stock never
      * nests them, so this order cannot deadlock. */
     pthread_mutex_lock((void *)parse_cover_mutex);
+#ifndef M1PLUS /* M1's parseplaycover_thd shares parse_cover_mutex with album jobs. */
     pthread_mutex_lock((void *)g_playcover_mutex);
+#endif
     int ok = toolsGetAlbumCover(j->track, tmp, ART_SIZE, ART_SIZE) == 1;
+#ifndef M1PLUS
     pthread_mutex_unlock((void *)g_playcover_mutex);
+#endif
     pthread_mutex_unlock((void *)parse_cover_mutex);
     const char *slash = strrchr(j->track, '/');
     int folder = slash ? (int)(slash - j->track) : 0;
@@ -1326,7 +1330,7 @@ static int floor_div(int a, int b) { /* floor division, b > 0 */
 /* The visual position from the slide_menu's index and live offset (the wheel's animator): album c
  * (of n) at the centre and frac past it. Stock completion commits index - offset / stride. */
 int visual(void *s, int n, int *c, int *frac) { /* shared with photos.c */
-    int stride = slide_menu_item_width(s) + I(s, SLIDE_SPACER), d = -I(s, SLIDE_OFFSET);
+    int stride = slide_menu_item_width(s) + SLIDE_SPACING(s), d = -I(s, SLIDE_OFFSET);
     if (n <= 0 || stride <= 0) return 0;
     int q = floor_div(2 * d + stride, 2 * stride);
     *frac = (d - q * stride) * CF_ONE / stride;
@@ -1967,6 +1971,10 @@ int coverflow_home_back(void *top) {
  * on its image as stock does, whatever stock returned. */
 int coverflow_home(void *win, void *ctx) {
     int result = stock_home_trampoline(win, ctx);
+#ifdef M1PLUS
+    extern void m1_home_create(void *);
+    m1_home_create(win);
+#endif
     widget_on(widget_lookup(win, "img_coverflow", 1), EVT_CLICK, coverflow_open, 0);
 #if IPOD
     widget_on(widget_lookup(win, "img_rockbox", 1), EVT_CLICK, home_shortcut_open, 0);

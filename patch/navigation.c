@@ -509,7 +509,7 @@ static int slide_index(void *w) {
     int n = (int)widget_count_children(w);
     if (!n) return -1;
     int id = I(w, SLIDE_INDEX);
-    int stride = slide_menu_item_width(w) + I(w, SLIDE_SPACER);
+    int stride = slide_menu_item_width(w) + SLIDE_SPACING(w);
     if (a && stride > 0) id -= I(a, ANIM_X_TO) / stride;
     id %= n;
     return id < 0 ? id + n : id;
@@ -534,7 +534,7 @@ static int cf_letter_expire(const void *info) {
 
 static void home_step(void *w, int dir, unsigned now, int jump) {
     int n = (int)widget_count_children(w);
-    int stride = slide_menu_item_width(w) + I(w, SLIDE_SPACER);
+    int stride = slide_menu_item_width(w) + SLIDE_SPACING(w);
     int fast =
         st.home_surface == w && st.home_dir == dir && now - st.last_home <= HOME_FAST_WINDOW_MS;
     void *a = P(w, SLIDE_ANIMATOR);
@@ -610,6 +610,14 @@ static int usable(void) {
 static int allowed_top(void *top) {
     return top && context_id(widget_get_prop_str(top, "name", (void *)0)) >= 0;
 }
+#ifdef M1PLUS
+static int slider_page(void *top), fields(void *top);
+int ringnav_m1_supported(void *top) {
+    /* Now Playing deliberately keeps the wheel's native volume behavior. */
+    return usable() && (allowed_top(top) || slider_page(top) || fields(top)) &&
+           tk_strcmp(widget_get_prop_str(top, "name", ""), "playing_page");
+}
+#endif
 
 /* A click identifies its pane by ancestry. On the first wheel turn, an unowned pair starts
  * with the first pane in UI order; painting and touch never choose one implicitly. */
@@ -766,7 +774,11 @@ static int context_now(unsigned *scope) {
             h = hash_bytes(FNV_SEED, g_class_type, 4);
             h = hash_bytes(h, g_artist_type, 4);
         }
+#ifdef M1PLUS
+        *scope = h; /* M1 encodes album/category scope in cur_classtype and classinfo_save. */
+#else
         *scope = hash_bytes(h, album_modetype, 4);
+#endif
     } else if (contexts[ctx].kind == CTX_FIXED) {
         *scope = 1;
     } else if (!tk_strcmp(name, "coverflow_page")) {
@@ -1279,8 +1291,12 @@ int config_value(const char *section, const char *key, int n) {
 #define ROCKBOX_BIN "/mnt/mmc/.rockbox/rockbox"
 /* glibc 2.28 MIPS o32 stat v3: st_mode at byte 20, as stock's fs stat reads it. */
 static int rockbox_available(void) {
+#ifdef M1PLUS
+    return 0;
+#else
     unsigned info[36];
     return !__xstat(3, ROCKBOX_BIN, info) && (info[5] & 0170000) == 0100000;
+#endif
 }
 
 /* 0xRRGGBB to an opaque color_t, whose bytes are r, g, b, a. */
@@ -1326,7 +1342,11 @@ static int accent(void) {
  * card may mount after the first read. */
 static int shortcut(void) {
     accent();
+#ifdef M1PLUS
+    return st.shortcut > 0 && st.shortcut < 4 ? st.shortcut : 3;
+#else
     return st.shortcut < 4 ? st.shortcut : rockbox_available() ? 0 : 3;
+#endif
 }
 int ipod_classic(void) {
     accent();
@@ -1362,7 +1382,7 @@ int home_shortcut_open(void *ctx, void *event) {
     }
     return navigator_to_with_context(s == 1 ? "localmusic/localclass_page"
                                             : "localmusic/allmusic_page",
-                                     (void *)(long)(s == 1 ? 0xf004 : 0xf00a));
+                                     (void *)(long)(s == 1 ? 0xf004 : CLASS_FAVORITES));
 }
 enum { TONE_LIGHT = 2, TONE_RED = 3 }; /* columns of ACCENTS */
 unsigned accent_tone(int tone) {
@@ -1830,7 +1850,7 @@ int ringnav_paint(void *w, void *canvas) {
 static void *list_button(void *view) {
     void *item = list_item_create(view, 0, 0, 0, 0);
     widget_use_style(item, "s_listitem_black");
-    void *button = button_create(item, 20, 0, 335, 70);
+    void *button = button_create(item, SET_STOCK_X, 0, SET_STOCK_W, SET_STOCK_BODY);
     widget_use_style(button, "s_btn_listitem");
     return button;
 }
@@ -1843,11 +1863,15 @@ static void *list_row_core(void *view, const char *icon, int (*click)(void *, vo
                            int w, int into) {
     void *button = list_button(view);
     if (click) widget_on(button, EVT_CLICK, click, ctx);
-    if (icon) image_base_set_image(image_create(button, 10, 0, SET_STOCK_ICON, 70), icon);
-    void *label = hscroll_label_create(button, icon ? 72 : 10, 0, w, 70);
+    if (icon) image_base_set_image(image_create(button, 10, 0, SET_STOCK_ICON, SET_STOCK_BODY), icon);
+#ifdef M1PLUS
+    int room = SET_STOCK_W - (icon ? 72 : 10) - (into ? 50 : 8);
+    if (w > room) w = room;
+#endif
+    void *label = hscroll_label_create(button, icon ? 72 : 10, 0, w, SET_STOCK_BODY);
     widget_use_style(label, "s_scrlabel_white24l");
     set_hscroll_label_attribute(label);
-    if (into) image_base_set_image(image_create(button, 282, 0, 50, 70), "list_into");
+    if (into) image_base_set_image(image_create(button, SET_STOCK_W-53, 0, 50, SET_STOCK_BODY), "list_into");
     return label;
 }
 
@@ -2124,6 +2148,9 @@ static void bar_sync(void *bar) {
         st.bar_state = widget_lookup(bar, "img_state", 1);
         st.bar_eq = widget_lookup(bar, "label_eq", 1);
     }
+#ifdef M1PLUS
+    if (st.bar_eq) widget_set_visible(st.bar_eq, g_equalizer_flag != 0, 0);
+#endif
     if (st.bar_idle && st.bar_state && st.bar_eq)
         widget_set_visible(st.bar_idle,
                            !widget_get_visible(st.bar_state) && !widget_get_visible(st.bar_eq), 0);
@@ -2165,6 +2192,9 @@ static void bar_sync(void *bar) {
     const unsigned *t = widget_get_text(st.bar_pct);
     int level = 0;
     while (t && *t >= '0' && *t <= '9') level = level * 10 + (int)(*t++ - '0');
+#ifdef M1PLUS
+    level = I(g_power_capacity, 0);
+#endif
     unsigned key = (unsigned)(level < 0     ? 0
                               : level > 100 ? 100
                                             : level)
@@ -2952,7 +2982,11 @@ static void accent_row(void) {
 static int setting_click(void *ctx, void *event) {
     (void)event;
     int i = (int)(long)ctx, *value = setting_values[i];
+#ifdef M1PLUS
+    static const int shortcut_next[] = { 3, 2, 3, 1 }; /* Favorites, Artists, Albums */
+#else
     static const int shortcut_next[] = { 3, 2, 0, 1 }; /* Rockbox, Favorites, Artists, Albums */
+#endif
     *value = i == 4 ? shortcut_next[shortcut()] : (*value + 1) % setting_counts[i];
     write_int_config(*value, "IPOD", setting_keys[i]);
     if (i == 2)
@@ -2996,7 +3030,12 @@ int ringnav_np_info(void *win) {
                              *const units[] = {
                                  "", "", " MB", "", "", "-bit", " kbps", " kHz", ""
                              };
+#ifdef M1PLUS
+    extern int stock_npinfo_trampoline(void *);
+    int result = stock_npinfo_trampoline(win);
+#else
     int result = np_info(win);
+#endif
     char where[64] = "";
     getFormatString("player_location", where, sizeof where);
     const char *loc =
@@ -3056,6 +3095,10 @@ int ringnav_display(void *win, void *ctx) {
     pod_rows(win, "scroll_view_display", POD_ARTIST_CF, 1, cf_icon);
 #endif
     if (view) wheel_row(list_row(view, "system_display", xfade_open, (void *)1));
+#ifdef M1PLUS
+    extern void m1_controls_row(void *);
+    if (view) m1_controls_row(view);
+#endif
     return result;
 }
 
@@ -3326,6 +3369,11 @@ static void set_row(void *item) {
  * before the stock layout stacks them and sizes the scroll view, then each row is mapped. Settings
  * code never moves, resizes or scrolls its rows afterwards (docs/ipod.md#settings). */
 int ipod_list_layout(void *layout, void *view) {
+#ifdef M1PLUS
+    extern int m1_album_grid(void *);
+    if (view && !tk_strcmp(widget_get_prop_str(view, "name", ""), "album_scrollview"))
+        return m1_album_grid(view);
+#endif
     void *list = view ? P(view, W_PARENT) : (void *)0;
     int rows = list && !tk_strcmp(widget_get_type(list), "list_view") && !I(list, ROW_HEIGHT) &&
                I(list, LIST_DEFAULT_ITEM_HEIGHT) == SET_ROW;
@@ -3428,6 +3476,11 @@ static int hold_released(void) {
     st.qm_press = 0;
     return held;
 }
+#ifdef M1PLUS
+/* Read before native AWTK clears the pressed-key entry on release. */
+int ringnav_m1_held_release(void) { return hold_released(); }
+void ringnav_m1_activity(void) { st.last_input = time_now_ms(); }
+#endif
 
 static unsigned rec_hash(void *r) {
     unsigned h = FNV_SEED;
@@ -3738,8 +3791,7 @@ static int artist_cf_open(const void *unused) {
     if (veiled) artist_cf_veil(veiled, 0);
     return 0;
 }
-int ringnav_artist_list(int tab) {
-    int n = stock_artist_trampoline(tab);
+static int artist_list_loaded(int tab, int n) {
     void *list = P(p_deque_showlist, 0), *all;
     artist_keys_free();
     if (tab != 1 || n <= 0 || !(st.art_keys = calloc((unsigned)n, sizeof(char *)))) return n;
@@ -3766,7 +3818,11 @@ int ringnav_artist_list(int tab) {
     pod_settings();
     void *top = window_manager_get_top_window(window_manager());
     if (st.artist_cf && !st.art_cf_list && top && top != st.art_cf_win &&
-        !tk_strcmp(widget_get_prop_str(top, "name", ""), "artistinfo_page")) {
+        (!tk_strcmp(widget_get_prop_str(top, "name", ""), "artistinfo_page")
+#ifdef M1PLUS
+         || !tk_strcmp(widget_get_prop_str(top, "name", ""), "album_page")
+#endif
+        )) {
         st.art_cf_list = mine, mine = 0;
         st.art_cf_veil = top;
         artist_cf_veil(top, 1);
@@ -3777,6 +3833,9 @@ int ringnav_artist_list(int tab) {
     deque_destroy(all);
     return n;
 }
+#ifndef M1PLUS
+int ringnav_artist_list(int tab) { return artist_list_loaded(tab, stock_artist_trampoline(tab)); }
+#endif
 static const char *artist_key(char *buf, void *list, unsigned i) {
     (void)buf;
     return st.art_keys && list == P(p_deque_showlist, 0) && st.art_n == deque_size(list) &&
@@ -3793,6 +3852,17 @@ int ringnav_artist_art_name(char *buf, unsigned size, unsigned row, const char *
 int ringnav_artist_covers(void *list) {
     return st.art_keys ? rename_covers(list, artist_key) : albumcoverinfo_init(list);
 }
+#ifdef M1PLUS
+int m1_album_covers(void *list) {
+    int cls = I(g_local_classinfo_save, 0);
+    return cls >= 0xff01 && cls <= 0xff03 ? ringnav_artist_covers(list) : ringnav_albumcovers(list);
+}
+int m1_album_art_name(char *buf, unsigned size, unsigned row, const char *album) {
+    int cls = I(g_local_classinfo_save, 0);
+    return cls >= 0xff01 && cls <= 0xff03 ? ringnav_artist_art_name(buf,size,row,album)
+                                        : ringnav_art_name(buf,size,row,album);
+}
+#endif
 /* The album page's big cover, snprintf of classinfo +0xd (0x4a72a4): its Albums row's cover task
  * name, as the thread hashed it, when that is this album's key. */
 int ringnav_art_header(char *buf, unsigned size, const char *fmt, const char *album) {
@@ -3836,11 +3906,20 @@ int ringnav_badge(const char *path, char *out, int size) {
     return 0;
 }
 int ringnav_localclass(int cls) {
+#ifdef M1PLUS
+    extern int m1_group_load(int);
+    int grouped=m1_group_load(cls);
+    if(grouped!=-2) return grouped;
+#endif
     I(g_artist_type, 0) = I(artist_type, 0) == 1;
     int n = stock_localclass_trampoline(cls);
     void *list = P(p_deque_showlist, 0), *dir = P(tools_pdeq_directory, 0), *a = album_opened();
     if (n > 0 && cls == 0xff10 && a) album_only(list, a, 0), n = (int)deque_size(list);
     if (n > 0 && cls == CLASS_ALBUMS) n = coverflow_split(list);
+#ifdef M1PLUS
+    /* M1's genre detail is already a song list; only artist/composer query albums. */
+    if (cls == 0xff01 || cls == 0xff02) return artist_list_loaded(1, n);
+#endif
     if (IPOD) /* an untagged song's row reads its file name without the extension (track_name) */
         for (int i = 0; i < n; ++i) {
             void *r = deque_at(list, (unsigned)i);
@@ -4159,7 +4238,7 @@ static int most_played(void *ctx, void *event) {
 #define ALBUM_RATINGS_FILE "/mnt/data/ringnav-album-ratings"
 /* Now Playing's heart click (playing_page_init binds it to img_fav with the window): stock's My
  * Fav toggled for the playing track (manage_myfav), and the heart's image with it. */
-#define FAV_CLICK ((int (*)(void *, void *))0x52b154)
+#define FAV_CLICK ((int (*)(void *, void *))FAV_CLICK_ADDR)
 
 /* The songs' table, or with album the albums'. */
 static int rate_io(int album, int write) {
@@ -4926,6 +5005,7 @@ int ringnav_start_player(void) {
  * reads demo's version literal, which carries the updater tag (tools/build.py VERSIONS), so it
  * shows the stock firmware's again; a CFW. Version row in the same widgets follows it. Its button
  * has no name, so stock's row click (atoi of the name, 0x4bc774) ignores it. */
+#ifndef M1PLUS
 static void about_label(void *button, int x, int w, const char *style, const char *text) {
     void *label = hscroll_label_create(button, x, 0, w, 70);
     widget_use_style(label, style);
@@ -4933,10 +5013,17 @@ static void about_label(void *button, int x, int w, const char *style, const cha
     hscroll_label_set_ellipses(label, 1);
     widget_set_text_utf8(label, text);
 }
+#endif
 
 int ringnav_about(void *win, void *ctx) {
     int result = stock_about_trampoline(win, ctx);
     void *view = win ? widget_lookup(win, "scroll_view_about", 1) : (void *)0;
+#ifdef M1PLUS
+    if (view) {
+        void *label = list_row(view, 0, 0, 0);
+        widget_set_text_utf8(label, "M1 Pod - full test 1");
+    }
+#else
     if (view && widget_count_children(view) == 7) {
         widget_set_text_utf8(widget_get_child(widget_get_child(widget_get_child(view, 1), 0), 1),
                              STOCK_VERSION);
@@ -4945,6 +5032,7 @@ int ringnav_about(void *win, void *ctx) {
         about_label(button, 176, 149, "s_scrlabel_white20r", Q2POD_VERSION);
         widget_restack(P(button, W_PARENT), 2);
     }
+#endif
     return result;
 }
 
@@ -4988,7 +5076,7 @@ static void qm_select(void) {
 }
 
 /* Stock playlist rows use the queue in add mode 2. Guard their final dispatch as well. */
-#define PLAYLIST_PICK ((int (*)(void *, void *))0x4b1d24)
+#define PLAYLIST_PICK ((int (*)(void *, void *))PLAYLIST_PICK_ADDR)
 static int qm_playlist_pick(void *ctx, void *event) {
     if (!qm_record()) {
         toast("Queue unchanged");
@@ -5055,11 +5143,11 @@ static int qm_run(const void *unused) {
         qm_open(0);
     } else if (r && a == QA_FAV) { /* tags a folder file as batch-select's Add to My Fav does */
         qm_select();
-        batch_add_file(cls, 0xf00a, qm_list(), P(p_vector_select_record, 0), 0);
+        batch_add_file(cls, CLASS_FAVORITES, qm_list(), P(p_vector_select_record, 0), 0);
         toast("Added to Favourites");
     } else if (r && a == QA_UNFAV) {
         deleteMusicFromFav(r);
-        if (cls == 0xf00a)
+        if (cls == CLASS_FAVORITES)
             g_delete_flag = 1; /* My Fav reloads, as Now Playing's heart (0x52b2e8) */
         toast("Removed from Favourites");
     } else if (r && a == QA_PLAYLIST) { /* the playlist page's add mode adds the selected row */
@@ -5317,7 +5405,13 @@ static int qm_hold(void) {
         if (st.qm_kind) st.qm_kind = QM_COVERFLOW;
     } else if (kind == CTX_FOLDER) {
         if (I(r, REC_TYPE) == 4) st.qm_kind = QM_FOLDER;
-    } else if (cls == CLASS_ALBUMS || (cls >= CLASS_ARTIST_ALBUMS && cls <= 0xff03))
+    } else if (cls == CLASS_ALBUMS || (cls >= CLASS_ARTIST_ALBUMS && cls <=
+#ifdef M1PLUS
+                                   0xff02
+#else
+                                   0xff03
+#endif
+                                  ))
         st.qm_kind = QM_ALBUM; /* all albums, and an artist's, composer's or genre's */
     else if (cls >= 0xf004 && cls <= 0xf006)
         st.qm_kind = QM_GROUP; /* artist, composer and genre lists */
@@ -5606,6 +5700,11 @@ static void cpu_poll(void) {
 #define LOGO_DST "/mnt/data/boot-logo.jpg"
 #define LOGO_ROT "/tmp/boot-logo.jpg"
 #define LOGO_MAX (512 * 1024)
+#ifdef M1PLUS
+#define LOGO_HEIGHT 480u
+#else
+#define LOGO_HEIGHT 375u
+#endif
 /* tools/build.py's jpeg_size: w << 16 | h of a baseline 8-bit three-component JPEG, the only kind
  * stock display_logo draws right; 0 for anything else. */
 static unsigned jpeg_size(const unsigned char *b, unsigned n) {
@@ -5644,11 +5743,15 @@ static unsigned char *logo_read(const char *path, unsigned *n) {
 static void *logo_sync(void *unused) {
     unsigned n = 0, old_n;
     unsigned char *b = 0, *old = 0;
+#ifdef M1PLUS
+    const char *err = "Boot logo must be a 320x480 JPEG";
+#else
     const char *err = "Boot logo must be a 320x375 JPEG";
+#endif
     (void)unused;
     if (access(LOGO_SRC, 0))
         unlink(LOGO_DST), err = 0;
-    else if ((b = logo_read(LOGO_SRC, &n)) && jpeg_size(b, n) == (375u << 16 | 320)) {
+    else if ((b = logo_read(LOGO_SRC, &n)) && jpeg_size(b, n) == (LOGO_HEIGHT << 16 | 320)) {
         free(b), b = 0; /* landscape: ffmpeg turns it a quarter clockwise (coverflow.c's ff_thumb) */
         int status, pid = fork();
         if (!pid) {
@@ -5660,7 +5763,7 @@ static void *logo_sync(void *unused) {
         if (pid > 0 && waitpid(pid, &status, 0) == pid && !status) b = logo_read(LOGO_ROT, &n);
         unlink(LOGO_ROT);
     }
-    if (b && jpeg_size(b, n) == (320u << 16 | 375)) {
+    if (b && jpeg_size(b, n) == (320u << 16 | LOGO_HEIGHT)) {
         old = logo_read(LOGO_DST, &old_n);
         if ((old && old_n == n && !memcmp(old, b, n)) || blob_io(LOGO_DST, LOGO_DST ".tmp", b, n, 1))
             err = 0; /* the same bytes are not written again each boot */
@@ -5716,6 +5819,7 @@ static void power_poll(void) {
 int rockbox_open(void *ctx, void *event) {
     (void)ctx;
     (void)event;
+#ifndef M1PLUS
     void *flag = !rockbox_available() ? (void *)0 : fopen(ROCKBOX_FLAG, "w");
     if (!flag) {
         toast("Rockbox is not on the card");
@@ -5734,6 +5838,7 @@ int rockbox_open(void *ctx, void *event) {
     if (g_bluetoothflag && bt_linkstatus && (unsigned)btctl_transport_get_volume() <= 127)
         btctl_transport_set_volume(((g_maxvolume < 100 ? g_maxvolume : 100) * 127 + 50) / 100);
     system("killall checkappprocess.sh; killall -9 hciplayer; " SPOT_KILL "; sync; kill -9 $PPID");
+#endif
     return 0;
 }
 #endif
@@ -5825,7 +5930,9 @@ static void bt_volume_poll(void) {
     if (v > limit) v = limit;
     btvol.last = cur;
     g_volume = (unsigned char)v;
+#ifndef M1PLUS
     *(volatile signed char *)0xa38c41u = (signed char)v; /* stock responseSetVolume's level */
+#endif
     device_set_volume(v, 1);
     write_int_config(v, "PLAYSET", "VOLUME");
     /* device_set_volume invokes our gain hook; enforce the limit even when mocked/unsupported. */
@@ -5897,6 +6004,13 @@ static int wake_gate(void *e) {
     return !st.wake_pass;
 }
 
+#ifdef M1PLUS
+int ringnav_m1_wake(void *e) {
+    pod_settings();
+    return wake_gate(e);
+}
+#endif
+
 /* window_manager_dispatch_input_event: while q2video plays (books.c) no key or touch reaches the
  * UI; a key's release goes to the player instead. Every event times ringnav_sleep's idle. */
 int ringnav_input(void *wm, void *e) {
@@ -5910,7 +6024,7 @@ int ringnav_input(void *wm, void *e) {
 /* window_manager_paint, a leaf (tools/build.py WM_PAINT_LEAF): the window manager's own paint
  * (vtable +0xc), except while q2video has the framebuffer; video_poll repaints after. */
 int ringnav_wm_paint(void *wm) {
-    void *vt = wm && !video_on() ? P(wm, 0x94) : (void *)0;
+    void *vt = wm && !video_on() ? P(wm, WM_VTABLE) : (void *)0;
     int (*paint)(void *) = vt ? (int (*)(void *))P(vt, 0xc) : (int (*)(void *))0;
     return paint ? paint(wm) : video_on() ? 0 : 0x10; /* RET_BAD_PARAMS, as stock */
 }
@@ -6136,7 +6250,9 @@ int ringnav(void *ctx, void *event) {
     unsigned key = (unsigned)I(event, EVENT_KEY);
 #if IPOD
     /* This release's press was silenced by ringnav_keydown: a row change below clicks instead. */
+#ifndef M1PLUS
     int owned = st.tone_key == key;
+#endif
     st.tone_key = 0;
 #endif
     if ((key == KEY_PREV || key == KEY_NEXT) &&
@@ -6369,7 +6485,7 @@ int ringnav(void *ctx, void *event) {
         select(&g_menu, next);
         /* Stop momentum even when the selected row already fits the viewport. */
         reveal(&g_menu, next, 1);
-#if IPOD
+#if IPOD && !defined(M1PLUS)
         if (owned && id >= 0) buzzeer_switch(1); /* one click per row change, however far */
 #endif
     } else {

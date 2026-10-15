@@ -24,6 +24,8 @@
   <b><a href="docs/changelog.md">Changelog</a></b>
 </p>
 
+> **M1 Plus port:** this branch also builds the experimental full non-streaming M1 Pod firmware. Use the [M1 build notes](docs/m1plus-port.md) and [M1 installation and controls](docs/m1plus-full-test.md). The Q2 installation instructions below apply to Q2 only.
+
 ## Features
 
 - **iPod UI:** Home, menus, Now Playing, Coverflow and four visualizers. Choose your accent colour, Home layout and battery display.

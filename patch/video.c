@@ -14,7 +14,11 @@
  * (spotify.c): stdin's 44.1 kHz sound, v and q on SINK_SOCK. No MIPS sysroot: the declarations
  * below are glibc 2.28's and alsa-lib's, with MIPS o32 constants. */
 #define W 320 /* /dev/fb0: 320 x 375, 32 bpp, red at bit 16, two pages (docs/internals.md#videos) */
+#ifdef M1PLUS
+#define H 480
+#else
 #define H 375
+#endif
 #define FPS 25
 #define RATE 48000
 #define CHUNK 512      /* frames per ALSA write: the audio clock's step, about 11 ms */
@@ -55,8 +59,13 @@ void ffmpeg_argv(const char **a, char *ss, int at, const char *file, int audio) 
     snprintf(ss, 16, "%d", at);
     const char *v[27] = { FFMPEG, "-nostdin", "-loglevel", "quiet", "-ss", ss, "-i", file,
                           "-map", "0:v:0", "-vf",
+#ifdef M1PLUS
+                          "scale=320:480:force_original_aspect_ratio=decrease:flags=fast_bilinear,"
+                          "format=bgra,pad=320:480:(ow-iw)/2:(oh-ih)/2",
+#else
                           "scale=375:320:force_original_aspect_ratio=decrease:flags=fast_bilinear,"
                           "format=bgra,pad=375:320:(ow-iw)/2:(oh-ih)/2,transpose=clock",
+#endif
                           "-r", "25", "-f", "rawvideo", "pipe:3",
                           "-map", "0:a:0", "-ac", "2", "-ar", "48000", "-f", "s16le", "pipe:4", 0 };
     memcpy(a, v, sizeof v);
@@ -93,11 +102,21 @@ int resume_at(int pos, int len) { return pos < EDGE_S || (len && pos > len - EDG
  * n of total, black for the rest. The picture is turned clockwise (picture x is panel y), so the
  * bar runs down the panel's columns BAR_Y to BAR_Y + BAR_H. */
 void overlay(unsigned char *f, unsigned line, int n, int total) {
+#ifdef M1PLUS
+    if (total <= 0) return;
+    n = n < 0 ? 0 : n > total ? total : n;
+    int fill = BAR_X + (W-2*BAR_X)*n/total;
+    for (int y = H-BAR_Y-BAR_H; y < H-BAR_Y; ++y) {
+        memset(f+y*line+BAR_X*4, 0xff, (fill-BAR_X)*4);
+        memset(f+y*line+fill*4, 0, (W-BAR_X-fill)*4);
+    }
+#else
     int end = H - BAR_X;
     if (total <= 0) return;
     n = n < 0 ? 0 : n > total ? total : n;
     int fill = BAR_X + (end - BAR_X) * n / total; /* total: seconds, far below overflow */
     for (int y = BAR_X; y < end; ++y) memset(f + y * line + BAR_Y * 4, y < fill ? 0xff : 0, BAR_H * 4);
+#endif
 }
 
 /* Frame n's fate at clock ms: 0 wait, 1 show, 2 drop (a whole frame late). */

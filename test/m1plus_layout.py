@@ -34,6 +34,7 @@ def headers(out):
     for n, (ret, args) in LIBC.items():
         h += [f'extern {ret} test_lib_{n}({args});', f'#define {n} test_lib_{n}']
     h += [f'#define {n} (*(volatile unsigned char *)0x{0x2100000+i*4:x}u)' for i, n in enumerate(GLOBALS)]
+    h += ['extern void *m1_bt_pairs;'] # M1 headset adapter; not part of this paint fixture
     (out/'peq_platform.h').write_text('\n'.join(h)+'\n')
     stock = [f'#define RING_STEP {RING_STEP}', '#define STOCK_VERSION "test"',
              '#define Q2POD_VERSION "test"', '#define ROCKBOX_FLAG "/test/never"']

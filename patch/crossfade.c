@@ -126,7 +126,12 @@ int xfade_open(void *ctx, void *event) {
     settings();
     if (xf.page) return 0;
     void *wm = window_manager(), *below = window_manager_get_top_window(wm);
+#ifdef M1PLUS
+    extern void *m1_value_editor(void);
+    if (!m1_value_editor()) return 0;
+#else
     navigator_to("playset/bootvol_page");
+#endif
     void *page = window_manager_get_top_window(wm);
     if (page == below) return 0;
     void *nav = widget_lookup(page, "view_navbar", 1), *title = nav ? widget_get_child(nav, 0) : 0;
@@ -141,11 +146,13 @@ int xfade_open(void *ctx, void *event) {
         window_close(page);
         return 0;
     }
+#ifndef M1PLUS
     widget_off_by_func(xf.sw, EVT_CLICK, (void *)BOOTVOL_SWITCH, page);
     widget_off_by_func(xf.dec, EVT_CLICK, (void *)BOOTVOL_DEC, page);
     widget_off_by_func(xf.add, EVT_CLICK, (void *)BOOTVOL_ADD, page);
     widget_off_by_func(xf.slider, EVT_VALUE_CHANGING, (void *)BOOTVOL_CHANGING, page);
     widget_off_by_func(xf.slider, EVT_VALUE_CHANGED, (void *)BOOTVOL_CHANGED, page);
+#endif
     widget_on(xf.sw, EVT_CLICK, toggle, 0);
     widget_on(xf.dec, EVT_CLICK, step, (void *)-1L);
     widget_on(xf.add, EVT_CLICK, step, (void *)1L);

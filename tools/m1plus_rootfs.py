@@ -95,7 +95,7 @@ def write_root_tar(destination, expected, nodes, sources):
             archive.addfile(entry)
 
 
-def validate(originals, expected, actual):
+def validate(originals, expected, actual, *, allowed_removed=()):
     missing, extra = sorted(set(expected) - set(actual)), sorted(set(actual) - set(expected))
     mismatches = {}
     for path in sorted(set(expected) & set(actual)):
@@ -105,9 +105,11 @@ def validate(originals, expected, actual):
             mismatches[path] = dict(expected=before, actual=after)
     expected_links, actual_links = link_groups(expected), link_groups(actual)
     removed_original = sorted(set(originals) - set(actual))
-    result = dict(passed=not (missing or extra or mismatches or removed_original or expected_links != actual_links),
+    removal_mismatch = sorted(allowed_removed) != removed_original
+    result = dict(passed=not (missing or extra or mismatches or removal_mismatch or expected_links != actual_links),
                   expected_paths=len(expected), actual_paths=len(actual), removed_original_paths=removed_original,
                   missing_paths=missing, unexpected_paths=extra, mismatches=mismatches,
+                  allowed_removed_paths=sorted(allowed_removed), removal_allowlist_matches=not removal_mismatch,
                   hardlink_groups=len(actual_links), hardlink_equivalence_preserved=expected_links == actual_links,
                   root_metadata_preserved=all(originals['.'][k] == actual.get('.', {}).get(k) for k in ('mode','uid','gid','mtime','type')),
                   files_hashed=sum(row['type'] == stat.S_IFREG for row in actual.values()),
