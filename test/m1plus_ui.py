@@ -138,6 +138,8 @@ class NativeAbiTests(unittest.TestCase):
                    'window_manager_is_animating':lambda *_:0,'navigator_back':lambda *_:seen.append('back') or 0,
                    'reset_poweroptions_timer':lambda *_:0}
         for name,fn in callbacks.items():m.callbacks[m.native[name]]=fn
+        m.callbacks[m.native['time_now_ms']]=lambda *_:10000
+        m.callbacks[m.syms['m1_import_fopen']]=lambda *_:0
         for name in ('ringnav_m1_wake','ringnav_m1_activity','video_on'):m.callbacks[m.syms[name]]=lambda *_:0
         m.callbacks[m.syms['ringnav_m1_supported']]=lambda *_:1
         m.callbacks[m.syms['compact_now_playing']]=lambda *_:seen.append('playing') or 0
@@ -157,6 +159,101 @@ class NativeAbiTests(unittest.TestCase):
             self.assertNotIn(key,native_up)
             self.assertEqual(m.call('m1_ui_dispatch',DATA+0x1000,DATA),77)
             self.assertIn(key,native_up)
+    def test_awake_menu_wheel_ignores_screen_off_button_lock_preference(self):
+        """Run the native dispatcher and pressed-key bookkeeping, not a fake release."""
+        m=self.m;wm=DATA+0x1000;top=DATA+0x2000;vt=DATA+0x3000
+        seen=[];native_up=[]
+        report=json.loads((BUILD/'abi-report.json').read_text())
+        for name,value in [('g_backlight_status',1),('g_lockscreen_pageflag',0),
+                           ('g_poweroff_state',0),('g_guideflag',0),('bt__recv_pageflag',0),
+                           ('g_usblink_status',0),('g_volume',35)]:
+            s=report['data'][name];m.u.mem_write(s['address'],value.to_bytes(s['size'],'little'))
+        # keylock_flag is the saved screen-OFF lock preference, not a live UI lock.
+        m.u.mem_write(m.native['keylock_flag'],b'\1')
+        m.word(m.native['boot_guidestep'],0);m.word(m.native['rotate_mode'],0)
+        m.word(wm+0x88,vt);m.word(vt+0x38,0x68fef4)
+        m.u.mem_write(DATA+0x4000,b'home_page\0')
+        fns={'window_manager':lambda *_:wm,'window_manager_get_top_window':lambda *_:top,
+             'window_manager_is_animating':lambda *_:0,'widget_get_window_manager':lambda *_:wm,
+             'widget_get_prop_str':lambda *_:DATA+0x4000,'native_window_preprocess_event':lambda *_:0,
+             'widget_on_keydown':lambda *_:0,'reset_poweroptions_timer':lambda *_:0,
+             'time_now_ms':lambda *_:10000,'timer_add':lambda *_:1}
+        for name,fn in fns.items():m.callbacks[m.native[name]]=fn
+        m.callbacks[0x68fe1c]=lambda *_:0 # native cursor update (no framebuffer here)
+        m.callbacks[m.syms['m1_import_fopen']]=lambda *_:0
+        m.callbacks[m.syms['m1_import_strcmp']]=lambda a,b,*_:(m.string(a)>m.string(b))-(m.string(a)<m.string(b))
+        def clear(a,b,c,d):m.u.mem_write(a,bytes([b&255])*c);return a
+        m.callbacks[m.word(0xa03ed0-0xadc)]=clear
+        for name in ('ringnav_m1_wake','ringnav_m1_activity','video_on'):m.callbacks[m.syms[name]]=lambda *_:0
+        m.callbacks[m.syms['ringnav']]=lambda a,b,*_:seen.append(m.word(b+24)) or 11
+        m.callbacks[m.syms['stock_widget_keyup_trampoline']]=lambda a,b,*_:native_up.append(m.word(b+24)) or 0
+        for key,logical in [(220,172),(221,173),(210,210)]:
+            m.word(DATA,0x10f);m.word(DATA+24,key)
+            m.call(m.native['window_manager_dispatch_input_event'],wm,DATA)
+            self.assertIn(key,[m.word(wm+0xf8+0x18+i*0x18) for i in range(16)])
+            m.word(DATA,0x113);m.call(m.native['window_manager_dispatch_input_event'],wm,DATA)
+            self.assertEqual(seen[-1:] ,[logical])
+            self.assertNotIn(key,native_up)
+            self.assertNotIn(key,[m.word(wm+0xf8+0x18+i*0x18) for i in range(16)])
+        self.assertEqual(m.word(m.native['volume']),35)
+        # The same physical wheel still reaches stock on Now Playing, dark,
+        # on the actual lock screen, and with the menu-wheel toggle disabled.
+        for name,dark,locked,enabled in [(b'playing_page',0,0,1),(b'home_page',1,0,1),
+                                         (b'home_page',0,1,1),(b'home_page',0,0,0)]:
+            seen.clear();native_up.clear();m.u.mem_write(DATA+0x4000,name+b'\0')
+            m.u.mem_write(m.native['backlight_status'],bytes([1-dark]))
+            m.word(m.native['lockscreen_pageflag'],locked);m.word(m.syms['enabled'],enabled)
+            for typ in (0x10f,0x113):
+                m.word(DATA,typ);m.word(DATA+24,221)
+                m.call(m.native['window_manager_dispatch_input_event'],wm,DATA)
+            self.assertEqual(seen,[]);self.assertEqual(native_up,[221])
+    def test_home_settings_has_working_touch_back_and_button_hold(self):
+        m=self.m;win=DATA;wm=DATA+0x1000;nodes={win:{'children':[], 'visible':1}};bindings={};next_node=DATA+0x2000
+        def create(parent,x,y,w):
+            nonlocal next_node
+            a=next_node;next_node+=0x100;h=m.word(m.u.reg_read(r.UC_MIPS_REG_SP)+16)
+            nodes[a]={'children':[],'visible':1,'name':b'', 'text':b''}
+            nodes[parent]['children'].append(a)
+            for off,v in [(0,x),(4,y),(8,w),(12,h),(0x44,parent)]:m.word(a+off,v)
+            return a
+        def lookup(parent,name,recursive,_):
+            name=m.string(name)
+            return next((a for a,n in nodes.items() if n.get('name')==name),0)
+        def named(a,b,*_):nodes[a]['name']=m.string(b);return 0
+        def text(a,b,*_):nodes[a]['text']=m.string(b);return 0
+        def visible(a,b,*_):nodes[a]['visible']=b;return 0
+        def bind(a,b,c,d):bindings[a,b]=(c,d);return 1
+        def fmt(a,n,f,value):
+            result=m.string(f).replace(b'%s',m.string(value));m.u.mem_write(a,result[:n-1]+b'\0');return len(result)
+        for name in ('image_create','view_create','list_view_create','scroll_view_create','hscroll_label_create'):
+            m.callbacks[m.native[name]]=create
+        fns={'widget_lookup':lookup,'widget_count_children':lambda a,*_:len(nodes[a]['children']),
+             'widget_get_child':lambda a,b,*_:nodes[a]['children'][b], 'widget_set_name':named,
+             'widget_set_text_utf8':text,'widget_set_visible':visible,'widget_get_visible':lambda a,*_:nodes[a]['visible'],
+             'widget_on':bind,'tk_snprintf':fmt,'window_manager':lambda *_:wm,
+             'window_manager_get_top_window':lambda *_:win,'window_manager_is_animating':lambda *_:0}
+        for name in ('widget_set_sensitive','widget_set_prop_int','widget_set_prop_str','widget_use_style',
+                     'hscroll_label_set_ellipses','widget_move_resize','widget_animator_prop_create'):
+            fns[name]=lambda *_:0
+        for name,fn in fns.items():m.callbacks[m.native[name]]=fn
+        m.callbacks[m.syms['stock_home_trampoline']]=lambda *_:0
+        m.callbacks[m.syms['coverflow_home_layout']]=lambda *_:0
+        m.callbacks[m.syms['m1_import_strcmp']]=lambda a,b,*_:(m.string(a)>m.string(b))-(m.string(a)<m.string(b))
+        m.call('coverflow_home',win,0)
+        def node(name):return next(a for a,n in nodes.items() if n.get('name')==name.encode())
+        def click(name):
+            callback,ctx=bindings[node(name),0x10c];m.call(callback,ctx,DATA+0x18000)
+        home,settings=node('list_view_home'),node('list_view_homeset')
+        self.assertEqual(nodes[node('label_homeback')]['text'],b'Back to Home')
+        click('img_settings');self.assertEqual((nodes[home]['visible'],nodes[settings]['visible']),(0,1))
+        click('img_homeback');self.assertEqual((nodes[home]['visible'],nodes[settings]['visible']),(1,0))
+        # Hold Previous also exits this internal pane with wheel navigation OFF.
+        click('img_settings');m.word(m.syms['enabled'],0)
+        m.u.mem_write(m.native['backlight_status'],b'\1');m.u.mem_write(m.native['keylock_flag'],b'\1')
+        m.callbacks[m.syms['ringnav_m1_supported']]=lambda *_:1
+        m.word(DATA+0x18000,0x110);m.word(DATA+0x18018,214)
+        self.assertEqual(m.call('m1_ui_long',0,DATA+0x18000),11)
+        self.assertEqual((nodes[home]['visible'],nodes[settings]['visible']),(1,0))
     def test_album_grid_geometry_and_scroll_prefetch(self):
         m=self.m;view=DATA;rows=[DATA+0x1000+i*0x100 for i in range(10)]
         children={view:rows};names={};types={};rects={};props=[];calls=[]

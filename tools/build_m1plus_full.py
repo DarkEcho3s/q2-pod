@@ -19,7 +19,7 @@ from m1plus_rootfs import inventory,link_groups,write_root_tar,validate,file_dig
 from port_inspect import read_container
 from m1plus_media import tag_cover,bluealsa
 
-VERSION='V2.1-M1P-full1'
+VERSION='V2.1-M1P-full2'
 # The stock symlinks and all DT_NEEDED users select 2.74.4. These five dormant
 # 2.54.3 copies are unreferenced; retaining both versions wastes flash space.
 OBSOLETE=tuple('usr/lib/lib'+name+'-2.0.so.0.5400.3' for name in ('gio','glib','gmodule','gobject','gthread'))

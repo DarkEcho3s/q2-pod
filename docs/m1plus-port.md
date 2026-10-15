@@ -1,7 +1,9 @@
 # M1 Pod for Shanling M1 Plus V2.1
 
-The integrated non-streaming port is built as **V2.1-M1P-full1**, an experimental
-flashable feature test. Hardware verification is pending. The application boots
+The integrated non-streaming port is built as **V2.1-M1P-full2**, an experimental
+flashable feature test. Full1 booted on the user's M1 Plus, where testing found
+menu wheel input still changing volume and no exit from Home's Settings pane.
+Full2 corrects these paths; its hardware retest is pending. The application boots
 directly from the firmware, with the original M1 kernel, drivers and startup
 service. No alternate launcher or stock fallback is installed.
 
@@ -55,21 +57,28 @@ the audited AAC/drop fix. LDAC HQ's native application call is patched separatel
 
 Offline validation for this feature build:
 
-- 27 integrated MIPS UI/input/ABI tests, including wheel ownership, native
+- 29 integrated MIPS UI/input/ABI tests, including wheel ownership, native
   emitter fields, album-grid bounds/prefetch, LDAC quality, double-press wake,
   navigation-hold release suppression, lazy imports and patch tamper rejection.
-- 11 audio tests executing MIPS DSP: PCM rates, PEQ/preamp/balance,
+  The new regression executes the native window-manager dispatcher and
+  pressed-key tracker with `keylock_flag=1`: full1 fails; full2 navigates.
+  That flag is a screen-off preference, bypassed by stock's awake-volume path
+  at `0x4cdc04..0x4cdc34`, not an active screen-on lock. Now Playing, dark,
+  actual lock-screen and toggle-Off cases still pass the wheel to stock.
+  A constructor/callback test opens Home's Settings pane and exits using both
+  its new touch row and Previous hold, including with wheel navigation Off.
+- The unchanged audio component passed 11 MIPS DSP tests in full1: PCM rates, PEQ/preamp/balance,
   DSD/DoP passthrough, invalid-channel handling and MP3/ReplayGain paths.
-- 5 media/asset tests, including relocated M4B dispatch, native dynamic imports,
+- The unchanged media/assets passed 5 tests in full1, including relocated M4B dispatch, native dynamic imports,
   retained widget names, portrait assets and the scrobbling certificate bundle.
-- All 11 shared UI modules compile for Q2 and M1. The actual EQ paint functions
+- All 11 shared UI modules compiled for Q2 and M1 in full1. The actual EQ paint functions
   produce 301 checked rectangles at each size.
 - Repacked filesystem inventories check regular-file bytes, ownership, modes,
   times, links, devices and hardlink groups. The package verifies payload MD5s,
   kernel CRCs, M1 identity, unchanged kernel and original-input SHA-256.
 
-Two independent package runs produced SHA-256
-`2b3bc40ab8f14e23a3a89148d627bbb3dab2c1ca316910d3908fb8cf45cdf60f`.
+The validated full2 package has SHA-256
+`88fe8495aaf7e4cabae08dd8d9350cf03d7b103996bd4c76414abc1869bea511`.
 The update is 60,805,120 bytes; its rootfs is 55,386,112 bytes, compared with
 55,738,368 in stock. All 4,016 filesystem paths and 208 hardlink groups passed
 validation. `graphify update .` was attempted; the command is unavailable on

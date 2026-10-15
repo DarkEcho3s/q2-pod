@@ -169,6 +169,11 @@ static int home_click(void *ctx, void *event) {
     }
     return navigator_to(path);
 }
+static int home_back_click(void *ctx, void *event) {
+    (void)ctx; (void)event;
+    extern int m1_ui_back(void);
+    return m1_ui_back();
+}
 static void home_rows(void *win, const char *name, const char *const *names,
                       const char *const *titles, const char *const *paths, unsigned n) {
     void *s = list(win, name, 30, POD_CLIENT_H-60, 56);
@@ -201,8 +206,10 @@ void m1_home_create(void *win) {
     static const char *const titles[] = {"Now Playing", "Library", "Coverflow", "Folders", "Favorites", "Settings"};
     static const char *const paths[] = {"playing_page", "localmusic_page", 0, "folder_page", 0, 0};
     home_rows(win, "home", names, titles, paths, 6);
-    static const char *const snames[] = {"playset", "sysset"}, *const stitles[] = {"Playback", "System"},
-                            *const spaths[] = {"playset/playset_page", "systemset/sysset_page"};
-    home_rows(win, "homeset", snames, stitles, spaths, 2);
+    static const char *const snames[] = {"homeback", "playset", "sysset"},
+                            *const stitles[] = {"Back to Home", "Playback", "System"},
+                            *const spaths[] = {0, "playset/playset_page", "systemset/sysset_page"};
+    home_rows(win, "homeset", snames, stitles, spaths, 3);
+    widget_on(widget_lookup(win, "img_homeback", 1), EVT_CLICK, home_back_click, 0);
     widget_set_visible(widget_lookup(win, "list_view_homeset", 1), 0, 0);
 }

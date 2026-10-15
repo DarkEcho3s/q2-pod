@@ -13,6 +13,7 @@ extern int ringnav(void *, void *), ringnav_keylong(void *, void *), ringnav_m1_
 extern int ringnav_m1_held_release(void);
 extern int ringnav_m1_wake(void *);
 extern int compact_now_playing(void);
+extern int coverflow_home_back(void *);
 extern int video_on(void);
 extern void ringnav_m1_activity(void);
 extern void *list_row(void *, const char *, int (*)(void *, void *), void *);
@@ -20,6 +21,7 @@ extern void *list_row(void *, const char *, int (*)(void *, void *), void *);
 static struct m1_input input;
 static int enabled = 1, loaded, tracing;
 static unsigned generation = 1, suppress_key, suppress_active, keyup_seen, trace_count;
+static unsigned trace_probe_at;
 static unsigned video_power_at;
 static unsigned shortcut_key;
 
@@ -67,21 +69,28 @@ static struct m1_context context(void *wm) {
     c.page = ringnav_m1_supported(top) ? (unsigned)top : 0;
     c.generation = generation; c.enabled = enabled;
     c.awake = g_backlight_status != 0;
-    c.unlocked = !m1_keylock_flag && !g_lockscreen_pageflag;
+    /* keylock_flag is the persistent screen-off button-lock preference.
+     * Native on_wm_keyup_fun bypasses it while backlight_status is nonzero
+     * (4cdc04..4cdc34). The live lock-screen page is a separate state. */
+    c.unlocked = !g_lockscreen_pageflag;
     c.stable = !g_poweroff_state && !m1_boot_guidestep && !window_manager_is_animating(wm);
     c.reversed = m1_rotate_mode == 1;
     return c;
+}
+int m1_ui_back(void) {
+    void *top = window_manager_get_top_window(window_manager());
+    /* Home Settings is a pane within Home, not a navigator stack entry. */
+    return coverflow_home_back(top) ? 0 : navigator_back();
 }
 int m1_ui_long(void *ctx, void *event) {
     struct m1_context c = context(window_manager());
     if (event) m1_route(&input, &c, M1_LONG, I(event, EVENT_KEY));
     unsigned key=event ? (unsigned)I(event,EVENT_KEY) : 0;
-    /* M1 has no Back key. Keep short presses as media controls and provide
-     * navigation holds while the optional wheel navigation mode is enabled. */
-    if(c.enabled && c.awake && c.unlocked && c.stable &&
+    /* Navigation holds remain available with wheel navigation switched off. */
+    if(c.awake && c.unlocked && c.stable &&
        (key==KEY_BACK_BTN || key==KEY_FWD_BTN)) {
         shortcut_key=key; ++generation; m1_cancel_owned(&input);
-        if(key==KEY_BACK_BTN) navigator_back(); else compact_now_playing();
+        if(key==KEY_BACK_BTN) m1_ui_back(); else compact_now_playing();
         return STOP;
     }
     return ringnav_keylong(ctx, event);
@@ -94,11 +103,26 @@ int m1_ui_keyup(void *widget, void *event) {
     }
     return stock_widget_keyup_trampoline(widget, event);
 }
-static void log_event(unsigned type, unsigned key, int action, int seen, int before) {
+static void log_event(void *wm, const struct m1_context *c, unsigned type, unsigned key,
+                      int action, int seen, int before) {
+    /* The SD card may mount after application_init. Probe only on key input,
+     * at most once per second, so a marker copied with the update still works. */
+    if (!tracing) {
+        unsigned now = time_now_ms();
+        if (now-trace_probe_at < 1000) return;
+        trace_probe_at = now;
+        void *marker = fopen("/mnt/mmc/m1pod-trace.enable", "rb");
+        if (!marker) return;
+        fclose(marker); tracing = 1;
+    }
     if (!tracing || trace_count >= 256) return;
-    char line[128];
-    int n = tk_snprintf(line, sizeof line, "%u type=%u key=%u action=%d suppressed=%d volume=%d/%d\n",
-                        ++trace_count, type, key, action, seen, before, g_volume);
+    void *top = window_manager_get_top_window(wm);
+    const char *name = top ? widget_get_prop_str(top, "name", "") : "none";
+    char line[256];
+    int n = tk_snprintf(line, sizeof line,
+        "full2 %u type=%u key=%u action=%d suppressed=%d volume=%d/%d page=%.48s menu=%u enabled=%d awake=%d unlocked=%d stable=%d keylock=%u\n",
+        ++trace_count, type, key, action, seen, before, g_volume, name ? name : "",
+        c->page != 0, c->enabled, c->awake, c->unlocked, c->stable, m1_keylock_flag);
     if (n <= 0 || (unsigned)n >= sizeof line) return;
     void *f = fopen("/mnt/mmc/m1pod-input.log", "ab");
     if (!f) { tracing = 0; return; }
@@ -134,7 +158,7 @@ int m1_ui_dispatch(void *wm, void *event) {
     suppress_key = key; suppress_active = action != M1_PASS; keyup_seen = 0;
     int result = stock_input_trampoline(wm, event), seen = keyup_seen;
     suppress_active = old_active; suppress_key = old_key; keyup_seen = old_seen;
-    log_event(type, key, action, seen, before);
+    log_event(wm, &c, type, key, action, seen, before);
     if (action != M1_PASS && seen) {
         reset_poweroptions_timer(1, 1, 1);
         if (before != g_volume) { enabled = 0; ++generation; return result; }

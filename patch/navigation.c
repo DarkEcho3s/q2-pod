@@ -5021,7 +5021,7 @@ int ringnav_about(void *win, void *ctx) {
 #ifdef M1PLUS
     if (view) {
         void *label = list_row(view, 0, 0, 0);
-        widget_set_text_utf8(label, "M1 Pod - full test 1");
+        widget_set_text_utf8(label, "M1 Pod - full test 2");
     }
 #else
     if (view && widget_count_children(view) == 7) {
