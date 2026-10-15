@@ -1,5 +1,6 @@
-The M1 home-carousel integration and recovered AWTK ABI were informed by and
-adapted from shanling-m1plus-navidrome:
+The M1 home-carousel integration, recovered AWTK ABI, and metadata-preserving
+filesystem inventory/tar validation in tools/m1plus_rootfs.py were informed by
+and adapted from shanling-m1plus-navidrome:
 https://github.com/shivaluma/shanling-m1plus-navidrome
 
 MIT License

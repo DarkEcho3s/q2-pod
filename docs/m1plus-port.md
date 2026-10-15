@@ -1,15 +1,17 @@
 # Shanling M1 Plus port assessment
 
-Status: an initial M1-specific application prototype builds and passes host/MIPS
-emulator checks as of 2026-10-15. It includes a portrait menu and context-sensitive
-wheel-navigation code. It has **not run on a player**, is not a complete Q2-pod
-port, and is not a flashable firmware update.
+Status as of 2026-10-15: an M1-specific application prototype and a stock-first
+bootstrap update build and pass offline checks. A local test kit includes the
+update, one-boot SD activation, a stock restore package and instructions. None
+has **run on a player**. The full non-streaming Q2-pod feature port is unfinished.
+See [the staged platform test](m1plus-testing.md) before installing anything.
 
 Development branch: [DarkEcho3s/q2-pod:m1plus-port](https://github.com/DarkEcho3s/q2-pod/tree/m1plus-port).
 The local `origin` points to this fork, `upstream` to DiamondBond/q2-pod, and
 `m1plus-port` tracks `origin/m1plus-port`.
 
-The user has an M1 Plus available for staged hardware testing. The desired scope
+The user has an M1 Plus on V2.1 and a PC card reader for staged hardware testing.
+The desired scope
 is Q2-pod's interface, theme and non-streaming features, without Rockbox or
 network streaming sources. Host inspection cannot establish bootability or full
 feature parity.
@@ -155,8 +157,9 @@ the UI. Removing menu entries alone does not produce a streaming-free build.
 
 The Windows host now has a local Zig 0.15.2/Clang cross-compiler and Unicorn
 2.1.4 MIPS emulator. WSL and Docker are not needed for this application prototype.
-The complete firmware packaging and recovery path remains to be established;
-no update image was generated.
+The bootstrap packaging and stock-app fallback are now implemented. Normal stock
+restoration has an offline-validated package, but a recovery procedure for a
+device that cannot boot remains unverified.
 
 ## Prototype implementation and validation
 
@@ -223,10 +226,123 @@ physical wheel behavior. Seven existing inspection/container tests also passed.
 
 Local outputs are in `work/m1plus-prototype-v0/` and remain ignored because the
 patched application contains vendor code. No vendor firmware is pushed to GitHub.
-Next hardware milestone: establish recovery and an opt-in boot launcher that
-keeps an untouched stock application available, validate the update packaging,
-then collect the physical input trace. The broader non-streaming feature port
-remains work in progress.
+The launcher described below now supplies one-boot activation and stock fallback.
+The next hardware milestone is stock boot and mount/partition diagnostics,
+followed by a bounded physical input trace. The broader non-streaming feature
+port remains work in progress.
+
+## Bootstrap, restoration and test kit
+
+`tools/build_m1plus_firmware.py` accepts only the pinned official V2.1 container.
+It changes one existing path (`etc/init.d/S90play`) and adds
+`usr/bin/m1pod-launch` and `usr/bin/m1pod-exec`. All other original file contents
+and metadata are preserved, including the stock demo, hciplayer, bluealsa,
+libraries, hardware configuration and drivers. The kernel bytes are unchanged;
+the update contains no bootloader payload.
+
+The shell launcher waits at most approximately three seconds for the existing
+mdev card mount. Missing/invalid SD content selects stock. A regular `run-once`
+file must contain the exact SD executable SHA-256 plus LF; `disable` overrides
+it. The marker is renamed to `last-attempt` and synced before execution. The
+static MIPS shim preserves `argv[0]=/release/bin/demo` for Shanling's watchdog,
+and retries the original app only if `execve` fails. Runtime crashes/hangs are
+handled through reboot/power-off and the next stock boot, not by starting a
+second audio engine. Actual card durability and boot timing need hardware tests.
+
+The optional `M1Pod/diagnostics-enable` marker writes `M1Pod/boot.txt`, limited
+to seven fixed proc files, each capped at 8 KiB. No SD script is executed.
+`tools/m1plus_card.py` stages a disabled payload, verifies checksums, explicitly
+arms one boot, or disables it. It does not copy an update or flash anything.
+
+Filesystem transport goes directly from SquashFS to a metadata-preserving tar
+stream, including owners, modes, timestamps, symlinks, hardlinks and device
+nodes. It never repacks the Windows analysis extraction. The rebuilt filesystem
+must match the expected inventory, preserve all original hardlink relationships,
+use LZO/128 KiB blocks, and fit within the original image size; no growth override
+exists. The real build validates 3,742 paths, 3,017 regular-file paths and 494
+symlinks, retaining 208 hardlink groups. Its 55,717,888-byte rootfs is 20,480 bytes
+smaller than the original 55,738,368-byte image. This does not establish actual
+flash capacity or guarantee update recovery.
+
+The official app's `update_firmware` checks the model at `0x4e10dc`, requires a
+version containing `V` at `0x4e10fc`, and rejects the exact current `V2.1` string
+at `0x4e1114..0x4e1144`. Therefore simply retaining the official download is not
+enough for normal restoration from this unchanged app. The kit includes:
+
+- `firmware/update.bin`, label `V2.1-M1P-dev1`, with the bootstrap rootfs.
+- `restore/update.bin`, label `V2.1-M1P-restore`, with the **exact original**
+  kernel and compressed rootfs; only `firmware_v20.info` is changed.
+- `official-v2.1/update.bin`, the untouched official container for backup.
+- `sd/`, a disabled SD preview, checksum manifest and bounded log markers.
+- `m1plus_card.py`, `TESTING.md`, `bundle.json` and the build validation report.
+
+The development and restore labels pass execution of that exact stock
+model/version gate in Unicorn. This does not emulate flash writes, recovery
+updater behavior or a complete device boot. The About screen remains V2.1 while
+using the stock app because its executable and version string are untouched.
+
+[Shanling documents normal SD updates](https://en.shanling.com/download/118).
+Its [M1 Plus manual](https://en.shanling.com/catlog/M1_Plus-V1.0.pdf) documents a
+ten-second Power hold to force shutdown after a hang. Neither establishes a
+bootloader recovery procedure. Stock fallback protects against many application
+failures; it cannot guarantee recovery from failed flashing or a rootfs that
+does not boot. See the test instructions for these limits and restore steps.
+
+Install `requirements-m1plus.txt`. On Windows,
+`python tools/m1plus_windows_tools.py` obtains pinned official MSYS2 packages,
+checks SHA-256, and extracts build executables locally under ignored `work/`.
+It makes no system installation. The application uses Zig 0.15.2; packaging
+uses sqfstar 4.7.5. Example build commands, with actual compiler/packer paths:
+
+```powershell
+python tools/build_m1plus_firmware.py --original '..\M1 Plus Firmware V2.1\M1 Plus Firmware V2.1\update.bin' --out work/bootstrap-new --zig F:\DAP\.build-deps\ziglang\zig.exe --sqfstar work/tools/msys/usr/bin/sqfstar.exe
+python test/m1plus_boot.py --bash 'C:\Program Files\Git\usr\bin\bash.exe' --shim work/bootstrap-new/m1pod-exec --stock-demo work/m1plus-analysis/m1/analysis-files/release/bin/demo -v
+python test/m1plus_card.py -v
+python tools/bundle_m1plus.py --firmware work/bootstrap-new --app work/m1plus-prototype-v0 --out work/test-kit-new
+```
+
+The initial Windows packer settings produced identical filesystem records but
+variable placement of large-file tails in fragment blocks. The final settings
+use LZO level 9, one worker and `-no-tailends`; three runs produced the same
+compressed filesystem bytes without changing original file metadata. Final
+local build: `work/m1plus-bootstrap-v0/`; kit: `work/m1plus-test-kit-v0/`.
+
+| Final local artifact | SHA-256 |
+| --- | --- |
+| Bootstrap update.bin | `a8069912a8c3c904edff6ed461c1b1dedad3f1542558a0e0f2484492838a6ebe` |
+| Compressed bootstrap rootfs | `289e0d49960d7fc9631fff36b7cd5b4677604526812532ece810b7ac392acf4c` |
+| Stock restore update.bin | `7cad9712fd399ac03405212e6450c285c4493c1117fc048caeed764fdeb09c86` |
+
+Vendor-derived artifacts remain local and ignored. Only source, tests and
+documentation are committed to the fork. `graphify update .` was attempted
+again after these changes, but graphify is not installed on this host.
+
+Seventeen bootstrap tests pass: marker/hash/disable decisions, simulated write
+and sync failures, bounded diagnostics, real MIPS exec syscalls and the stock
+updater version gate. One additional host symlink test is skipped because this
+Windows account cannot create symlinks. Nine card-helper tests pass, including
+interrupted arming and corrupt payload rejection. The 27 application emulator
+tests and seven container checks also pass. These are host checks, not hardware
+qualification. The original Q2 source digest now ignores target subdirectories,
+so adding `patch/m1plus/` does not make its old builder try to hash a directory.
+
+### Remaining feature work
+
+| Area | Current state |
+| --- | --- |
+| Stock M1 hardware support and local playback | Original firmware bytes retained; regression checks on device pending |
+| Startup/fallback/restore | Offline implementation and tests complete; first hardware verification pending |
+| Portrait preview and wheel toggle | Built and emulator-tested; physical wheel source/direction/sequence pending |
+| Full iPod theme, native library lists, queue/playlist/search enhancements | Not ported; original Q2 widget layouts/private offsets need M1 mapping |
+| Coverflow, lyrics/lockscreen improvements, themes and settings UI | Not ported |
+| Parametric EQ, ReplayGain/seeking improvements, crossfade and visualizers | Not ported; M1 hciplayer differs and needs separate checked hooks |
+| Photos, books, video and ancillary non-streaming tools | Not ported |
+| Bluetooth enhancements and optional scrobbling | Not ported |
+| Rockbox and custom streaming modules | Excluded from M1 payload; stock UI still contains its original entries during bring-up |
+
+The full-feature preference remains the target. The small platform check is a
+prerequisite to validating input ownership and fallback, rather than a claim of
+feature completion. No percentage of completion is inferred from symbol matches.
 
 ## Reproducing the inspection
 
