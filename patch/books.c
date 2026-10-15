@@ -698,7 +698,7 @@ void books_paint(void *w, void *canvas) {
     unsigned color = (unsigned)I(P(canvas, CANVAS_LCD), LCD_TEXT_COLOR);
     canvas_set_font(canvas, (void *)0, BOOK_PX); /* the system default font */
     canvas_set_text_color(canvas, 0xffffffff);
-    int width = 16 * (375 - 2 * BOOK_X);
+    int width = 16 * (POD_SCREEN_W - 2 * BOOK_X);
     bk.end = bk.base + book_page(bk.buf, bk.len, bk.pos - bk.base, BOOK_ROWS, width, measure,
                                  draw_line, canvas);
     bk.prev =
@@ -871,10 +871,10 @@ void books_open(const char *root, int videos) {
     if (!page) return;
     BLOB_IO(BOOK_MARKS, bk.marks, 0);
     void *f = widget_factory();
-    int h = widget_get_prop_int(page, "h", 290);
-    bk.list = widget_factory_create_widget(f, "view", page, 0, 0, 375, h);
-    bk.reader = widget_factory_create_widget(f, "view", page, 0, 0, 375, h);
-    bk.sheet = widget_factory_create_widget(f, "view", bk.reader, 0, 0, 375, h);
+    int h = widget_get_prop_int(page, "h", POD_CLIENT_H);
+    bk.list = widget_factory_create_widget(f, "view", page, 0, 0, POD_SCREEN_W, h);
+    bk.reader = widget_factory_create_widget(f, "view", page, 0, 0, POD_SCREEN_W, h);
+    bk.sheet = widget_factory_create_widget(f, "view", bk.reader, 0, 0, POD_SCREEN_W, h);
     bk.info = bottom_caption(bk.reader, h);
     widget_set_visible(bk.reader, 0, 0);
     bk.buf = calloc(BOOK_WIN, 1);

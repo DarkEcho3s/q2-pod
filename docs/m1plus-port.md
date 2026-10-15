@@ -1,10 +1,18 @@
 # Shanling M1 Plus port assessment
 
-Status as of 2026-10-15: an M1-specific application prototype and a stock-first
-bootstrap update build and pass offline checks. A local test kit includes the
-update, one-boot SD activation, a stock restore package and instructions. None
-has **run on a player**. The full non-streaming Q2-pod feature port is unfinished.
-See [the staged platform test](m1plus-testing.md) before installing anything.
+Status as of 2026-10-15: the M1 audio payload builds from the shared DSP sources
+and passes 11 checks, including execution of the compiled MIPS code. Shared UI
+geometry now supports 320×480; 11 UI modules compile for both display targets,
+and the actual EQ paint code passes bounds checks at both sizes. The complete UI
+hook/asset integration is still unfinished. There is **no full-port update.bin**
+yet, and no custom build has run on a player.
+
+The owner's current instruction supersedes the earlier bootstrap plan: build the
+full non-streaming port, boot it directly, and omit recovery and stock fallback
+work. The owner handles recovery. The previous bootstrap kit and
+[platform-test instructions](m1plus-testing.md) are historical development
+artifacts, not a required stage or the requested deliverable. Hardware testing
+is deferred until there is an integrated feature build to test.
 
 Development branch: [DarkEcho3s/q2-pod:m1plus-port](https://github.com/DarkEcho3s/q2-pod/tree/m1plus-port).
 The local `origin` points to this fork, `upstream` to DiamondBond/q2-pod, and
@@ -15,6 +23,58 @@ The desired scope
 is Q2-pod's interface, theme and non-streaming features, without Rockbox or
 network streaming sources. Host inspection cannot establish bootability or full
 feature parity.
+
+## Audio and portrait-layout checkpoint
+
+`tools/build_m1plus_player.py` accepts only the original V2.1 `hciplayer`. Its
+target is `targets/m1plus/player-v2.1.json`. Twelve pinned regions establish the
+filter descriptor/ABI, sample-rate gates, duration load, MP3 routines and
+ReplayGain dictionary calls; seven individual words are replaced. The builder
+checks the entire input hash and a byte allowlist, and records a source hash.
+The Q2 addresses remain in `patch/player_abi.h` for the original target; the M1
+build generates its own address header.
+
+The shared implementation includes 30-band PEQ, 3-band EQ, preamp, channel
+balance, crossfade, the visualizer PCM tap, Xing MP3 seeking and ID3 ReplayGain
+handling. This describes linked audio code, not completed on-device UI support.
+Two fresh builds produced the same local player bytes:
+`4780c84f09d4f18fa9163e92373c43c9f4d367b68ce05e6bbe5c50b70e88aabf`.
+The injected payload is 12,096 bytes. M1's player declares ISA revision 5 with
+the same O32/FP64/FP-ABI-6/NAN2008 calling convention as the injected r2 subset.
+Imports include both its ordinary GOT and its PLT GOT; the latter requires the
+slot address in `$t8` for lazy resolution.
+
+`test/m1plus_player.py` executes the actual target code on Unicorn's P5600 CPU
+model, retaining the emulator's default CP0 status bits and enabling CU1/FR.
+Checks cover filter allocation/cleanup, invalid channel counts, flat PCM at
+8/44.1/48/96/192/384 kHz, bit-identical DSD/DoP passthrough, preamp and channel
+balance, a +6 dB peaking filter, M1's high-resolution MP3 seek flag and vendor
+seek call, unseekable ID3 streams, exact patched bytes, and rejection of wrong
+inputs. Linux, the DAC, Bluetooth and actual track transitions are not emulated.
+
+`patch/display.h` and `patch/m1plus/layout.inc` provide portrait dimensions for
+the EQ, Cover Flow, photos, books, visualizer, queue menus and lock-screen clock.
+Photos use three columns of 106 pixels; Cover Flow uses a 320×370 frame above its
+captions. Existing Q2 dimensions remain unchanged. This is geometry preparation:
+it does not make the Q2 toolkit structure offsets or native hooks usable on M1.
+`test/m1plus_layout.py` deliberately uses mock addresses, compiles 11 shared UI
+modules for each size, and executes the real EQ painter. It checks 301 drawing
+bounds per size, verifies all controls were painted, and checks thumbnail and
+Cover Flow extents. Its ELF files are test harnesses, never firmware payloads.
+
+Reproduction (Python with pyelftools and Unicorn, Zig 0.15.2):
+
+```text
+python tools/build_m1plus_player.py --stock-player work/m1plus-analysis/m1/analysis-files/usr/bin/hciplayer --out work/player-new --zig <zig.exe>
+python test/m1plus_player.py --build work/player-new --stock-player work/m1plus-analysis/m1/analysis-files/usr/bin/hciplayer -v
+python test/m1plus_layout.py --out work/layout-new --zig <zig.exe>
+```
+
+Remaining integration includes native library/menu hooks and object layouts,
+portrait theme assets and Now Playing, all-page wheel routing, media helpers,
+removal of streaming/Rockbox entries, and packaging the integrated app/player
+for direct boot. `tools/port_match.py` generates relocation-insensitive research
+candidates only; similarity is not sufficient evidence to patch a function.
 
 ## Local source and inputs
 

@@ -37,7 +37,7 @@ enum { HOME, BAND, PRESETS, IMPORTS, SAVES, CONFIRM, DELETES, PICK, ADJUST, STOC
 enum { BACK = 1000, APPLY, BYPASS, MENU, IMPORT, SAVE, ENABLE, TYPE, RAISE, LOWER, TYPED, CHANNEL, STEP,
        YES, CANCEL, DELETE, BALANCE, PREAMP, GAIN, /* these three open the picker, in picks[] order */
        FREQUENCY, QUALITY, /* and these two the value menu */ KEYBOARD, STOCK };
-#define GRAPH_W (375 - 2 * PEQ_GRAPH_X)
+#define GRAPH_W (POD_SCREEN_W - 2 * PEQ_GRAPH_X)
 #if IPOD
 #define ROW_X CF_EDGE /* the text column clear of the rounded glass, as coverflow.c's */
 #define TONE accent_tone(2) /* the light tone */
@@ -88,10 +88,10 @@ static int render(const void *unused);
 /* A row: the caption on the left, white or, for display-only rows and off bands (dim), grey, and the
  * value, if any, in grey against the right edge. */
 static void row_dim(void *view, int index, const char *text, const char *value, int id, int dim) {
-    void *item = list_item_create(view, 0, index * 48, 375, 48);
+    void *item = list_item_create(view, 0, index * 48, POD_SCREEN_W, 48);
     widget_use_style(item, "s_listitem_black");
     for (int i = 0; i < 1 + !!value; ++i) {
-        void *label = label_create(item, ROW_X, 0, 375 - 2 * ROW_X, 48);
+        void *label = label_create(item, ROW_X, 0, POD_SCREEN_W - 2 * ROW_X, 48);
         widget_use_style(label, "s_label_white20l");
         if (i || dim || id < 0) widget_set_prop_int(label, "style:normal:text_color", (int)CF_GREY);
         if (i) widget_set_prop_str(label, "style:normal:text_align_h", "right");
@@ -234,7 +234,7 @@ static void load_draft(peq_preset *p, const char *name, int length) {
 
 /* A 48px row's T9 edit, the stock playlist dialogs' look, for input_type; shared with radio.c's Search. */
 void *edit_create(void *item, const char *input_type) {
-    void *edit = widget_factory_create_widget(widget_factory(), "edit", item, 12, 4, 351, 40);
+    void *edit = widget_factory_create_widget(widget_factory(), "edit", item, 12, 4, POD_SCREEN_W - 24, 40);
     static const char *const props[][2] = {{"keyboard", "kb_default_t9"}, {"input_type", 0}, {"action_text", "done"},
         {"bg_color", "#2B2B2B"}, {"border_color", "#2B2B2B00"}, {"text_color", "#FFFFFF"}, {"round_radius", "20"},
         {"margin_left", "12"}, {"font_size", "22"}};
@@ -381,15 +381,15 @@ static int render(const void *unused) {
         ui.view = ui.graph = ui.edit = 0;
         ui.rendered = -1;
         widget_destroy_children(ui.page);
-        e3.view = widget_factory_create_widget(widget_factory(), "view", ui.page, 0, 0, 375, e3.h);
+        e3.view = widget_factory_create_widget(widget_factory(), "view", ui.page, 0, 0, POD_SCREEN_W, e3.h);
         widget_on(e3.view, EVT_POINTER_DOWN, e3_touch, 0);
-        ui.bar = bar(ui.page, 0, 375);
+        ui.bar = bar(ui.page, 0, POD_SCREEN_W);
         e3_show();
         return 7;
     }
     e3.view = 0;
     int selection = 0, offset = 0;
-    int height = widget_get_prop_int(ui.page, "h", 320), graph = ui.screen == HOME || ui.screen == BAND;
+    int height = widget_get_prop_int(ui.page, "h", POD_SCREEN_H), graph = ui.screen == HOME || ui.screen == BAND;
     int top = 48 + graph * PEQ_GRAPH_H;
     /* Whole rows only, so the last row is never clipped. */
     int rows = (height - top) / 48 * 48;
@@ -408,12 +408,12 @@ static int render(const void *unused) {
     ui.rendered = ui.screen;
     ui.edit = 0;
     widget_destroy_children(ui.page);
-    void *list = list_view_create(ui.page, 0, top, 375, rows);
+    void *list = list_view_create(ui.page, 0, top, POD_SCREEN_W, rows);
     widget_set_prop_int(list, "item_height", 48);
     /* The theme's default list_view is a light card; stock pages paint theirs black inline. */
     widget_set_prop_int(list, "style:normal:bg_color", (int)0xff000000u);
     widget_set_prop_int(list, "style:normal:border_color", 0);
-    void *view = scroll_view_create(list, 0, 0, 375, rows);
+    void *view = scroll_view_create(list, 0, 0, POD_SCREEN_W, rows);
     ui.view = view;
     widget_set_prop_int(view, "yslidable", 1);
     widget_set_prop_int(view, "xslidable", 0);
@@ -456,7 +456,7 @@ static int render(const void *unused) {
          * action text is "done", as stock edit_on_event only acts on the keyboard's OK for "done" (close the
          * keyboard, then EVT_VALUE_CHANGED) or "next"; the dialogs' "OK" is handled by their own EVT_IM_ACTION
          * handlers. The keyboard's OK key shows an image, not the text. */
-        void *item = list_item_create(view, 0, 0, 375, 48);
+        void *item = list_item_create(view, 0, 0, POD_SCREEN_W, 48);
         widget_use_style(item, "s_listitem_black");
         widget_on(item, EVT_CLICK, action, (void *)(long)KEYBOARD);
         ui.edit = edit_create(item, "ufloat");
@@ -506,18 +506,18 @@ static int render(const void *unused) {
     /* ringnav keeps the selection above on a view whose row count it already knows. */
     if (ui.screen == PICK) widget_set_prop_int(view, "_ringnav_count", n);
     if (n * 48 < rows) { /* short lists: shrink so the list's white background never shows below the rows */
-        widget_resize(list, 375, n * 48);
-        widget_resize(view, 375, n * 48);
+        widget_resize(list, POD_SCREEN_W, n * 48);
+        widget_resize(view, POD_SCREEN_W, n * 48);
     }
     scroll_view_set_offset(view, 0, offset);
     ui.graph = 0;
     if (graph) {
         curve();
-        ui.graph = widget_factory_create_widget(widget_factory(), "view", ui.page, 0, 48, 375, PEQ_GRAPH_H);
+        ui.graph = widget_factory_create_widget(widget_factory(), "view", ui.page, 0, 48, POD_SCREEN_W, PEQ_GRAPH_H);
     }
     /* A message takes the title bar until the next action, so it never shrinks the list; on the
      * main screen the bar otherwise shows the tabs (peq_paint). */
-    void *title = ui.screen == HOME ? bar(ui.page, 0, 375) : bar(ui.page, 8, 359);
+    void *title = ui.screen == HOME ? bar(ui.page, 0, POD_SCREEN_W) : bar(ui.page, 8, POD_SCREEN_W - 16);
     ui.bar = ui.screen == HOME ? title : 0;
     text[0] = 0;
     if (ui.status[0]) snprintf(text, sizeof(text), "%s", ui.status);
@@ -675,7 +675,7 @@ static int tab_touch(void *ctx, void *event) {
     (void)ctx;
     int xy[2] = { I(event, EVENT_X), I(event, EVENT_Y) };
     widget_to_local(ui.page, xy);
-    tab_to(xy[0] < 188 ? SIMPLE : ADVANCED);
+    tab_to(xy[0] < (POD_SCREEN_W + 1) / 2 ? SIMPLE : ADVANCED);
     return 0;
 }
 
@@ -684,7 +684,7 @@ static void *bar(void *page, int x, int w) {
     void *title = label_create(page, x, 0, w, 48);
     widget_use_style(title, "s_label_white20c");
     widget_set_prop_int(title, "line_wrap", 1);
-    if (w == 375) widget_on(title, EVT_POINTER_DOWN, tab_touch, 0);
+    if (w == POD_SCREEN_W) widget_on(title, EVT_POINTER_DOWN, tab_touch, 0);
     return title;
 }
 
@@ -707,7 +707,7 @@ int peq_page_init(void *page, void *context) {
     if (memcmp(&ui.draft, &ui.named, sizeof(ui.named))) ui.applied[0] = 0; /* replaced since */
     memcpy(ui.name, ui.applied, sizeof(ui.name));
     e3.focus = E3_LOW;
-    e3.h = widget_get_prop_int(page, "h", 290);
+    e3.h = widget_get_prop_int(page, "h", POD_CLIENT_H);
     widget_on(page, EVT_DESTROY, closed, 0);
     widget_on(page, EVT_KEY_UP, keyup, 0);
     widget_on(page, EVT_POINTER_MOVE_BEFORE, e3_touch, 0); /* a slider's drag */
@@ -851,11 +851,11 @@ static int e3_touch(void *ctx, void *event) {
         if (xy[1] < E3_BUTTONS) return 0;
         e3.status = 0;
         if (xy[1] < E3_SLIDERS) {
-            e3.focus = xy[0] < 187 ? E3_SWITCH : E3_RESET;
+            e3.focus = xy[0] < POD_SCREEN_W / 2 ? E3_SWITCH : E3_RESET;
             e3_activate();
             return 0;
         }
-        e3.focus = E3_LOW + (xy[0] < 125 ? 0 : xy[0] < 250 ? 1 : 2);
+        e3.focus = E3_LOW + (xy[0] < POD_SCREEN_W / 3 ? 0 : xy[0] < POD_SCREEN_W * 2 / 3 ? 1 : 2);
         e3.adjusting = e3.dragging = 1;
     }
     if (type == EVT_POINTER_UP_BEFORE) e3_done();
@@ -881,22 +881,25 @@ static void e3_paint(void *canvas) {
     char text[16];
     for (int i = 0; i < 2; ++i) {
         int focus = e3.focus == (i ? E3_RESET : E3_SWITCH);
-        e3_box(canvas, i ? 192 : 12, E3_BUTTONS, 171, 40, focus ? 0x333333 : 0x1a1a1a);
-        if (!i) e3_box(canvas, 12, E3_BUTTONS + 36, 171, 4, tone);
-        caption(canvas, i ? "Reset" : e3.on ? "Simple On" : "Simple Off", i ? 192 : 12, E3_BUTTONS, 171, 40, 20, 0xffffffffu);
+        int x = i ? (POD_SCREEN_W + 9) / 2 : 12, width = (POD_SCREEN_W - 33) / 2;
+        e3_box(canvas, x, E3_BUTTONS, width, 40, focus ? 0x333333 : 0x1a1a1a);
+        if (!i) e3_box(canvas, x, E3_BUTTONS + 36, width, 4, tone);
+        caption(canvas, i ? "Reset" : e3.on ? "Simple On" : "Simple Off",
+                x, E3_BUTTONS, width, 40, 20, 0xffffffffu);
     }
     for (int i = 0; i < 3; ++i) {
         static const char *const names[] = { "Low", "Mid", "High" };
-        int x = 62 + 125 * i, y = e3_y(e3.gain[i]), focus = e3.focus == E3_LOW + i;
-        if (focus) e3_box(canvas, x - 56, E3_SLIDERS, 112, e3_bottom() + 36 - E3_SLIDERS, 0x1a1a1a);
-        caption(canvas, names[i], x - 56, E3_SLIDERS, 112, 28, 20, 0xffffffffu);
+        int half = POD_SCREEN_W / 6 - 6;
+        int x = POD_SCREEN_W * (2 * i + 1) / 6, y = e3_y(e3.gain[i]), focus = e3.focus == E3_LOW + i;
+        if (focus) e3_box(canvas, x - half, E3_SLIDERS, 2 * half, e3_bottom() + 36 - E3_SLIDERS, 0x1a1a1a);
+        caption(canvas, names[i], x - half, E3_SLIDERS, 2 * half, 28, 20, 0xffffffffu);
         e3_box(canvas, x - 2, e3_top(), 4, e3_bottom() - e3_top(), 0x333333);
         e3_box(canvas, x - 3, y < zero ? y : zero, 6, y < zero ? zero - y : y - zero + 1, tone);
         e3_box(canvas, x - 20, y - 5, 40, 10, focus && e3.adjusting ? 0xffffff : 0x8a8a8a);
         snprintf(text, sizeof text, e3.gain[i] ? "%+.1f dB" : "0 dB", e3.gain[i]);
-        caption(canvas, text, x - 56, e3_bottom() + 8, 112, 24, 18, focus && e3.adjusting ? 0xffffffffu : CF_GREY);
+        caption(canvas, text, x - half, e3_bottom() + 8, 2 * half, 24, 18, focus && e3.adjusting ? 0xffffffffu : CF_GREY);
     }
-    e3_box(canvas, 12, zero, 351, 1, 0x8a8a8a); /* 0 dB */
+    e3_box(canvas, 12, zero, POD_SCREEN_W - 24, 1, 0x8a8a8a); /* 0 dB */
     canvas_set_fill_color(canvas, fill);
 }
 
@@ -907,10 +910,10 @@ static void tabs_paint(void *canvas) {
     if (simple ? e3.status != 0 : ui.status[0] != 0) return;
     unsigned fill = (unsigned)I(P(canvas, CANVAS_LCD), LCD_FILL_COLOR);
     for (int i = 0; i < 2; ++i) {
-        int x = i ? 191 : 8, shown = i == !simple;
-        if (focus && !shown) e3_box(canvas, x, 4, 176, 40, 0x333333);
-        caption(canvas, i ? "Advanced" : "Simple", x, 4, 176, 40, 20, shown ? 0xffffffffu : CF_GREY);
-        if (shown) e3_box(canvas, x + 40, 42, 96, 3, TONE);
+        int x = i ? (POD_SCREEN_W + 7) / 2 : 8, width = (POD_SCREEN_W - 23) / 2, shown = i == !simple;
+        if (focus && !shown) e3_box(canvas, x, 4, width, 40, 0x333333);
+        caption(canvas, i ? "Advanced" : "Simple", x, 4, width, 40, 20, shown ? 0xffffffffu : CF_GREY);
+        if (shown) e3_box(canvas, x + 40, 42, width - 80, 3, TONE);
     }
     canvas_set_fill_color(canvas, fill);
 }

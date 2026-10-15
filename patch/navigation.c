@@ -1613,7 +1613,7 @@ static void paint_caps(void *w, void *canvas) {
     if (!w || ipod_classic() || !P(canvas, CANVAS_LCD)) return;
     if (w == st.bar_idle) {
         draw_spaced(canvas, widget_get_text(w), 0, (I(w, W_H) - MARK_PX) / 2, MARK_PX,
-                    RGBA(0xaaaaaa), 375);
+                    RGBA(0xaaaaaa), POD_SCREEN_W);
         return;
     }
     if (st.np_album && w == P(st.np_album, W_PARENT)) {
@@ -5151,7 +5151,7 @@ static int qm_open(const void *unused) {
                                                                                      : "Group by");
         widget_destroy_children(view);
         for (int i = 0; i < count; ++i) {
-            void *item = list_item_create(view, 0, i * QM_ROW, 375, QM_ROW);
+            void *item = list_item_create(view, 0, i * QM_ROW, POD_SCREEN_W, QM_ROW);
             widget_use_style(item, "s_listitem_black");
             void *label = hscroll_label_create(item, 30, 0, 310, QM_ROW);
             widget_use_style(label, "s_scrlabel_white24l");
@@ -5225,7 +5225,7 @@ static int qm_open(const void *unused) {
     char rated[32];
     /* stock sortselect row styles */
     for (int i = 0; i < n; ++i) {
-        void *item = list_item_create(view, 0, i * QM_ROW, 375, QM_ROW);
+        void *item = list_item_create(view, 0, i * QM_ROW, POD_SCREEN_W, QM_ROW);
         widget_use_style(item, "s_listitem_black");
         void *label = hscroll_label_create(item, 30, 0, 266, QM_ROW);
         widget_use_style(label, "s_scrlabel_white24l");

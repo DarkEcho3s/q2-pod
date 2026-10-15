@@ -25,6 +25,16 @@ def disassemble(path, pattern, region=None):
                     if symbol.name and symbol.entry.st_shndx != 'SHN_UNDEF':
                         symbols[symbol.name] = symbol.entry
         addresses = {s.st_value: name for name, s in symbols.items()}
+        imports = {}
+        dynamic, dynsym = elf.get_section_by_name('.dynamic'), elf.get_section_by_name('.dynsym')
+        got_section = elf.get_section_by_name('.got')
+        if dynamic and dynsym and got_section:
+            tags = {t.entry.d_tag: t.entry.d_val for t in dynamic.iter_tags()}
+            first, local = tags.get('DT_MIPS_GOTSYM'), tags.get('DT_MIPS_LOCAL_GOTNO')
+            if first is not None and local is not None:
+                for i, symbol in enumerate(dynsym.iter_symbols()):
+                    if i >= first:
+                        imports[got_section['sh_addr'] + 4*(local+i-first)] = symbol.name
         if region:
             start, size = (int(part, 0) for part in region.split(':'))
             if start % 4 or size <= 0 or size % 4 or size > 65536:
@@ -61,7 +71,8 @@ def disassemble(path, pattern, region=None):
                 if ins.mnemonic == 'lw' and got and gp is not None:
                     try:
                         value = struct.unpack('<I', read(gp + int(got[1], 0), 4))[0]
-                        note = f'GOT -> {value:#x} {addresses.get(value, "")}'
+                        name = imports.get(gp + int(got[1], 0), addresses.get(value, ''))
+                        note = f'GOT -> {value:#x} {name}'
                     except ValueError:
                         pass
                 print(f'  {ins.address:08x}  {ins.bytes.hex()}  {ins.mnemonic:8s} {operand}' +

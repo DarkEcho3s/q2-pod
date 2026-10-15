@@ -1,5 +1,10 @@
 # M1 Plus V2.1 platform test
 
+**Historical bootstrap kit.** The owner has since requested the full feature
+port without recovery or stock fallback. This is not a prerequisite for that
+work and is not the requested full-port build. See the current
+[port status](m1plus-port.md).
+
 This kit tests installation, stock fallback and physical input. It does **not**
 contain the full Q2-pod feature port. The original Shanling app, kernel and audio
 player are retained. The optional SD application adds the portrait preview menu
@@ -8,8 +13,8 @@ track the remaining features and implementation evidence.
 
 The owner confirmed an M1 Plus on V2.1 and a PC card reader. The normal updater,
 boot timing, wheel events and sleep/wake still need hardware verification. This
-small platform test is needed before expanding the custom interface and audio
-features. Nothing in the kit installs itself or selects a drive automatically.
+small platform test was prepared during initial bring-up. Nothing in the kit
+installs itself or selects a drive automatically.
 
 ## Recovery limits — read before installation
 

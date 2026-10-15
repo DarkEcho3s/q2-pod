@@ -15,7 +15,7 @@
 #define LAST_ALBUM ART_DIR "/album" /* the centre album's key, so a reboot opens on it */
 #if IPOD /* iPod insets its text from the rounded glass (offsets.inc CF_*); Stock keeps its layout */
 #define CF_X CF_EDGE
-#define CF_W (375 - 2 * CF_EDGE)
+#define CF_W (POD_SCREEN_W - 2 * CF_EDGE)
 #define CF_ROW_X CF_X /* one text column throughout */
 #define CF_ROW_W CF_W
 #else
@@ -944,18 +944,18 @@ void *page_title(void *body, const char *caption) {
 /* The peq_ui.c page: a title bar (*title, unless 0) over n whole item_h rows in body, shrunk so the list's
  * white background never shows below a short list. Shared with photos.c. */
 void *page_list(void *page, void *body, void **title, const char *caption, int n, int item_h) {
-    int h = widget_get_prop_int(page, "h", 290), rows = (h - 48) / item_h * item_h;
+    int h = widget_get_prop_int(page, "h", POD_CLIENT_H), rows = (h - 48) / item_h * item_h;
     if (n * item_h < rows) rows = n * item_h;
     widget_destroy_children(body);
     widget_set_visible(body, 1, 0);
     void *t = page_title(body, caption);
     if (title) *title = t;
-    void *lv = list_view_create(body, 0, 48, 375, rows);
+    void *lv = list_view_create(body, 0, 48, POD_SCREEN_W, rows);
     widget_set_prop_int(lv, "item_height", item_h);
     /* The theme's default list_view is a light card; stock pages paint theirs black inline. */
     widget_set_prop_int(lv, "style:normal:bg_color", (int)0xff000000u);
     widget_set_prop_int(lv, "style:normal:border_color", 0);
-    void *view = scroll_view_create(lv, 0, 0, 375, rows);
+    void *view = scroll_view_create(lv, 0, 0, POD_SCREEN_W, rows);
     widget_set_prop_int(view, "yslidable", 1);
     widget_set_prop_int(view, "xslidable", 0);
     widget_set_prop_int(view, "virtual_h", n * item_h);
@@ -973,7 +973,7 @@ static void *list(const char *title, int n) {
 void *page_row_detail(void *view, int index, const char *caption, const char *detail,
                       int (*click)(void *, void *)) {
     int h = detail ? 64 : 48;
-    void *item = list_item_create(view, 0, index * h, 375, h);
+    void *item = list_item_create(view, 0, index * h, POD_SCREEN_W, h);
     widget_use_style(item, "s_listitem_black");
     void *label = text(item, CF_ROW_X, detail ? 4 : 0, CF_ROW_W, detail ? 32 : 48);
     if (IPOD) widget_use_style(label, "s_scrlabel_white20l");
@@ -1404,8 +1404,8 @@ static void covers(void) {
     if (!cf.covers) {
         void *f = widget_factory();
         int depth = fx_open();
-        cf.covers = widget_factory_create_widget(f, "view", cf.page, 0, 0, 375, 290);
-        cf.slide = widget_factory_create_widget(f, "slide_menu", cf.covers, 0, depth ? 0 : 24, 375,
+        cf.covers = widget_factory_create_widget(f, "view", cf.page, 0, 0, POD_SCREEN_W, POD_CLIENT_H);
+        cf.slide = widget_factory_create_widget(f, "slide_menu", cf.covers, 0, depth ? 0 : 24, POD_SCREEN_W,
                                                 depth ? CF_VIEW_H : ART_SIZE);
         if (depth) slide_menu_set_spacer(cf.slide, CF_STRIDE - CF_VIEW_H);
         widget_set_sensitive(cf.slide, 0);
@@ -1418,9 +1418,9 @@ static void covers(void) {
         }
         /* Album over artist under the frame, white and larger, then grey, clear of the rounded
          * glass (docs/ipod.md#coverflow); the same in both builds. */
-        cf.name = text(cf.covers, CF_EDGE, CF_TEXT_Y, 375 - 2 * CF_EDGE, CF_NAME_H);
+        cf.name = text(cf.covers, CF_EDGE, CF_TEXT_Y, POD_SCREEN_W - 2 * CF_EDGE, CF_NAME_H);
         widget_set_prop_int(cf.name, "style:normal:font_size", CF_NAME_PX);
-        cf.artist = text(cf.covers, CF_EDGE, CF_TEXT_Y + CF_NAME_H, 375 - 2 * CF_EDGE, CF_ARTIST_H);
+        cf.artist = text(cf.covers, CF_EDGE, CF_TEXT_Y + CF_NAME_H, POD_SCREEN_W - 2 * CF_EDGE, CF_ARTIST_H);
         widget_set_prop_int(cf.artist, "style:normal:font_size", CF_ARTIST_PX);
         widget_set_prop_int(cf.artist, "style:normal:text_color", (int)CF_GREY);
         slide_menu_set_value(cf.slide, cf.album);
@@ -1468,7 +1468,7 @@ static void load(void) {
     widget_destroy_children(cf.page);
     cf.covers = cf.slide = cf.name = cf.artist = 0; /* destroyed with the page's children */
     cf.album = 0;
-    cf.body = widget_factory_create_widget(widget_factory(), "view", cf.page, 0, 0, 375, 290);
+    cf.body = widget_factory_create_widget(widget_factory(), "view", cf.page, 0, 0, POD_SCREEN_W, POD_CLIENT_H);
     int n = 0;
     unsigned gen = library_gen;
     if (cf.albums_gen != gen && !cf.scoped) drop_albums();
@@ -1828,7 +1828,7 @@ static int home_repaint(const void *unused) {
  * it, so the native fill draws it whole and the clip crops it evenly; unknown sizes fill the
  * panel. */
 static void home_fit(unsigned w, unsigned h) {
-    int x = HOME_SPLIT_W, pw = 375 - x, ph = 290, fw = pw, fh = ph;
+    int x = HOME_SPLIT_W, pw = POD_SCREEN_W - x, ph = POD_CLIENT_H, fw = pw, fh = ph;
     if (w && h && w <= 8192 && h <= 8192) {
         if ((unsigned)pw * h > (unsigned)ph * w)
             fh = (int)(((unsigned)pw * h + w - 1) / w);
@@ -1877,10 +1877,10 @@ void coverflow_home_clip(void *w, void *canvas, int begin) {
         home.clipped = 0;
         return;
     }
-    int clip[4], art = w == home.art, x = HOME_SPLIT_W, pane = widget_get_visible(home.art) ? x : 375;
+    int clip[4], art = w == home.art, x = HOME_SPLIT_W, pane = widget_get_visible(home.art) ? x : POD_SCREEN_W;
     clip_within(canvas, home.clip, clip, I(canvas, CANVAS_X) - I(w, W_X) + (art ? x : 0),
-                I(canvas, CANVAS_Y) - I(w, W_Y) + (art ? 0 : I(w, W_Y)), art ? 375 - x : pane,
-                art ? 290 : I(w, W_H));
+                I(canvas, CANVAS_Y) - I(w, W_Y) + (art ? 0 : I(w, W_Y)), art ? POD_SCREEN_W - x : pane,
+                art ? POD_CLIENT_H : I(w, W_H));
     canvas_set_clip_rect(canvas, clip);
     home.clipped = 1;
 }
@@ -1919,13 +1919,13 @@ void coverflow_home_layout(void) {
         widget_set_visible(rockbox, shown, 0);
         widget_set_text_utf8(widget_lookup(home.win, "label_rockbox", 1), ipod_home_shortcut());
     }
-    int split = HOME_SPLIT_W, outer = full ? 375 : split,
+    int split = HOME_SPLIT_W, outer = full ? POD_SCREEN_W : split,
         inner = !full ? split : classic ? HOME_CLASSIC_ROW : HOME_FULL_ROW,
         x = classic ? HOME_CLASSIC_TEXT_X : HOME_DOT_X + HOME_DOT + HOME_DOT_GAP,
         end = classic ? HOME_CLASSIC_LABEL_END : full ? HOME_LABEL_END : HOME_SPLIT_LABEL_END;
     home_width(home.list, outer, inner, x, end, 0);
     if (home.sets) home_width(home.sets, outer, inner, x, end, 0);
-    widget_move_resize(home.art, split, 0, 375 - split, 290);
+    widget_move_resize(home.art, split, 0, POD_SCREEN_W - split, POD_CLIENT_H);
     widget_set_visible(home.art, !full, 0);
     home.key = ~0u; /* Split shows the current cover again */
 }

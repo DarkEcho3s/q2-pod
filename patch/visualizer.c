@@ -8,7 +8,7 @@
 #define VIS_N 1024           /* frames each frame analyses */
 #define VIS_HALO 64          /* log-spaced bands, 40 Hz to 16 kHz: the Halo's bars, pairs the spectrum's */
 #define VIS_X 16             /* tools/ipod.py NP_MARGIN */
-#define VIS_W (375 - 2 * VIS_X)
+#define VIS_W (POD_SCREEN_W - 2 * VIS_X)
 #define VIS_H 186            /* tools/ipod.py NP_SLIDE_H, the page's height */
 #define VIS_ART 88           /* the Halo's centre */
 #define TAU 6.2831853f
@@ -384,7 +384,7 @@ static void meters(void *vg, void *canvas, unsigned tone, unsigned now) {
 /* Apple's radial spectrum: VIS_HALO bars, mirrored left and right, radiating from Now Playing's art
  * in a circle, turning slowly, with the bass pulsing the ring. */
 static void halo(void *vg, unsigned tone) {
-    float cx = 375 / 2.0f, cy = VIS_H / 2.0f, art = VIS_ART / 2.0f, r0 = art + 7 + 5 * vz.bass;
+    float cx = POD_SCREEN_W / 2.0f, cy = VIS_H / 2.0f, art = VIS_ART / 2.0f, r0 = art + 7 + 5 * vz.bass;
     vgcanvas_set_line_width(vg, art * 0.42f + 2); /* round the art: black over its corners */
     vgcanvas_begin_path(vg);
     vgcanvas_arc(vg, cx, cy, art * 1.21f + 1, 0, TAU, 0);
@@ -441,7 +441,7 @@ void visualizer_paint(void *w, void *canvas) {
         return;
     }
     int x = vz.ox, y = vz.oy, old[4], clip[4];
-    if (!clip_within(canvas, old, clip, I(canvas, CANVAS_X) + x, I(canvas, CANVAS_Y) + y, 375, VIS_H))
+    if (!clip_within(canvas, old, clip, I(canvas, CANVAS_X) + x, I(canvas, CANVAS_Y) + y, POD_SCREEN_W, VIS_H))
         return;
     canvas_set_clip_rect(canvas, clip);
     I(canvas, CANVAS_X) += x; /* the slide area's origin, for the vector drawing and the text alike */
@@ -459,7 +459,7 @@ void visualizer_paint(void *w, void *canvas) {
     }
     unsigned shown = now - vz.named;
     if (vz.named && shown < 1500)
-        caption(canvas, names[vz.style], 0, VIS_H - 22, 375, 20, 14,
+        caption(canvas, names[vz.style], 0, VIS_H - 22, POD_SCREEN_W, 20, 14,
              rgba(0xaaaaaa, shown < 1000 ? 255 : 255 * (1500 - shown) / 500));
     else if (vz.quiet) { /* the track: title · artist, or the title alone, trimmed to fit */
         void *tl = widget_lookup(vz.win, "scrlabel_title", 1), *al = widget_lookup(vz.win, "scrlabel_artist", 1);
@@ -514,13 +514,13 @@ void visualizer_attach(void *win) {
     vz.win = win;
     vz.slide = slide;
     vz.cover = widget_lookup(win, "img_cover", 1);
-    vz.page = list_item_create(slide, 0, 0, 375, VIS_H);
+    vz.page = list_item_create(slide, 0, 0, POD_SCREEN_W, VIS_H);
     widget_use_style(vz.page, "s_listitem_black");
     widget_on(vz.page, EVT_CLICK, next_style, 0);
     /* The art is the window's child, over the slide area's centre, for the same reason as the drawing. */
     vz.ox = vz.oy = 0;
     for (void *p = slide; p && p != win; p = P(p, W_PARENT)) vz.ox += I(p, W_X), vz.oy += I(p, W_Y);
-    vz.art = image_create(win, vz.ox + (375 - VIS_ART) / 2, vz.oy + (VIS_H - VIS_ART) / 2, VIS_ART, VIS_ART);
+    vz.art = image_create(win, vz.ox + (POD_SCREEN_W - VIS_ART) / 2, vz.oy + (VIS_H - VIS_ART) / 2, VIS_ART, VIS_ART);
     widget_set_sensitive(vz.art, 0);
     widget_set_visible(vz.art, 0, 0);
     if (dots) widget_set_prop_int(dots, "max", (int)widget_count_children(slide));

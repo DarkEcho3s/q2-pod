@@ -221,9 +221,9 @@ static void big_clock(void *win) {
          *date = widget_lookup(win, "clock_date", 1), *pct = widget_lookup(win, "label_battery", 1),
          *batt = widget_lookup(win, "img_battery", 1);
     if (!info || !time || !date || !pct || !batt) return;
-    widget_move_resize(info, 0, 14, 375, 150);
-    widget_move_resize(date, 0, 0, 375, 30);
-    widget_move_resize(time, 0, 26, 375, 124);
+    widget_move_resize(info, 0, 14, POD_SCREEN_W, 150);
+    widget_move_resize(date, 0, 0, POD_SCREEN_W, 30);
+    widget_move_resize(time, 0, 26, POD_SCREEN_W, 124);
     widget_move_resize(pct, 296, 3, 64, 24);
     widget_set_visible(batt, 0, 0);
 #if IPOD /* Legacy has no Battery setting: stock's percent stays */

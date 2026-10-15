@@ -1,6 +1,7 @@
 /* Stock V1.32 layout and ABI constants shared by patch/navigation.c and test/patch.py.
  * The test harness parses this file, so a field change cannot leave the mocks behind.
  * Fields marked "same slot" are class-specific views of one offset. */
+#include "display.h"
 #define I(p, o) (*(int *)((char *)(p) + (o)))
 #define P(p, o) (*(void **)((char *)(p) + (o)))
 #define FNV_SEED 2166136261u /* FNV-1a offset basis */
@@ -496,3 +497,7 @@
 #define VIS_FLOOR_DB 60
 #define VIS_VU_REF_DB -14
 #define VIS_LED_DB -1
+
+#ifdef M1PLUS
+#include "m1plus/layout.inc"
+#endif

@@ -1,0 +1,143 @@
+{
+  "name": "Shanling M1 Plus V2.1 audio player",
+  "stock_sha256": "a64503746862af3e69b57f2e06167351b30cda28479348a845be5172e083a8c6",
+  "gp": 11626320,
+  "elf_flags": 1879053317,
+  "payload_base": 14745600,
+  "addresses": {
+    "PLAYER_MPCTX": 11509296,
+    "PLAYER_PTS": 4481036,
+    "PLAYER_LENGTH": 11603560,
+    "PLAYER_ID3": 4776304,
+    "PLAYER_DICT_SET": 7250340,
+    "PLAYER_DICT_FREE": 7251548,
+    "PLAYER_RG_EXPORT": 5472708,
+    "PLAYER_SEEK": 4770924,
+    "PLAYER_HR_MP3_SEEK": 11621016
+  },
+  "patches": [
+    {
+      "name": "equalizer",
+      "address": 8992796,
+      "expected": 4521236,
+      "replacement": "peq_open",
+      "kind": "word"
+    },
+    {
+      "name": "mp3_seek",
+      "address": 9041772,
+      "expected": 4770924,
+      "replacement": "mp3_seek",
+      "kind": "word"
+    },
+    {
+      "name": "id3_start",
+      "address": 4780484,
+      "expected": 202520668,
+      "replacement": "id3_gain",
+      "kind": "jal"
+    },
+    {
+      "name": "id3_later",
+      "address": 4791960,
+      "expected": 202520668,
+      "replacement": "id3_gain",
+      "kind": "jal"
+    },
+    {
+      "name": "vbr_scan",
+      "address": 4781564,
+      "expected": 339740840,
+      "replacement": 0,
+      "kind": "word"
+    },
+    {
+      "name": "eq_rate_control",
+      "address": 4378164,
+      "expected": 272629912,
+      "replacement": 0,
+      "kind": "word"
+    },
+    {
+      "name": "eq_rate_insert",
+      "address": 4389496,
+      "expected": 339738706,
+      "replacement": 268435538,
+      "kind": "word"
+    }
+  ],
+  "audits": [
+    {
+      "name": "eq_descriptor",
+      "address": 8992776,
+      "size": 24,
+      "sha256": "95a7a11dc219aa53dbe7886fd32f82c20abdc7daf0f36103fe9a5a1fe3c6f348"
+    },
+    {
+      "name": "eq_control_gate",
+      "address": 4378140,
+      "size": 44,
+      "sha256": "f7dee704d01d689d1faaff1499dd2c89e4121bba6070348e02e04caf3eaa9221"
+    },
+    {
+      "name": "eq_insert_gate",
+      "address": 4389480,
+      "size": 32,
+      "sha256": "e96b534ef8e12f89cd7c8253b9d89e6d9aea6def6cde0015a8a918931cbe3030"
+    },
+    {
+      "name": "eq_insert_call",
+      "address": 4389828,
+      "size": 20,
+      "sha256": "c0c458e71bc0bc5fa9e05b8ffcf6430eb77ebdc4c825b398c4838aef8e57695b"
+    },
+    {
+      "name": "duration_load",
+      "address": 4374452,
+      "size": 20,
+      "sha256": "afe1fec971a39ddca163e5a8885fc911dee81055390a62fa627f6ddef91601c2"
+    },
+    {
+      "name": "pts",
+      "address": 4481036,
+      "size": 208,
+      "sha256": "0b1c53142c5a8f027e067eb3ea9e213cad18a1d9315bcd13f50f2e120ba35215"
+    },
+    {
+      "name": "id3",
+      "address": 4776304,
+      "size": 1484,
+      "sha256": "44014e523aa15c569742022193e696b0458da8e9cd8209d66f433d3fb558f3b0"
+    },
+    {
+      "name": "seek",
+      "address": 4770924,
+      "size": 4572,
+      "sha256": "edb3f7a87038eabab07990107c8fc8aaededc6e191996e05705f002bb80dbc0f"
+    },
+    {
+      "name": "rg_export",
+      "address": 5472708,
+      "size": 316,
+      "sha256": "9b557440baf821a7681b7034cf7eaf0c56b20628f35115e0dbc7d38a5537f3d4"
+    },
+    {
+      "name": "dict_set",
+      "address": 7250340,
+      "size": 768,
+      "sha256": "b6d3ec5945d26bb8aa7f81338af6f5edbe419afe4d77c4735558e0d11bf19c47"
+    },
+    {
+      "name": "dict_free",
+      "address": 7251548,
+      "size": 124,
+      "sha256": "ddab7d362c6ba35fc74f49c2968a5738dda45e7326a275112600517fd4024ad5"
+    },
+    {
+      "name": "stock_filter_abi",
+      "address": 4521236,
+      "size": 152,
+      "sha256": "6f9b3fff1e4808464ce43e8d0c0045b375ae15706591a43411519c2f105f99a4"
+    }
+  ]
+}

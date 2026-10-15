@@ -257,7 +257,8 @@ static int to_grid(const void *unused) {
                                      : "Photos");
     /* A bare scroll view: a list_view would lay its children out as full-width rows. */
     int rows = (n + PH_COLS - 1) / PH_COLS;
-    ph.view = scroll_view_create(ph.grid, 0, 48, 375, 240);
+    int grid_h = (widget_get_prop_int(ph.page, "h", POD_CLIENT_H) - 48) / PH_TILE_H * PH_TILE_H;
+    ph.view = scroll_view_create(ph.grid, 0, 48, POD_SCREEN_W, grid_h);
     widget_set_prop_int(ph.view, "yslidable", 1);
     widget_set_prop_int(ph.view, "xslidable", 0);
     widget_set_prop_int(ph.view, "virtual_h", rows * PH_TILE_H);
@@ -314,8 +315,8 @@ static int to_viewer(const void *unused) {
     int h = widget_get_prop_int(ph.page, "h", PH_SHOT_H);
     if (!ph.slide) {
         void *f = widget_factory();
-        ph.slide = widget_factory_create_widget(f, "slide_menu", ph.viewer, 0, 0, 375, h);
-        slide_menu_set_spacer(ph.slide, 375 - h);
+        ph.slide = widget_factory_create_widget(f, "slide_menu", ph.viewer, 0, 0, POD_SCREEN_W, h);
+        slide_menu_set_spacer(ph.slide, POD_SCREEN_W - h);
         for (int i = 0; i < ph.n; ++i) {
             void *img = image_create(ph.slide, 0, 0, 0, 0);
             widget_set_prop_int(img, "clickable", 1);
@@ -343,7 +344,8 @@ static void to_tiles(void) {
     ringnav_select(ph.view, ph.current, ph.n);
     int y = ph.current / PH_COLS * PH_TILE_H, top = I(ph.view, SCROLL_Y);
     if (y < top) top = y;
-    if (y + PH_TILE_H > top + 240) top = y + PH_TILE_H - 240;
+    int height = I(ph.view, W_H);
+    if (y + PH_TILE_H > top + height) top = y + PH_TILE_H - height;
     scroll_view_set_offset(ph.view, 0, top);
     widget_invalidate_force(ph.page, 0);
 }
@@ -443,7 +445,7 @@ static slot_t *slot(slot_t *s, int count, int box, int i, const char *suffix) {
 /* The bottom caption of a page h high: above the rounded glass's bottom corners, dark under white
  * so it reads over any photo. Shared with books.c. */
 void *bottom_caption(void *parent, int h) {
-    void *label = text(parent, CF_EDGE, h - 56, 375 - 2 * CF_EDGE, 36);
+    void *label = text(parent, CF_EDGE, h - 56, POD_SCREEN_W - 2 * CF_EDGE, 36);
     widget_set_prop_int(label, "style:normal:bg_color", (int)0xb3000000u);
     widget_set_prop_int(label, "style:normal:round_radius", 8);
     return label;
@@ -502,9 +504,9 @@ void photos_open(const char *root) {
     tk_snprintf(ph.root, sizeof ph.root, "%s", root);
     void *f = widget_factory();
     int h = widget_get_prop_int(page, "h", PH_SHOT_H);
-    ph.albums = widget_factory_create_widget(f, "view", page, 0, 0, 375, h);
-    ph.grid = widget_factory_create_widget(f, "view", page, 0, 0, 375, h);
-    ph.viewer = widget_factory_create_widget(f, "view", page, 0, 0, 375, h);
+    ph.albums = widget_factory_create_widget(f, "view", page, 0, 0, POD_SCREEN_W, h);
+    ph.grid = widget_factory_create_widget(f, "view", page, 0, 0, POD_SCREEN_W, h);
+    ph.viewer = widget_factory_create_widget(f, "view", page, 0, 0, POD_SCREEN_W, h);
     widget_set_visible(ph.grid, 0, 0);
     widget_set_visible(ph.viewer, 0, 0);
     ph.album = calloc(ALBUMS_MAX, sizeof *ph.album);
