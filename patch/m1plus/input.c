@@ -141,6 +141,10 @@ int m1_home(void *win, void *ctx) {
     int result = stock_home_trampoline(win, ctx);
     void *wm = window_manager();
     if (wm && !in.bound) {
+        /* The screen is on. The Q2's platform_init says so (g_backlight_status 1); the M1's never
+         * does, so until its first wake its UI takes the lit screen for a dark one: the wheel would
+         * never select and the power key's first press would only "wake" it. */
+        if (!g_backlight_status) g_backlight_status = 1;
         in.bound = widget_on(wm, EVT_KEY_DOWN_BEFORE, m1_keydown, (void *)0) &&
                    widget_on(wm, EVT_KEY_UP_BEFORE, m1_keyup, (void *)0);
     }

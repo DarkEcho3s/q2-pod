@@ -73,6 +73,7 @@ class Sim:
     def start(self, args=(), gdb=None):
         self.prepare()
         (RUN/'fb').unlink(missing_ok=True)
+        (RUN/'blank').unlink(missing_ok=True)
         self.log = open(RUN/'demo.log', 'wb')
         # No system bus: the Bluetooth server's D-Bus calls fail instead of aborting demo.
         env = ['-E', 'LD_PRELOAD=/m1sim.so', '-E', 'DBUS_FATAL_WARNINGS=0', '-E', 'TSLIB_TSDEVICE=/dev/input/event2',
@@ -138,8 +139,14 @@ class Sim:
         self.touch(x1, y1, 0)
         time.sleep(after)
 
+    def dark(self):
+        """The panel is off (FBIOBLANK)."""
+        try: return (RUN/'blank').read_text()[:1] == '1'
+        except OSError: return False
+
     def frame(self):
-        """The page on screen, as (W*H*4) BGRA bytes."""
+        """The page on screen, as (W*H*4) BGRA bytes; black while the panel is off."""
+        if self.dark(): return bytes(W * H * 4)
         raw = (RUN/'fb').read_bytes()
         try: y = int((RUN/'pan').read_text().split()[0])
         except (OSError, ValueError, IndexError): y = 0

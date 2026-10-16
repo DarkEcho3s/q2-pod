@@ -286,7 +286,11 @@ typedef struct {
     unsigned char kind, flags;
 } context_t;
 static const context_t contexts[] = {
+#if M1PLUS
+#include "m1plus/contexts.inc"
+#else
 #include "contexts.inc"
+#endif
 };
 
 static int context_id(const char *name) {
@@ -310,7 +314,7 @@ static int kind(void *w) {
     const char *t = widget_get_type(w);
     if (!tk_strcmp(t, "slide_menu")) return 3;
     if (!tk_strcmp(t, "table_client")) return 2;
-#if IPOD
+#if IPOD || M1PLUS /* the M1 has no Return key: the wheel answers its prompts in both builds */
     if (!tk_strcmp(t, "dialog") || !tk_strcmp(t, "window")) {
         int ctx = context_id(widget_get_prop_str(w, "name", (void *)0));
         return ctx >= 0 && (contexts[ctx].flags & BUTTONS) ? 4 : 0;

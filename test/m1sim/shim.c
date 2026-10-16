@@ -12,13 +12,14 @@ typedef unsigned long size_t;
 #define H 480
 #define FB_FILE "/tmp/m1sim/fb"
 #define PAN_FILE "/tmp/m1sim/pan"
+#define BLANK_FILE "/tmp/m1sim/blank" /* 1 while the panel is off (FBIOBLANK) */
 #define SYSTEM_LOG "/tmp/m1sim/system.log"
 
 void *dlsym(void *, const char *);
 int strcmp(const char *, const char *), strncmp(const char *, const char *, size_t);
 void *memset(void *, int, size_t);
 long write(int, const void *, size_t), pwrite(int, const void *, size_t, long);
-int ftruncate(int, long), close(int), getpid(void);
+int ftruncate(int, long), getpid(void);
 int snprintf(char *, size_t, const char *, ...);
 size_t strlen(const char *);
 long read(int, void *, size_t);
@@ -26,7 +27,13 @@ typedef void *(*popen_fn)(const char *, const char *);
 
 typedef int (*open_fn)(const char *, int, ...);
 typedef int (*ioctl_fn)(int, unsigned long, ...);
-static int fb_fd = -1, pan_fd = -1;
+static int fb_fds[8] = { -1, -1, -1, -1, -1, -1, -1, -1 }, pan_fd = -1, blank_fd = -1;
+
+static int is_fb(int fd) {
+    for (int i = 0; i < 8; ++i)
+        if (fd >= 0 && fb_fds[i] == fd) return 1;
+    return 0;
+}
 
 struct bitfield { unsigned offset, length, msb_right; };
 struct var {
@@ -66,8 +73,18 @@ static int redirect(const char *path, int flags, int mode, int *fb) {
 
 int open(const char *path, int flags, int mode) {
     int fb, fd = redirect(path, flags, mode, &fb);
-    if (fb) fb_fd = fd;
+    for (int i = 0; fb && fd >= 0 && i < 8; ++i)
+        if (fb_fds[i] < 0 || fb_fds[i] == fd) {
+            fb_fds[i] = fd;
+            break;
+        }
     return fd;
+}
+
+int close(int fd) {
+    for (int i = 0; i < 8; ++i)
+        if (fb_fds[i] == fd) fb_fds[i] = -1;
+    return ((int (*)(int))dlsym(RTLD_NEXT, "close"))(fd);
 }
 int open64(const char *path, int flags, int mode) { return open(path, flags | 0x2000, mode); }
 
@@ -79,7 +96,7 @@ static void pan(unsigned y) {
 }
 
 int ioctl(int fd, unsigned long request, void *arg) {
-    if (fd < 0 || fd != fb_fd) return ((ioctl_fn)dlsym(RTLD_NEXT, "ioctl"))(fd, request, arg);
+    if (!is_fb(fd)) return ((ioctl_fn)dlsym(RTLD_NEXT, "ioctl"))(fd, request, arg);
     switch (request) {
     case 0x4600: { /* FBIOGET_VSCREENINFO */
         struct var *v = arg;
@@ -110,7 +127,13 @@ int ioctl(int fd, unsigned long request, void *arg) {
         f->line_length = W * 4;
         return 0;
     }
-    default: /* FBIO_WAITFORVSYNC, FBIOBLANK and the rest: done */
+    case 0x4611: { /* FBIOBLANK: 0 on, else off */
+        char c = (long)arg ? '1' : '0';
+        if (blank_fd < 0) blank_fd = ((open_fn)dlsym(RTLD_NEXT, "open"))(BLANK_FILE, O_RDWR | O_CREAT | O_TRUNC, 0644);
+        if (blank_fd >= 0) pwrite(blank_fd, &c, 1, 0);
+        return 0;
+    }
+    default: /* FBIO_WAITFORVSYNC and the rest: done */
         return 0;
     }
 }

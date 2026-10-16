@@ -229,6 +229,23 @@ def compile_payload(out, demo, syms, ipod):
     return symbols(out/'patch.elf'), hooks
 
 
+def check_contexts(cat, sq):
+    """Every name in patch/m1plus/contexts.inc is a window of the stock UI assets or one the payload
+    creates, as tools/build.py checks the Q2's."""
+    from build import PAYLOAD_WINDOWS
+    names = re.findall(r'"([^"]+)"', (ROOT/'patch/m1plus/contexts.inc').read_text())
+    check(names, 'No M1 navigation contexts')
+    windows = set()
+    for line in run('unsquashfs', '-l', sq).splitlines():
+        found = re.search(r'/raw/ui/(.+)\.bin$', line)
+        if not found: continue
+        data = cat('release/assets/default/raw/ui/' + found.group(1) + '.bin')
+        i = data.find(b'name\x00')
+        windows.add(data[i+5:data.find(b'\x00', i+5)].decode('utf-8', 'replace') if i >= 0 else '')
+    for name in names:
+        check(name in windows | PAYLOAD_WINDOWS, f'Context {name} is not an M1 window name')
+
+
 def patch_demo(raw, out, ipod, dev):
     demo = out/'stock-demo'
     demo.write_bytes(raw)
@@ -291,6 +308,7 @@ def build(update, out, logo, ipod=True, dev=False):
     def cat(path): return subprocess.check_output(['unsquashfs', '-cat', str(sq), path])
     raw_demo = cat('release/bin/demo')
     check(sha(raw_demo) == DEMO_SHA, 'Unexpected stock demo')
+    check_contexts(cat, sq)
     patched, payload, ps = patch_demo(raw_demo, out, ipod, dev)
     patched = patched.replace(STOCK_VERSION.encode()+b'\0', version.encode()+b'\0')
     (out/'demo').write_bytes(patched)
