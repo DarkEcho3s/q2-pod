@@ -4,19 +4,28 @@ import struct
 from build import ROOT, FLAGS, GP, FUNCTIONS, GLOBALS, PRIVATE_FUNCTIONS, append_payload, check, fileoff, run, sha, symbols
 from ipod import jal, patch_word
 
-PLAYER_SHA = '9c3f8c6d01f1ba62392622f6098b06a36b3e4f022a5468eaca6a5803e74f8e11'
-PLAYER_BASE = 0xe10000  # stock final LOAD ends at 0xe03b58
-# demux_audio_open's branch to the whole-file frame walk for Xing/VBRI MP3s; see docs/internals.md.
-VBR_SCAN = 0x48fb3c
-# The audio demuxer's seek slot (demuxer_desc_audio at 0x89fd90) holds demux_audio_seek; see docs/internals.md.
-SEEK_SLOT, STOCK_SEEK = 0x89fdbc, 0x48d1ac
-# demux_audio_open's calls to the ID3v2 frame walker (0x48e6b0) that feeds ReplayGain; see docs/internals.md.
-ID3_CALLS, STOCK_ID3 = (0x48f704, 0x4923d8), 0x48e6b0
-# The equalizer filter's descriptor (pinned) and its open slot, which becomes peq_open.
-EQ_DESC, EQ_OPEN_SLOT = 0x893df8, 0x893e0c
-# Stock skips the equalizer above 48 kHz (address, stock word, patched word); see docs/internals.md.
-EQ_RATE_GATES = ((0x42ced0, 0x10400098, 0),            # beqz $v0 to "setequalizer off" -> nop
-                 (0x42fd84, 0x1440003b, 0x1000003b))   # bnez $v0 to the insert -> b
+# The Q2 V1.32 hciplayer's checked sites (patch_player's target; tools/m1plus.py has the M1 Plus's).
+Q2_PLAYER = dict(
+    sha='9c3f8c6d01f1ba62392622f6098b06a36b3e4f022a5468eaca6a5803e74f8e11',
+    base=0xe10000,  # stock final LOAD ends at 0xe03b58
+    # demux_audio_open's branch to the whole-file frame walk for Xing/VBRI MP3s; see docs/internals.md.
+    vbr_scan=0x48fb3c,
+    # The audio demuxer's seek slot (demuxer_desc_audio at 0x89fd90) holds demux_audio_seek; see docs/internals.md.
+    seek_slot=0x89fdbc, stock_seek=0x48d1ac,
+    # demux_audio_open's calls to the ID3v2 frame walker (0x48e6b0) that feeds ReplayGain; see docs/internals.md.
+    id3_calls=(0x48f704, 0x4923d8), stock_id3=0x48e6b0,
+    # The equalizer filter's descriptor (pinned) and its open slot, which becomes peq_open.
+    eq_desc=0x893df8, eq_open_slot=0x893e0c, eq_desc_bytes='ac3d8900cc6388003c3b890098c988000100000024014500',
+    # Stock skips the equalizer above 48 kHz (address, stock word, patched word); see docs/internals.md.
+    rate_gates=((0x42ced0, 0x10400098, 0),            # beqz $v0 to "setequalizer off" -> nop
+                (0x42fd84, 0x1440003b, 0x1000003b)),  # bnez $v0 to the insert -> b
+    # The addresses peq_player.c calls and reads (its PLAYER_* macros; these are its defaults).
+    defines={})
+PLAYER_SHA, PLAYER_BASE = Q2_PLAYER['sha'], Q2_PLAYER['base']
+# The Q2's sites by their old names, as the tests read them.
+VBR_SCAN, SEEK_SLOT, STOCK_SEEK = Q2_PLAYER['vbr_scan'], Q2_PLAYER['seek_slot'], Q2_PLAYER['stock_seek']
+ID3_CALLS, STOCK_ID3, EQ_RATE_GATES = Q2_PLAYER['id3_calls'], Q2_PLAYER['stock_id3'], Q2_PLAYER['rate_gates']
+EQ_DESC, EQ_OPEN_SLOT = Q2_PLAYER['eq_desc'], Q2_PLAYER['eq_open_slot']
 LIBC = {
     'memset': ('void *', 'void *, int, unsigned'),
     'memcpy': ('void *', 'void *, const void *, unsigned'),
@@ -85,7 +94,7 @@ LIBC = {
     'sinf': ('float', 'float'), 'cosf': ('float', 'float'),
 }
 
-def compile_common(out, binary, player=False, ipod=False):
+def compile_common(out, binary, player=False, ipod=False, defines=None):
     got = {}
     for line in run('readelf', '-AW', binary).splitlines():
         words = line.split()
@@ -117,10 +126,11 @@ def compile_common(out, binary, player=False, ipod=False):
         header += [f'#define {name} (*(volatile unsigned char *)0x{syms[name]:x}u)' for name in GLOBALS]
     (out/'peq_platform.h').write_text('\n'.join(header)+'\n')
     (out/'peq_imports.S').write_text('\n'.join(asm)+'\n')
-    flags = [*FLAGS, '-fno-math-errno', '-ffunction-sections', '-fdata-sections', f'-DIPOD={int(ipod)}']
+    flags = [*FLAGS, '-fno-math-errno', '-ffunction-sections', '-fdata-sections', f'-DIPOD={int(ipod)}',
+             *(f'-D{k}={v:#x}u' for k, v in (defines or {}).items())]
     if player: flags += ['-mnan=2008']
     objects = []
-    for name in ['peq.c', 'peq_player.c'] if player else ['peq.c', 'peq_ui.c', 'coverflow.c', 'scrobble.c', 'photos.c', 'books.c', 'visualizer.c', 'playback.c', 'spotify.c', 'radio.c', 'tidal.c', 'crossfade.c', 'headset.c', 'lockscreen.c']:
+    for name in ['peq.c', 'peq_player.c'] if player else ['peq.c', 'shared.c', 'peq_ui.c', 'coverflow.c', 'scrobble.c', 'photos.c', 'books.c', 'visualizer.c', 'playback.c', 'spotify.c', 'radio.c', 'tidal.c', 'crossfade.c', 'headset.c', 'lockscreen.c']:
         obj = out/(name+'.o')
         run('clang', *flags, '-I', out, '-c', ROOT/'patch'/name, '-o', obj)
         objects.append(obj)
@@ -128,15 +138,16 @@ def compile_common(out, binary, player=False, ipod=False):
     run('clang', *flags, '-c', out/'peq_imports.S', '-o', obj)
     return [*objects, obj]
 
-def patch_player(raw, out):
+def patch_player(raw, out, t=Q2_PLAYER):
     out.mkdir(exist_ok=True)
+    check(sha(raw) == t['sha'], 'Unexpected stock hciplayer')
     binary = out/'stock-hciplayer'
     binary.write_bytes(raw)
-    check(raw[fileoff(raw, EQ_DESC):fileoff(raw, EQ_DESC)+24].hex() ==
-          'ac3d8900cc6388003c3b890098c988000100000024014500', 'EQ descriptor mismatch')
-    objects = compile_common(out, binary, True)
+    check(raw[fileoff(raw, t['eq_desc']):fileoff(raw, t['eq_desc'])+24].hex() == t['eq_desc_bytes'], 'EQ descriptor mismatch')
+    objects = compile_common(out, binary, True, defines=t['defines'])
+    base = t['base']
     script = out/'link.ld'
-    script.write_text('SECTIONS { . = 0xe10000; .text : { *(.text*) } .rodata : { *(.rodata*) } '
+    script.write_text(f'SECTIONS {{ . = {base:#x}; .text : {{ *(.text*) }} .rodata : {{ *(.rodata*) }} '
                       '.data : { *(.data*) *(.sdata*) } .bss : { *(.bss*) *(.sbss*) } '
                       '__end = .; /DISCARD/ : { *(.comment) *(.note*) *(.pdr) *(.mdebug*) '
                       '*(.MIPS.abiflags) *(.reginfo) } }')
@@ -146,14 +157,14 @@ def patch_player(raw, out):
     ps = symbols(out/'peq.elf')
     payload = (out/'peq.bin').read_bytes()
     data = bytearray(raw)
-    off = fileoff(raw, EQ_OPEN_SLOT)
+    off = fileoff(raw, t['eq_open_slot'])
     data[off:off+4] = struct.pack('<I', ps['peq_open'])
-    patch_word(data, VBR_SCAN, 0x144008a8, 0, 'VBR scan')  # bnez $v0, 0x491de0 -> nop
-    for address, stock, patched in EQ_RATE_GATES:
+    patch_word(data, t['vbr_scan'], 0x144008a8, 0, 'VBR scan')  # bnez $v0, the frame walk -> nop
+    for address, stock, patched in t['rate_gates']:
         patch_word(data, address, stock, patched, 'Equalizer rate gate')
-    patch_word(data, SEEK_SLOT, STOCK_SEEK, ps['mp3_seek'], 'Audio demuxer seek slot')
-    for address in ID3_CALLS:
-        patch_word(data, address, jal(STOCK_ID3), jal(ps['id3_gain']), 'MP3 ReplayGain')
-    append_payload(data, payload, PLAYER_BASE, max(len(payload), ps['__end']-PLAYER_BASE), 'player')
+    patch_word(data, t['seek_slot'], t['stock_seek'], ps['mp3_seek'], 'Audio demuxer seek slot')
+    for address in t['id3_calls']:
+        patch_word(data, address, jal(t['stock_id3']), jal(ps['id3_gain']), 'MP3 ReplayGain')
+    append_payload(data, payload, base, max(len(payload), ps['__end']-base), 'player')
     (out/'hciplayer').write_bytes(data)
-    return dict(stock_sha256=PLAYER_SHA, sha256=sha(data), payload_sha256=sha(payload))
+    return dict(stock_sha256=t['sha'], sha256=sha(data), payload_sha256=sha(payload))

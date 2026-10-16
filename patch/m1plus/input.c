@@ -110,6 +110,12 @@ static int m1_keyup(void *ctx, void *event) {
     return 11;
 }
 
+/* ringnav_keydown runs the stock key-down filter for what it does not take; the M1 has none. */
+int stock_keydown_trampoline(void *ctx, void *event) {
+    (void)ctx, (void)event;
+    return 0;
+}
+
 static int m1_keydown(void *ctx, void *event) {
     wheel_turn(event);
     unsigned key = (unsigned)I(event, EVENT_KEY);

@@ -5961,7 +5961,7 @@ int ringnav_input(void *wm, void *e) {
 /* window_manager_paint, a leaf (tools/build.py WM_PAINT_LEAF): the window manager's own paint
  * (vtable +0xc), except while q2video has the framebuffer; video_poll repaints after. */
 int ringnav_wm_paint(void *wm) {
-    void *vt = wm && !video_on() ? P(wm, 0x94) : (void *)0;
+    void *vt = wm && !video_on() ? P(wm, WM_VT) : (void *)0;
     int (*paint)(void *) = vt ? (int (*)(void *))P(vt, 0xc) : (int (*)(void *))0;
     return paint ? paint(wm) : video_on() ? 0 : 0x10; /* RET_BAD_PARAMS, as stock */
 }

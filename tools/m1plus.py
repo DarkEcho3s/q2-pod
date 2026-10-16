@@ -94,6 +94,11 @@ M1_HOOKS = {
     # Home's init registers the window manager's key callbacks; the payload adds its own key-down
     # and key-up before-children callbacks there (m1plus/input.c), where the Q2's stock filters sat.
     'home_page_init': (0x534cd4, 'm1_home', 'home'),
+    # The equalizer (peq_ui.c peq_stock_eq): set_equalizer_value is the Q2's, instruction for
+    # instruction; the PEQ filter replaces stock's in hciplayer (M1_PLAYER).
+    'set_equalizer_value': (0x4d851c, 'peq_stock_eq', 'eq'),
+    # The DAC and software volume (m1plus/volume.c): the software half goes through ringnav_btvol.
+    'mclSetVol': (0x5d4cb0, 'm1_setvol', None),
 }
 M1_IPOD_HOOKS = {
     'widget_on_paint_background': (0x66b778, 'ringnav_paint_bg', 'paint_bg'),
@@ -102,7 +107,7 @@ WM_PAINT_LEAF = ('window_manager_paint', 0x677b44, 'ringnav_wm_paint', (0x108000
 
 # Payload sources: the Q2's demo payload (tools/peq.py compile_common) without its streaming
 # pages (spotify.c, radio.c, tidal.c), and the M1's own input layer and shims.
-SOURCES = ['m1plus/compat.c', 'm1plus/input.c', 'navigation.c', 'peq.c', 'peq_ui.c', 'coverflow.c',
+SOURCES = ['m1plus/compat.c', 'm1plus/input.c', 'm1plus/volume.c', 'm1plus/nostream.c', 'navigation.c', 'peq.c', 'shared.c', 'peq_ui.c', 'coverflow.c',
            'scrobble.c', 'photos.c', 'books.c', 'visualizer.c', 'playback.c', 'crossfade.c',
            'headset.c', 'lockscreen.c']
 
@@ -114,6 +119,22 @@ UNUSED = ['release/bin/libawtk.so', 'release/bin/libtkc.so', 'release/bin/libtab
           *(f'usr/lib/lib{n}-2.0.so.0.5400.3' for n in ('gio', 'glib', 'gmodule', 'gobject', 'gthread'))]
 
 M1FLAGS = [*FLAGS, '-DM1PLUS=1']
+
+# The M1 Plus V2.1 hciplayer: the Q2's build of the same player, 0x540 lower in most of its code and
+# its bss 0x1c to 0x20 lower; each site was found by aligning the two (unique 8-instruction anchors)
+# and checked word for word, and the descriptors by their strings (docs/m1plus.md#player).
+M1_PLAYER = dict(
+    sha='a64503746862af3e69b57f2e06167351b30cda28479348a845be5172e083a8c6',
+    base=0xe10000,  # stock final LOAD ends at 0xe03b38
+    vbr_scan=0x48f5fc,
+    seek_slot=0x89f76c, stock_seek=0x48cc6c,  # demuxer_desc_audio @0x89f740
+    id3_calls=(0x48f1c4, 0x491e98), stock_id3=0x48e170,
+    eq_desc=0x893808, eq_open_slot=0x89381c, eq_desc_bytes='bc3789002c5e88004c358900b8c388000100000014fd4400',
+    rate_gates=((0x42ce34, 0x10400098, 0),             # beqz $v0 to "setequalizer off" -> nop
+                (0x42fa78, 0x14400052, 0x10000052)),   # bnez $v0 to the insert -> b
+    defines=dict(PLAYER_MPCTX=0xaf9e30, PLAYER_DECODED=0x44600c, PLAYER_LENGTH=0xb10e68,
+                 PLAYER_STOCK_ID3=0x48e170, PLAYER_AV_DICT_SET=0x6ea1a4, PLAYER_AV_DICT_FREE=0x6ea65c,
+                 PLAYER_RG_EXPORT=0x5381c4, PLAYER_STOCK_SEEK=0x48cc6c, PLAYER_HR_MP3_SEEK=0xb15298))
 
 
 def m1_symbols(demo):
@@ -287,6 +308,18 @@ def build(update, out, logo, ipod=True, dev=False):
         check(line is not None, f'Missing {path.decode()} pseudo inode')
         return p[:line.start()]+path+b' F '+b' '.join(line.groups())+b' cat '+shlex.quote(str(src)).encode()+p[line.end():]
     p = swap_inode(p, b'release/bin/demo', out/'demo')
+    # The player's PEQ filter and MP3 fixes, and the Q2's bluealsa and watchdog changes: both files
+    # are byte for byte the Q2's (patch_bluealsa pins its sites; the watchdog its one line).
+    from peq import patch_player
+    from build import patch_bluealsa, BLUEALSA, WATCHDOG, WATCHDOG_SLEEP
+    audio = patch_player(cat('usr/bin/hciplayer'), out/'peq', M1_PLAYER)
+    (out/'bluealsa').write_bytes(patch_bluealsa(cat(BLUEALSA)))
+    watchdog = cat(WATCHDOG)
+    check(watchdog.count(WATCHDOG_SLEEP[0]) == 1, 'Unexpected watchdog')
+    (out/'watchdog').write_bytes(watchdog.replace(*WATCHDOG_SLEEP))
+    for path, src in ((b'usr/bin/hciplayer', out/'peq/hciplayer'), (BLUEALSA.encode(), out/'bluealsa'),
+                      (WATCHDOG.encode(), out/'watchdog')):
+        p = swap_inode(p, path, src)
     removed = []
     for path in UNUSED:
         line = re.search(rb'^'+re.escape(path.encode())+rb' R .+\n', p, re.M)
@@ -317,7 +350,7 @@ def build(update, out, logo, ipod=True, dev=False):
                     source_sha256=source_sha256(), demo_sha256=sha(patched), patch_sha256=sha(payload),
                     update_sha256=sha((out/'update.bin').read_bytes()), rootfs_sha256=sha(newsq.read_bytes()),
                     kernel_sha256=sha(blobs['recovery-update/xImage']), patch_bytes=len(payload),
-                    version=version, ipod=ipod, dev=dev, removed=UNUSED,
+                    version=version, ipod=ipod, dev=dev, removed=UNUSED, peq=audio,
                     rootfs_bytes=len(blobs['recovery-update/rootfs.squashfs']), rootfs_room=sq.stat().st_size,
                     patch_symbols={n: hex(v) for n, v in ps.items() if n.startswith('stock_')})
     (out/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')

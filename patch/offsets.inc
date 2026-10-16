@@ -77,6 +77,7 @@
 #define LCD_TEXT_COLOR 0xb8     /* lcd_set_text_color @0x6474c4 */
 #define CANVAS_ALIGN_V 0x30     /* canvas_set_text_align @0x63419c; middle = 1 */
 #define CANVAS_ALIGN_H 0x34     /* center = 1 */
+#define WM_VT 0x94              /* window_manager_t's vtable (window_manager_paint @0x66d46c) */
 #endif
 /* Selection outline tuning. RADIUS > 2 or the stock rounded path squares off; tests read these.
  * The shade uses the same stock dark surface as the fill at an alpha that keeps the outline
