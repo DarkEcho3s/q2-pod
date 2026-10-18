@@ -107,6 +107,7 @@ Repeat the [install steps](#install) with the newest release. Your settings, rat
 ## Documentation
 
 - **For users:** [User guide](https://github.com/DiamondBond/q2-pod/releases/latest/download/Q2-Pod-User-Guide.pdf) · [Setup](docs/setup.md) · [Changelog](docs/changelog.md)
+- **Shanling M1 Plus:** [The M1 Plus port](docs/m1plus.md)
 - **For developers:** [Building](docs/building.md) · [Releasing](docs/releasing.md) · [Internals](docs/internals.md) · [Remote control (dev builds)](docs/remote.md)
 
 ## License
