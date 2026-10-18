@@ -62,6 +62,7 @@ M1_NAMES = {
     'album_row': 0x4e93c8,               # getAllAlbum's sqlite3_exec callback (the Q2's 0x4fc324)
     'folder_refresh': 0x5318ac,          # folder_page_init's table rebuild from the showlist (the Q2's 0x52176c)
     'home_card_click': 0x533b80,
+    'playing_timer_start': 'player_timer_start', 'playing_timer_clear': 'player_timer_clear',
     'load_localclass_list': 'loadLocalClassList', 'load_album_detaillist': 'loadAlbumdetailList',         # Home's card click: the HOMEMENU id's page (sub_533d8c binds it)
     # what the M1 does not keep: a zero the payload owns (compat.c m1_zeros)
     'g_testmode_flag': None, 'album_modetype': None,
@@ -147,7 +148,16 @@ M1_HOOKS = {
 }
 M1_IPOD_HOOKS = {
     'widget_on_paint_background': (0x66b778, 'ringnav_paint_bg', 'paint_bg'),
+    # The iPod themes' colours: text (Minimal's Home draws its own capitals), accent tones, and
+    # theme images mapped as they load (navigation.c ringnav_style_color, ringnav_image_add).
+    'style_get_color': (0x659fcc, 'ringnav_style_color', 'color'),
+    'image_manager_add': (0x655638, 'ringnav_image_add', 'image'),
+    # Full-screen art: the song's name fades out (navigation.c ringnav_bigcover).
+    'bigcover_page_init': (0x529a24, 'ringnav_bigcover', 'bigcover'),
 }
+# style_get_gradient, a non-PIC leaf as the Q2's (tools/build.py IPOD_LEAF): its first words jump
+# to the payload's, which calls the style's own get_gradient.
+IPOD_LEAF = ('style_get_gradient', 0x659f9c, 'ringnav_style_gradient', (0x10800009, 0, 0x8c820000))
 WM_PAINT_LEAF = ('window_manager_paint', 0x677b44, 'ringnav_wm_paint', (0x10800009, 0, 0x8c820088))
 
 # Home's streaming cards become Coverflow and More (patch/m1plus/home.c): the HOMEMENU names table
@@ -160,6 +170,51 @@ HOME_CARDS = ((0, 0x74a500, 'hifimusic', 'm1_card_coverflow', 'Coverflow'),
 HOME_STYLES = 'release/assets/default/raw/styles/home_page.bin'
 HOME_STYLES_SHA = '116fa726be7b71381691a00d36570650b8588e9cccc8f9e2981e1374c1630862'
 IMAGES = 'release/assets/default/raw/images/xx/'
+
+# iPod Home (patch/m1plus/home.c; coverflow.c lays it out): stock's card grid and track bar stay,
+# hidden (home_page_init still builds into them), under a list of Home's rows and, below it, an
+# image for the playing track's art. Each row is a label under a full-row transparent image, its
+# tap target and the wheel's (as tools/ipod.py home_list); Settings' list waits hidden in its place.
+HOME_UI = 'release/assets/default/raw/ui/home_page.bin'
+HOME_UI_SHA = '875a8080991c56d6b7950ec76a529136b4b5a580d3c9ae27c8b34cb7005558a5'
+M1_HOME_ROW, M1_HOME_TOP, M1_HOME_TEXT_X, M1_HOME_LABEL_END = 40, 8, 26, 16  # layout.inc HOME_*
+M1_HOME_ROWS = [('playing', 'Now Playing'), ('music', 'Music'), ('coverflow', 'Coverflow'),
+                ('folder', 'Folders'), ('shuffle', 'Shuffle'), ('settings', 'Settings')]
+M1_HOME_SETS = [('playset', 'Playback'), ('sysset', 'System'), ('update', 'Update Library')]
+M1_LIST_CLEAR = {f'style:{state}:{prop}': '#00000000' for state in ('normal', 'disable', 'focused')
+                 for prop in ('bg_color', 'border_color')}
+
+
+def m1_home_list(name, rows, extra=None):
+    views = []
+    for i, (row, text) in enumerate(rows):
+        label = {'name': 'label_' + row, 'style': 'srlabel_leftwhite22_style', 'only_focus': 'true',
+                 'ellipses': 'true', 'text': text}
+        views.append(['view', [0, i * M1_HOME_ROW, 320, M1_HOME_ROW], {'name': 'btn_' + row}, [
+            ['hscroll_label', [M1_HOME_TEXT_X, 0, 320 - M1_HOME_TEXT_X - M1_HOME_LABEL_END, M1_HOME_ROW], label, []],
+            ['image', [0, 0, 320, M1_HOME_ROW], {'name': 'img_' + row, 'clickable': 'true'}, []]]])
+    view = ['scroll_view', [0, 0, 320, M1_HOME_ROW * len(views)],
+            {'name': 'scroll_view_' + name, 'self_layout': 'default(x=0,y=0,w=100%,h=100%)', 'yslidable': 'true'}, views]
+    return ['list_view', [0, M1_HOME_TOP, 320, M1_HOME_ROW * len(views)],
+            {'name': 'list_view_' + name, 'item_height': str(M1_HOME_ROW), **M1_LIST_CLEAR, **(extra or {})}, [view]]
+
+
+def m1_ipod_home(data):
+    from ipod import decode, encode, walk
+    check(sha(data) == HOME_UI_SHA, 'Unaudited Home page')
+    root = decode(data)
+    check(encode(root) == data, 'Home page round trip differs')
+    gesture = root[3][0]
+    check(gesture[2].get('name') == 'app_gesture' and
+          [n[2].get('name') for n in gesture[3]] == ['home_svview', 'home_bottomview'], 'Unexpected Home page')
+    for n in gesture[3]:
+        n[2]['visible'] = 'false'
+        n[2]['enable'] = 'false'
+    art_y = M1_HOME_TOP + len(M1_HOME_ROWS) * M1_HOME_ROW + 8
+    root[3][1:1] = [['image', [0, art_y, 320, 450 - art_y], {'name': 'img_homeart', 'draw_type': 'scale'}, []],
+                    m1_home_list('home', M1_HOME_ROWS), m1_home_list('homeset', M1_HOME_SETS, {'visible': 'false'})]
+    check(sum(1 for n in walk(root) if n[2].get('name') == 'img_homeart') == 1, 'Home art twice')
+    return encode(root)
 # Windows the payload creates on the M1 alone (check_contexts).
 M1_PAYLOAD_WINDOWS = {'more_page'}
 
@@ -316,6 +371,7 @@ def compile_payload(out, demo, syms, ipod):
     run('clang', *M1FLAGS, '-c', out/'trampoline.S', '-o', out/'trampoline.o')
     run('ld.lld', '-m', 'elf32ltsmip', '--gc-sections', '-T', ROOT/'patch/link.ld', '-e', 'm1_home',
         *[f'--undefined={name}' for _, name, _ in hooks.values()], f'--undefined={WM_PAINT_LEAF[2]}',
+        *([f'--undefined={IPOD_LEAF[2]}'] if ipod else []),
         *[f'--undefined={card[3]}' for card in HOME_CARDS],
         *objects, out/'peq_imports.o', out/'trampoline.o', '-o', out/'patch.elf')
     run('llvm-objcopy', '-O', 'binary', out/'patch.elf', out/'patch.bin')
@@ -361,10 +417,10 @@ def patch_demo(raw, out, ipod, dev):
         gp = ((prolog[0] & 65535) << 16) + (low if low < 32768 else low - 65536) + address
         check(gp == GP, f'{name}: unexpected GOT base')
         jump(off, replacement)
-    name, address, replacement, words = WM_PAINT_LEAF
-    off = fileoff(patched, address)
-    check(syms[name] == address and struct.unpack_from('<III', patched, off) == words, f'{name}: unexpected code')
-    jump(off, replacement)
+    for name, address, replacement, words in (WM_PAINT_LEAF, *([IPOD_LEAF] if ipod else [])):
+        off = fileoff(patched, address)
+        check(syms[name] == address and struct.unpack_from('<III', patched, off) == words, f'{name}: unexpected code')
+        jump(off, replacement)
     for index, stock, _, symbol, name in HOME_CARDS:
         off = fileoff(patched, HOMEMENU + 4*index)
         check(struct.unpack_from('<I', patched, off)[0] == stock, f'HOMEMENU {index}: unexpected name')
@@ -440,6 +496,10 @@ def build(update, out, logo, ipod=True, dev=False):
     styles = out/'home_page.bin'
     styles.write_bytes(home_styles(cat(HOME_STYLES)))
     p = swap_inode(p, HOME_STYLES.encode(), styles)
+    if ipod:
+        home = out/'home_page_ipod.bin'
+        home.write_bytes(m1_ipod_home(cat(HOME_UI)))
+        p = swap_inode(p, HOME_UI.encode(), home)
     added = []
     for _, _, old, _, new in HOME_CARDS:
         for suffix in ('', '_down'):
@@ -450,6 +510,13 @@ def build(update, out, logo, ipod=True, dev=False):
             at = p.index(b'# START OF DATA')
             p = p[:at]+path+b' F '+b' '.join(like.groups())+b' cat '+shlex.quote(str(src)).encode()+b'\n'+p[at:]
             added.append([path, b'R', *like.groups()])
+    if ipod:  # Home's art placeholder (coverflow.c HOME_PLACEHOLDER), the Q2's, with the metadata of stock's cover
+        like = inode(p, f'{IMAGES}defaultcover.png'.encode())
+        path = f'{IMAGES}default_album_home.png'.encode()
+        src = ROOT/'assets/icons/default_album_home.png'
+        at = p.index(b'# START OF DATA')
+        p = p[:at]+path+b' F '+b' '.join(like.groups())+b' cat '+shlex.quote(str(src)).encode()+b'\n'+p[at:]
+        added.append([path, b'R', *like.groups()])
     removed = []
     for path in UNUSED:
         line = re.search(rb'^'+re.escape(path.encode())+rb' R .+\n', p, re.M)

@@ -3439,12 +3439,14 @@ int ipod_list_layout(void *layout, void *view) {
 /* Replaces home_page_init's boot resume, navigator_to_with_context("playing_page", ctx) with ctx
  * {queue, index, class, mode}. Car mode (mode 2, plays) keeps that call; otherwise this is the
  * paused start playing_page_init would make, without the page. */
+#if !M1PLUS /* the M1's boot resume is stock's (its home_page_init call site is not patched) */
 void ringnav_boot(const char *page, const int *ctx) {
     if (ctx[3] == 2)
         navigator_to_with_context(page, ctx);
     else if (ctx[2] != 0xff)
         player_start((void *)ctx[0], ctx[1], ctx[2], ctx[3]);
 }
+#endif
 #endif
 
 /* Called only by stock long Return (both builds), after its power/lock gates and release guard.
@@ -4987,15 +4989,22 @@ int ringnav_localmusic(void *win, void *ctx) {
 }
 
 #if M1PLUS
-/* The M1 has no Local Music page: its Home cards are the library's categories. Home's More card
- * (m1plus/home.c) opens what the Q2's Library adds to stock's: Shuffle, Ratings, Most Played, Long
- * Songs, the card's Podcasts, Audiobooks, Photos and Books folders, and Upload Scrobbles. Videos
- * needs the Q2's video helper, which the M1 build leaves out. */
+/* The M1 has no Local Music page: its Home cards are the library's categories (m1plus/home.c).
+ * Legacy Home's More card opens what the Q2's Library adds to stock's: Shuffle, Ratings, Most
+ * Played, Long Songs, the card's Podcasts, Audiobooks, Photos and Books folders, and Upload
+ * Scrobbles. iPod Home's Music row opens the whole Library in one list: stock's categories (their
+ * Home card pages, m1_card_open) among those. Videos needs the Q2's video helper, which the M1
+ * build leaves out. */
+extern int m1_card_open(int id);
 static void *more_page __attribute__((section(".scratch")));
 static struct {
     int (*click)(void *, void *);
     long ctx;
-} more_rows[12] __attribute__((section(".scratch")));
+} more_rows[24] __attribute__((section(".scratch")));
+static int more_card(void *ctx, void *event) {
+    (void)event;
+    return m1_card_open((int)(long)ctx);
+}
 static int more_pick(void *ctx, void *event) {
     unsigned i = (unsigned)(long)ctx;
     return i < sizeof more_rows / sizeof *more_rows && more_rows[i].click
@@ -5006,22 +5015,32 @@ static int more_closed(void *ctx, void *event) {
     if (ctx == more_page) more_page = 0;
     return page_closed(ctx, event);
 }
-int m1_more_open(void) {
+int shuffle_open(void) { return shuffle_menu(0, 0); }
+int m1_more_open(int music) {
     if (more_page || !(more_page = page_open("more_page", more_closed, page_keyup))) return 0;
-    const char *caption[12];
-    int into[12], n = 0;
+    const char *caption[24];
+    int into[24], n = 0;
 #define MORE(text, fn, c, chevron) \
     (caption[n] = (text), more_rows[n].click = (fn), more_rows[n].ctx = (c), into[n++] = (chevron))
-    MORE("Shuffle", shuffle_menu, 0, 1);
+#define CARD(text, id) MORE(text, more_card, id, 1)
+    if (music) {
+        CARD("Artists", 6), CARD("Albums", 5), CARD("Songs", 3), CARD("Genres", 7);
+        CARD("Composers", 8), CARD("Playlists", 14);
+    } else
+        MORE("Shuffle", shuffle_menu, 0, 1);
     MORE("Ratings", ratings_menu, 0, 1);
+    if (music) CARD("Recently Added", 13), CARD("Recently Played", 12);
     MORE("Most Played", most_played, 0, 1);
+    if (music) CARD("Frequently Played", 11), CARD("Hi-Res", 9);
     MORE("Long Songs", long_songs, 0, 1);
     char path[sizeof st.media_root];
     for (int k = 0; k < BOOKS; k++)
         if (media_find(k + 1, path)) MORE(MEDIA[k], media_click, k + 1, 1);
+    if (music) CARD("CD Ripper", 15);
     if (scrobble_ready()) MORE("Upload Scrobbles", upload_scrobbles, 0, 0);
+#undef CARD
 #undef MORE
-    void *view = page_list(more_page, more_page, 0, "More", n, 48);
+    void *view = page_list(more_page, more_page, 0, music ? "Music" : "More", n, 48);
     for (int i = 0; i < n; i++)
         if (into[i])
             page_row_into(view, i, caption[i], more_pick);
@@ -6102,7 +6121,7 @@ int ringnav_buzzer(int on) {
 int ringnav_keydown(void *ctx, void *event) {
     unsigned key = event ? (unsigned)I(event, EVENT_KEY) : 0;
     void *top = window_manager_get_top_window(window_manager());
-#if IPOD
+#if IPOD && !M1PLUS /* the M1 has no key tone */
     unsigned char tone = g_keytone_flag;
     void *row = (void *)0;
     entries_t s = { &row, 0, 1, 4096 };
@@ -6116,7 +6135,7 @@ int ringnav_keydown(void *ctx, void *event) {
     if (st.tone_key) g_keytone_flag = 0;
 #endif
     int result = stock_keydown_trampoline(ctx, event);
-#if IPOD
+#if IPOD && !M1PLUS
     if (st.tone_key) g_keytone_flag = tone;
 #endif
     /* Coverflow moves on release; stop the press before it navigates the focused list below. */
@@ -6302,7 +6321,7 @@ int ringnav(void *ctx, void *event) {
         return 0;
     }
     unsigned key = (unsigned)I(event, EVENT_KEY);
-#if IPOD
+#if IPOD && !M1PLUS
     /* This release's press was silenced by ringnav_keydown: a row change below clicks instead. */
     int owned = st.tone_key == key;
     st.tone_key = 0;
@@ -6537,7 +6556,7 @@ int ringnav(void *ctx, void *event) {
         select(&g_menu, next);
         /* Stop momentum even when the selected row already fits the viewport. */
         reveal(&g_menu, next, 1);
-#if IPOD
+#if IPOD && !M1PLUS
         if (owned && id >= 0) buzzeer_switch(1); /* one click per row change, however far */
 #endif
     } else {

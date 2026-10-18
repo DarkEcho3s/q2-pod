@@ -1844,6 +1844,17 @@ const char *now_tag(void *r, int field) {
 }
 
 #if IPOD
+/* The art panel: right of the Split list on the Q2's landscape screen, under the list on the M1's
+ * portrait one (m1plus/layout.inc HOME_ART_Y). */
+#if M1PLUS
+#define HOME_ART_X 0
+#define HOME_ART_W SCREEN_W
+#else
+#define HOME_ART_X HOME_SPLIT_W
+#define HOME_ART_Y 0
+#define HOME_ART_W (SCREEN_W - HOME_SPLIT_W)
+#endif
+#define HOME_ART_H (APP_H - HOME_ART_Y)
 /* iPod Home (docs/ipod.md): the playing track's art beside the list. */
 static struct {
     void *win, *art, *list, *sets; /* sets: the Settings list, in the list's place while open */
@@ -1875,14 +1886,14 @@ static int home_repaint(const void *unused) {
  * it, so the native fill draws it whole and the clip crops it evenly; unknown sizes fill the
  * panel. */
 static void home_fit(unsigned w, unsigned h) {
-    int x = HOME_SPLIT_W, pw = SCREEN_W - x, ph = APP_H, fw = pw, fh = ph;
+    int pw = HOME_ART_W, ph = HOME_ART_H, fw = pw, fh = ph;
     if (w && h && w <= 8192 && h <= 8192) {
         if ((unsigned)pw * h > (unsigned)ph * w)
             fh = (int)(((unsigned)pw * h + w - 1) / w);
         else
             fw = (int)(((unsigned)ph * w + h - 1) / h);
     }
-    widget_move_resize(home.art, x + (pw - fw) / 2, (ph - fh) / 2, fw, fh);
+    widget_move_resize(home.art, HOME_ART_X + (pw - fw) / 2, HOME_ART_Y + (ph - fh) / 2, fw, fh);
 }
 
 /* The player's cover, else the Coverflow cache of the track's album (now_tag), else the
@@ -1924,10 +1935,11 @@ void coverflow_home_clip(void *w, void *canvas, int begin) {
         home.clipped = 0;
         return;
     }
-    int clip[4], art = w == home.art, x = HOME_SPLIT_W, pane = widget_get_visible(home.art) ? x : SCREEN_W;
+    int clip[4], art = w == home.art, x = HOME_ART_X,
+        pane = widget_get_visible(home.art) && !M1PLUS ? HOME_SPLIT_W : SCREEN_W;
     clip_within(canvas, home.clip, clip, I(canvas, CANVAS_X) - I(w, W_X) + (art ? x : 0),
-                I(canvas, CANVAS_Y) - I(w, W_Y) + (art ? 0 : I(w, W_Y)), art ? SCREEN_W - x : pane,
-                art ? APP_H : I(w, W_H));
+                I(canvas, CANVAS_Y) - I(w, W_Y) + (art ? HOME_ART_Y : I(w, W_Y)), art ? HOME_ART_W : pane,
+                art ? HOME_ART_H : I(w, W_H));
     canvas_set_clip_rect(canvas, clip);
     home.clipped = 1;
 }
@@ -1966,13 +1978,13 @@ void coverflow_home_layout(void) {
         widget_set_visible(rockbox, shown, 0);
         widget_set_text_utf8(widget_lookup(home.win, "label_rockbox", 1), ipod_home_shortcut());
     }
-    int split = HOME_SPLIT_W, outer = full ? SCREEN_W : split,
+    int split = HOME_SPLIT_W, outer = full || M1PLUS ? SCREEN_W : split,
         inner = !full ? split : classic ? HOME_CLASSIC_ROW : HOME_FULL_ROW,
         x = classic ? HOME_CLASSIC_TEXT_X : HOME_DOT_X + HOME_DOT + HOME_DOT_GAP,
         end = classic ? HOME_CLASSIC_LABEL_END : full ? HOME_LABEL_END : HOME_SPLIT_LABEL_END;
     home_width(home.list, outer, inner, x, end, 0);
     if (home.sets) home_width(home.sets, outer, inner, x, end, 0);
-    widget_move_resize(home.art, split, 0, SCREEN_W - split, APP_H);
+    widget_move_resize(home.art, HOME_ART_X, HOME_ART_Y, HOME_ART_W, HOME_ART_H);
     widget_set_visible(home.art, !full, 0);
     home.key = ~0u; /* Split shows the current cover again */
 }

@@ -139,8 +139,13 @@ int m1_keylong(void *ctx, void *event) {
 
 /* home_page_init: stock builds Home and registers the window manager's own key and pointer
  * callbacks; the payload's key filters join them once. */
+extern int coverflow_home(void *win, void *ctx);
+extern void m1_home_bind(void *win);
 int m1_home(void *win, void *ctx) {
-    int result = stock_home_trampoline(win, ctx);
+    int result = coverflow_home(win, ctx); /* stock's, then iPod Home's (coverflow.c) */
+#if IPOD
+    m1_home_bind(win);
+#endif
     void *wm = window_manager();
     if (wm && !in.bound) {
         /* The screen is on. The Q2's platform_init says so (g_backlight_status 1); the M1's never

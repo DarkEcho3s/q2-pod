@@ -80,7 +80,7 @@
 #define CANVAS_ALIGN_V 0x28
 #define CANVAS_ALIGN_H 0x2c
 #define WM_VT 0x88 /* window_manager_t's vtable (window_manager_paint @0x677b44) */
-#define STYLE_COLOR_GRADIENT_RET M1_UNMAPPED
+#define STYLE_COLOR_GRADIENT_RET 0x65a050 /* style_get_color's bal style_get_gradient (0x65a048) returns here */
 
 /* list_view: default_item_height @0x7c, its layouter's vtable @0x9047a0 (list_view @0x746718). */
 #define LIST_DEFAULT_ITEM_HEIGHT 0x7c
