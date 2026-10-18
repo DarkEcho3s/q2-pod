@@ -82,3 +82,42 @@ int getMusicByAlbumArtist(const char *name) {
     }
     return toolsQueryDbTable("/mnt/data/database.db", sql, song_row, 0);
 }
+
+/* libcstl's deque_init_copy and deque_pop_back, which the M1's demo does not import: an initialised
+ * copy (deque_assign copies each element with the deque's own type, as init_copy does), and the
+ * last element erased through the iterators it does import. A libcstl iterator is 7 words, passed
+ * and returned by value (clearBtLinkItem's deque_erase call). */
+void deque_init_copy(void *dst, const void *src) {
+    deque_init(dst);
+    deque_assign(dst, src);
+}
+void deque_pop_back(void *dq) {
+    unsigned n = dq ? deque_size(dq) : 0;
+    if (!n) return;
+    m1_iterator it = deque_begin(dq);
+    while (--n) it = iterator_next(it);
+    deque_erase(dq, it);
+}
+
+/* The Q2 theme's style names the payload uses, as the M1 theme's nearest (styles/default.bin): its
+ * rows are list_item_style's dark cards and its labels srlabel_* (hscroll_label) or label_* and
+ * navbar_* (label). Any other name passes through. */
+static const char *const m1_styles[][2] = {
+    { "s_listitem_black", "list_item_style" },
+    { "s_scrlabel_white20l", "srlabel_leftwhite20_style" },
+    { "s_scrlabel_white24l", "srlabel_leftwhite22_style" },
+    { "s_scrlabel_white20c", "srlabel_msgwhite_style" },
+    { "s_scrlabel_white20r", "srlabel_item_right_gray16_styl" },
+    { "s_label_white20l", "navbar_leftlabel_white" },
+    { "s_label_white20c", "label_centerwhite20_style" },
+    { "s_label_white18c", "label_centerwhite20_style" },
+    { "s_btn_listitem", "btn_tablerow_style" },
+};
+int widget_use_style(void *w, const char *style) {
+    for (unsigned i = 0; style && i < sizeof m1_styles / sizeof *m1_styles; ++i)
+        if (!strcmp(style, m1_styles[i][0])) {
+            style = m1_styles[i][1];
+            break;
+        }
+    return stock_widget_use_style(w, style);
+}

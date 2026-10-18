@@ -64,3 +64,44 @@ class Gdb:
         return self.cmd(f'{"Z" if on else "z"}0,{addr:x},4')
 
     def wait(self): return self._read()
+
+
+# The M1 V2.1 demo's AWTK: widget_t name @0x10, flags @0x24 (visible bit 2), parent @0x44, children
+# darray @0x58 (size @0, elements @8), vt @0x70 (type string @4); the window manager at 0xa0bf10.
+M1_AWTK = dict(name=0x10, flags=0x24, children=0x58, vt=0x70, wm=0xa0bf10)
+
+
+def cstr(g, a, n=64):
+    if not a: return ''
+    b = g.mem(a, n) or b''
+    return b.split(b'\0')[0].decode('utf-8', 'replace')
+
+
+def widget(g, w, o=M1_AWTK):
+    raw = g.mem(w, 0x74)
+    if not raw: return None
+    x, y, ww, hh = struct.unpack_from('<4i', raw, 0)
+    name = cstr(g, struct.unpack_from('<I', raw, o['name'])[0])
+    vt = struct.unpack_from('<I', raw, o['vt'])[0]
+    kind = cstr(g, g.word(vt + 4)) if vt else '?'
+    visible = bool(struct.unpack_from('<I', raw, o['flags'])[0] & 4)
+    kids = []
+    arr = struct.unpack_from('<I', raw, o['children'])[0]
+    if arr:
+        n, elms = g.word(arr), g.word(arr + 8)
+        if n and n < 512 and elms:
+            kids = list(struct.unpack(f'<{n}I', g.mem(elms, 4 * n) or b''))
+    return dict(addr=w, kind=kind, name=name, x=x, y=y, w=ww, h=hh, visible=visible, children=kids)
+
+
+def tree(g, w=None, depth=0, maxdepth=12, o=M1_AWTK, out=None):
+    """Lines describing w's subtree (the window manager's by default)."""
+    out = [] if out is None else out
+    if w is None: w = g.word(o['wm'])
+    d = widget(g, w, o)
+    if not d: return out
+    out.append('  ' * depth + f"{d['kind']} {d['name']} [{d['x']},{d['y']},{d['w']},{d['h']}]" +
+               ('' if d['visible'] else ' (hidden)') + f" @{w:#x}")
+    if depth < maxdepth:
+        for c in d['children']: tree(g, c, depth + 1, maxdepth, o, out)
+    return out

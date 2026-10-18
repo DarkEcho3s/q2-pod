@@ -177,6 +177,7 @@ extern unsigned char m1_key_lockout, m1_boot_key_guard, m1_return_latch;
 #define MCL_GAPLESS 0xa0ab89
 #define MCL_FD 0xa0abec
 #define INITCONFIG_MODE_RET 0x4d8738 /* config_mplayer (the Q2's player_initconfig): its mclSetPlayMode call returns here */
+#define INITCONFIG_SPEED_RET 0x4d86c4 /* config_mplayer's mclSetPlaySpeed call returns here */
 #define CONFIG_INIT_MODE_RET 0x4e5974 /* config_init's boot mclSetPlayMode returns here (the Q2 has no such call) */
 #define USB_MIXER 0xa0aba4
 #define SORTSELECT_KEYUP M1_UNMAPPED

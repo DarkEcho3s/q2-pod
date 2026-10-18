@@ -430,6 +430,7 @@
 #define MCL_GAPLESS 0xa3be54    /* byte: stock's Gapless setting (mclGetGaplessMode); mclAutoChange preloads only with it */
 #define MCL_FD 0xa3beb4         /* player socket, -1 none */
 #define INITCONFIG_MODE_RET 0x513420 /* player_initconfig's mclSetPlayMode call (jalr 0x513418) returns here */
+#define INITCONFIG_SPEED_RET 0x51339c /* and its mclSetPlaySpeed call */
 /* mclUsbAudioSetVol (0x5ac574): the USB DAC's volume control, -1 before the first set, -2 when it
  * has none and hciplayer's soft volume (mcl-softvolflag) applies instead (0x5a8498 opens hw:1). */
 #define USB_MIXER 0xa3be6c

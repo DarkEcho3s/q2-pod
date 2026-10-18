@@ -179,6 +179,12 @@ static void logged(const char *cmd) {
 #define AUTH_RECORD "xex10266xxf0a4fxxa510cxxM1PODSIM000001"
 int system(const char *cmd) {
     logged(cmd);
+    /* The card checks (mount > file, then a search for /mnt/mmc): the card is in. */
+    if (cmd && !strncmp(cmd, "mount > ", 8)) {
+        static const char mounts[] = "/dev/mmcblk0p1 /mnt/mmc vfat rw,relatime 0 0\n";
+        int fd = ((open_fn)dlsym(RTLD_NEXT, "open"))(cmd + 8, O_RDWR | O_CREAT | O_TRUNC, 0644);
+        if (fd >= 0) write(fd, mounts, sizeof mounts - 1), close(fd);
+    }
     if (cmd && !strncmp(cmd, "mtd_debug read /dev/mtd5 ", 25)) {
         int fd = ((open_fn)dlsym(RTLD_NEXT, "open"))("/tmp/asssco.ini", O_RDWR | O_CREAT | O_TRUNC, 0644);
         if (fd >= 0) write(fd, AUTH_RECORD, sizeof AUTH_RECORD), close(fd);

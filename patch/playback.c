@@ -184,7 +184,7 @@ int ringnav_speed(int mode) {
     folder_speed saved = { { 0 }, 0 };
     char path[80], tmp[84];
     /* player_initconfig re-applies speed when the decoder connects; that is not a user edit. */
-    if (__builtin_return_address(0) == (void *)0x51339c || (unsigned)mode >= 4) {
+    if (__builtin_return_address(0) == (void *)INITCONFIG_SPEED_RET || (unsigned)mode >= 4) {
         playback_speed_start();
         return stock_speed_trampoline(g_playspeed_mode);
     }

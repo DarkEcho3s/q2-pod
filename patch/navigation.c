@@ -314,6 +314,12 @@ static int kind(void *w) {
     const char *t = widget_get_type(w);
     if (!tk_strcmp(t, "slide_menu")) return 3;
     if (!tk_strcmp(t, "table_client")) return 2;
+#if M1PLUS
+    /* The M1's Home: a slide_view of card pages (m1plus/home.c); its cards are one row of entries
+     * across the pages, and the selection's page is the one shown (slide_follow). */
+    if (!tk_strcmp(t, "slide_view") && !tk_strcmp(widget_get_prop_str(w, "name", ""), "home_sview"))
+        return 5;
+#endif
 #if IPOD || M1PLUS /* the M1 has no Return key: the wheel answers its prompts in both builds */
     if (!tk_strcmp(t, "dialog") || !tk_strcmp(t, "window")) {
         int ctx = context_id(widget_get_prop_str(w, "name", (void *)0));
@@ -815,6 +821,25 @@ static int position(menu_t *m) {
     return -1;
 }
 
+#if M1PLUS
+/* Home's page holding entry i: the slide_view's child it sits in. */
+static int slide_page(menu_t *m, int i) {
+    void *w = i >= 0 && i < m->n ? m->at[i] : (void *)0;
+    while (w && P(w, W_PARENT) != m->w) w = P(w, W_PARENT);
+    for (unsigned k = 0, n = w ? widget_count_children(m->w) : 0; k < n; ++k)
+        if (widget_get_child(m->w, k) == w) return (int)k;
+    return -1;
+}
+/* Home shows the page of the card selected (kind 5). */
+static void slide_follow(menu_t *m, int id) {
+    if (m->kind != 5) return;
+    int page = slide_page(m, index_of(m, id));
+    if (page >= 0 && page != widget_get_prop_int(m->w, "active", 0)) slide_view_set_active_ex(m->w, (unsigned)page, 0); /* at once: the outline follows */
+}
+#else
+#define slide_follow(m, id) ((void)0)
+#endif
+
 /* Remember where the user was. Widget props die with a recreated page; this survives it.
  * Non-virtual lists also remember the row's first two text values, so a reordered list restores
  * the same item and duplicate names can be told apart by their second line. */
@@ -840,6 +865,7 @@ static void select(menu_t *m, int id) {
         }
     }
     prop(m->w, SEL, id);
+    slide_follow(m, id);
 }
 
 static int load_rows(menu_t *m, void *w) {
@@ -853,7 +879,7 @@ static int load_rows(menu_t *m, void *w) {
     if (m->kind == 2 && (m->row <= 0 || m->rows < 0 || m->rows > 0x7fffffff / m->row)) return 0;
     unsigned n = widget_count_children(w);
     if (m->kind == 1 && I(w, VIEW_CONTENT_H) < 0) return 0;
-    if (m->kind == 1 || m->kind == 4) {
+    if (m->kind == 1 || m->kind == 4 || m->kind == 5) {
         entries_t s = { m->at, 0, MAX_ENTRIES, 4096 };
         for (unsigned i = 0; i < n; ++i) collect(widget_get_child(w, i), &s, 1);
         m->n = s.n;
@@ -1700,6 +1726,10 @@ static void paint_selection(void *w, void *canvas) {
         if (g_menu.kind == 3) return; /* Home shows its selected card. */
         i = reconcile(&g_menu,
                       !moving(&g_menu) && !window_manager_get_pointer_pressed(window_manager()));
+#if M1PLUS
+        /* A swipe showed another page of Home's cards: the selection is not on it. */
+        if (g_menu.kind == 5 && slide_page(&g_menu, i) != widget_get_prop_int(w, "active", 0)) return;
+#endif
     }
     /* Touch hides the selection until the wheel or a button, except on Home (iPod's list) and a
      * pop-up's buttons, which open on their first (Cancel). */
@@ -4932,6 +4962,51 @@ int ringnav_localmusic(void *win, void *ctx) {
                        n++);
     return result;
 }
+
+#if M1PLUS
+/* The M1 has no Local Music page: its Home cards are the library's categories. Home's More card
+ * (m1plus/home.c) opens what the Q2's Library adds to stock's: Shuffle, Ratings, Most Played, Long
+ * Songs, the card's Podcasts, Audiobooks, Photos and Books folders, and Upload Scrobbles. Videos
+ * needs the Q2's video helper, which the M1 build leaves out. */
+static void *more_page __attribute__((section(".scratch")));
+static struct {
+    int (*click)(void *, void *);
+    long ctx;
+} more_rows[12] __attribute__((section(".scratch")));
+static int more_pick(void *ctx, void *event) {
+    unsigned i = (unsigned)(long)ctx;
+    return i < sizeof more_rows / sizeof *more_rows && more_rows[i].click
+               ? more_rows[i].click((void *)more_rows[i].ctx, event)
+               : 0;
+}
+static int more_closed(void *ctx, void *event) {
+    if (ctx == more_page) more_page = 0;
+    return page_closed(ctx, event);
+}
+int m1_more_open(void) {
+    if (more_page || !(more_page = page_open("more_page", more_closed, page_keyup))) return 0;
+    const char *caption[12];
+    int into[12], n = 0;
+#define MORE(text, fn, c, chevron) \
+    (caption[n] = (text), more_rows[n].click = (fn), more_rows[n].ctx = (c), into[n++] = (chevron))
+    MORE("Shuffle", shuffle_menu, 0, 1);
+    MORE("Ratings", ratings_menu, 0, 1);
+    MORE("Most Played", most_played, 0, 1);
+    MORE("Long Songs", long_songs, 0, 1);
+    char path[sizeof st.media_root];
+    for (int k = 0; k < BOOKS; k++)
+        if (media_find(k + 1, path)) MORE(MEDIA[k], media_click, k + 1, 1);
+    if (scrobble_ready()) MORE("Upload Scrobbles", upload_scrobbles, 0, 0);
+#undef MORE
+    void *view = page_list(more_page, more_page, 0, "More", n, 48);
+    for (int i = 0; i < n; i++)
+        if (into[i])
+            page_row_into(view, i, caption[i], more_pick);
+        else
+            page_row_detail(view, i, caption[i], 0, more_pick);
+    return 0;
+}
+#endif
 
 /* Streaming's AirPlay row: stock's own receiver (Shairport 1.1.1, AirPlay 1), whose switch is on
  * System settings' Network service page; that page, one press from Streaming. */

@@ -19,6 +19,7 @@
 { "ratings_page", CTX_DYNAMIC, 0 },   /* runtime window (patch/navigation.c) */
 { "rated_page", CTX_FIXED, 0 },       /* runtime window (patch/navigation.c); fixed: the hold menu */
 { "longsongs_page", CTX_FIXED, 0 },   /* runtime window (patch/navigation.c); fixed: the hold menu */
+{ "more_page", CTX_DYNAMIC, 0 },      /* runtime window (patch/navigation.c): Home's More card */
 /* Now Playing's More and Queue, Home's menu editor, the sort picker */
 { "playmore_dialog", CTX_DYNAMIC, 0 },
 { "playqueue_dialog", CTX_DYNAMIC, 0 },

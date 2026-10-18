@@ -1744,7 +1744,7 @@ static int closed(void *ctx, void *event) {
     return 0;
 }
 
-static int coverflow_open(void *ctx, void *event) {
+int coverflow_open(void *ctx, void *event) {
     (void)ctx;
     (void)event;
     if (cf.page || !(cf.page = page_open("coverflow_page", closed, keyup))) return 0;

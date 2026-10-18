@@ -61,6 +61,7 @@ M1_NAMES = {
     'mcl_open_preload': 0x5d0bd8, 'mcl_preload': 0x5d0ea4,  # the Q2's 0x5a8948 and 0x5a8c1c
     'album_row': 0x4e93c8,               # getAllAlbum's sqlite3_exec callback (the Q2's 0x4fc324)
     'folder_refresh': 0x5318ac,          # folder_page_init's table rebuild from the showlist (the Q2's 0x52176c)
+    'home_card_click': 0x533b80,         # Home's card click: the HOMEMENU id's page (sub_533d8c binds it)
     # what the M1 does not keep: a zero the payload owns (compat.c m1_zeros)
     'g_testmode_flag': None, 'album_modetype': None,
 }
@@ -77,8 +78,12 @@ M1_FUNCTIONS = {
     'toolsSetChargeSwitch': ('int', 'int'),  # writes /sys/class/power_supply/battery/charger
     'toolsGetChargeStatus': ('int', 'void'),  # 1 or 2 while charging, else 0
     'toolsReplceQuote': ('int', 'char *, int'),
+    'slide_view_set_active_ex': ('int', 'void *, unsigned, int'),  # Home's card pages (navigation.c slide_follow)
 }
-M1_SHIMS = {'tk_strcmp', 'tk_str_end_with', 'window_manager_get_input_device_status',
+# libcstl iterators the M1's demo imports, which compat.c's deque shims walk.
+M1_LIBC = {'deque_begin': ('m1_iterator', 'void *'), 'iterator_next': ('m1_iterator', 'm1_iterator'),
+           'deque_erase': ('m1_iterator', 'void *, m1_iterator')}
+M1_SHIMS = {'deque_init_copy', 'deque_pop_back', 'widget_use_style', 'tk_strcmp', 'tk_str_end_with', 'window_manager_get_input_device_status',
             'set_hscroll_label_attribute', 'canvas_stroke_rounded_rect', 'slide_menu_item_width',
             'slide_menu_scroll_to_next', 'slide_menu_scroll_to_prev', 'stock_search',
             'config_playmode', 'switch_charge_enable', 'getMusicByAlbumArtist'}
@@ -99,15 +104,49 @@ M1_HOOKS = {
     'set_equalizer_value': (0x4d851c, 'peq_stock_eq', 'eq'),
     # The DAC and software volume (m1plus/volume.c): the software half goes through ringnav_btvol.
     'mclSetVol': (0x5d4cb0, 'm1_setvol', None),
+    # The queue (playback.c): the same mcl routines as the Q2's, prologue, arguments and state
+    # (abi.inc MCL_*), each paired instruction for instruction (docs/m1plus.md#mapping).
+    'mclLoadPlayList': (0x5d1f28, 'ringnav_load', 'load'),
+    'mclNextSong': (0x5d5800, 'ringnav_next', 'next'),
+    'mclPrevSong': (0x5d56dc, 'ringnav_prev', 'prev'),
+    'mclSetPlayMode': (0x5d278c, 'ringnav_mode', 'mode'),
+    'mclSetPlaySpeed': (0x5d281c, 'ringnav_speed', 'speed'),
+    'mcl_open_preload': (0x5d0bd8, 'ringnav_open_preload', 'open_preload'),
+    'mcl_preload': (0x5d0ea4, 'ringnav_preload', 'preload'),
+    'mclStartPlayer': (0x5d5300, 'ringnav_start_player', 'start_player'),
+    'player_change_music': (0x4e3cec, 'ringnav_change', 'change'),
+    'player_play_pause': (0x4e43b4, 'ringnav_play_pause', 'pause'),
+    'memeory_startplayer': (0x4e34dc, 'ringnav_memory', 'memory'),
+    'save_memoryplay_info': (0x4e3340, 'ringnav_savequeue', 'savequeue'),
+    # The library's writers (coverflow.c library_gen).
+    'scanAllMusicFile': (0x4e9df4, 'coverflow_scan_all', 'scan_all'),
+    'scanSpecFolder': (0x4e9e90, 'coverflow_scan_folder', 'scan_folder'),
+    'deleteMusicFromMusicDb': (0x4ede44, 'coverflow_delete_song', 'delete_song'),
+    # Home's card click (atoi of the card image's name, the HOMEMENU id): the two streaming cards
+    # are Coverflow and More (m1plus/home.c).
+    'home_card_click': (0x533b80, 'm1_card_click', 'card'),
 }
 M1_IPOD_HOOKS = {
     'widget_on_paint_background': (0x66b778, 'ringnav_paint_bg', 'paint_bg'),
 }
 WM_PAINT_LEAF = ('window_manager_paint', 0x677b44, 'ringnav_wm_paint', (0x10800009, 0, 0x8c820088))
 
+# Home's streaming cards become Coverflow and More (patch/m1plus/home.c): the HOMEMENU names table
+# (get_homemenu_showinfo, 0x97c940) points ids 0 and 1 at the payload's names, which Home's theme
+# (styles/home_page.bin) knows as its two renamed card styles, each with its renamed images, the
+# same size, and the cards' new icons join the images (assets/icons/m1, tools/m1icons.py).
+HOMEMENU = 0x97c940
+HOME_CARDS = ((0, 0x74a500, 'hifimusic', 'm1_card_coverflow', 'Coverflow'),
+              (1, 0x74944c, 'tidal', 'm1_card_more', 'More'))
+HOME_STYLES = 'release/assets/default/raw/styles/home_page.bin'
+HOME_STYLES_SHA = '116fa726be7b71381691a00d36570650b8588e9cccc8f9e2981e1374c1630862'
+IMAGES = 'release/assets/default/raw/images/xx/'
+# Windows the payload creates on the M1 alone (check_contexts).
+M1_PAYLOAD_WINDOWS = {'more_page'}
+
 # Payload sources: the Q2's demo payload (tools/peq.py compile_common) without its streaming
 # pages (spotify.c, radio.c, tidal.c), and the M1's own input layer and shims.
-SOURCES = ['m1plus/compat.c', 'm1plus/input.c', 'm1plus/volume.c', 'm1plus/nostream.c', 'navigation.c', 'peq.c', 'shared.c', 'peq_ui.c', 'coverflow.c',
+SOURCES = ['m1plus/compat.c', 'm1plus/input.c', 'm1plus/home.c', 'm1plus/volume.c', 'm1plus/nostream.c', 'navigation.c', 'peq.c', 'shared.c', 'peq_ui.c', 'coverflow.c',
            'scrobble.c', 'photos.c', 'books.c', 'visualizer.c', 'playback.c', 'crossfade.c',
            'headset.c', 'lockscreen.c']
 
@@ -137,6 +176,34 @@ M1_PLAYER = dict(
                  PLAYER_RG_EXPORT=0x5381c4, PLAYER_STOCK_SEEK=0x48cc6c, PLAYER_HR_MP3_SEEK=0xb15298))
 
 
+def home_styles(data):
+    """Home's theme with the two streaming cards' styles renamed for their new names: each style's
+    32-byte name and its images' names, every value the same size (a shorter name is NUL-padded)."""
+    from ipod import style_props
+    check(sha(data) == HOME_STYLES_SHA, 'Unaudited Home theme')
+    out = bytearray(data)
+    magic, _, count = struct.unpack_from('<3I', data)
+    for _, _, old, _, new in HOME_CARDS:
+        renamed = 0
+        for i in range(count):
+            at = 12 + 100*i + 4 + 32  # the entry's style name, after its offset and state
+            if out[at:at+32].split(b'\0')[0] == f'home_{old}_style'.encode():
+                out[at:at+32] = f'home_{new}_style'.encode().ljust(32, b'\0')
+                renamed += 1
+        check(renamed == 5, f'home_{old}_style: expected its 5 states')
+        images = 0
+        for _, style, _, prop, at, value in style_props(data):
+            if style == f'home_{old}_style' and prop == 'bg_image':
+                stem = value.split(b'\0')[0].decode()
+                check(stem in (old, old + '_down'), f'home_{old}_style: unexpected image {stem}')
+                image = (new + stem[len(old):]).encode()
+                check(len(image) < len(value), f'{image}: longer than {stem}')
+                out[at:at+len(value)] = image.ljust(len(value), b'\0')
+                images += 1
+        check(images == 5, f'home_{old}_style: expected 5 images')
+    return bytes(out)
+
+
 def m1_symbols(demo):
     """The M1's symbol table, with M1_NAMES resolved to the Q2 names the payload uses."""
     syms = symbols(demo)
@@ -162,9 +229,13 @@ def platform(out, demo, syms):
     and symbols: libc through demo's own GOT slots, stock routines and globals by address."""
     from peq import LIBC
     got = got_imports(demo)
-    header = ['struct dirent { unsigned ino, off; unsigned short reclen; unsigned char d_type; char d_name[256]; };']
+    header = ['struct dirent { unsigned ino, off; unsigned short reclen; unsigned char d_type; char d_name[256]; };',
+              'typedef struct { unsigned word[7]; } m1_iterator;']
     asm = ['.set noreorder', '.text']
-    for name, (ret, args) in LIBC.items():
+    for name, (ret, args) in (LIBC | M1_LIBC).items():
+        if name in M1_SHIMS:
+            header.append(f'{ret} {name}({args});')
+            continue
         if name not in got:
             header.append(f'extern {ret} {name}({args});')
             continue
@@ -179,6 +250,8 @@ def platform(out, demo, syms):
     for name, (ret, args) in (FUNCTIONS | M1_FUNCTIONS).items():
         if name in M1_SHIMS:
             header.append(f'{ret} {name}({args});')
+            if syms.get(name):  # the shim's way to stock's own
+                header.append(f'#define stock_{name} (({ret} (*)({args}))0x{syms[name]:x}u)')
         elif name in syms and syms[name]:
             header.append(f'#define {name} (({ret} (*)({args}))0x{syms[name]:x}u)')
     header.append('extern unsigned char m1_zeros[];')
@@ -224,6 +297,7 @@ def compile_payload(out, demo, syms, ipod):
     run('clang', *M1FLAGS, '-c', out/'trampoline.S', '-o', out/'trampoline.o')
     run('ld.lld', '-m', 'elf32ltsmip', '--gc-sections', '-T', ROOT/'patch/link.ld', '-e', 'm1_home',
         *[f'--undefined={name}' for _, name, _ in hooks.values()], f'--undefined={WM_PAINT_LEAF[2]}',
+        *[f'--undefined={card[3]}' for card in HOME_CARDS],
         *objects, out/'peq_imports.o', out/'trampoline.o', '-o', out/'patch.elf')
     run('llvm-objcopy', '-O', 'binary', out/'patch.elf', out/'patch.bin')
     return symbols(out/'patch.elf'), hooks
@@ -243,7 +317,7 @@ def check_contexts(cat, sq):
         i = data.find(b'name\x00')
         windows.add(data[i+5:data.find(b'\x00', i+5)].decode('utf-8', 'replace') if i >= 0 else '')
     for name in names:
-        check(name in windows | PAYLOAD_WINDOWS, f'Context {name} is not an M1 window name')
+        check(name in windows | PAYLOAD_WINDOWS | M1_PAYLOAD_WINDOWS, f'Context {name} is not an M1 window name')
 
 
 def patch_demo(raw, out, ipod, dev):
@@ -272,6 +346,10 @@ def patch_demo(raw, out, ipod, dev):
     off = fileoff(patched, address)
     check(syms[name] == address and struct.unpack_from('<III', patched, off) == words, f'{name}: unexpected code')
     jump(off, replacement)
+    for index, stock, _, symbol, name in HOME_CARDS:
+        off = fileoff(patched, HOMEMENU + 4*index)
+        check(struct.unpack_from('<I', patched, off)[0] == stock, f'HOMEMENU {index}: unexpected name')
+        struct.pack_into('<I', patched, off, ps[symbol])
     # The updater refuses a firmware_v20.info version equal to the installed one; About shows it.
     check(patched.count(STOCK_VERSION.encode()+b'\0') == 1, 'Version literal is not unique')
     append_payload(patched, payload, BASE, ps['__scratch_end']-BASE, 'demo')
@@ -338,6 +416,21 @@ def build(update, out, logo, ipod=True, dev=False):
     for path, src in ((b'usr/bin/hciplayer', out/'peq/hciplayer'), (BLUEALSA.encode(), out/'bluealsa'),
                       (WATCHDOG.encode(), out/'watchdog')):
         p = swap_inode(p, path, src)
+    # Home's Coverflow and More cards: their theme, and their icons as new inodes with the metadata
+    # of the stock card images they stand in for.
+    styles = out/'home_page.bin'
+    styles.write_bytes(home_styles(cat(HOME_STYLES)))
+    p = swap_inode(p, HOME_STYLES.encode(), styles)
+    added = []
+    for _, _, old, _, new in HOME_CARDS:
+        for suffix in ('', '_down'):
+            like = inode(p, f'{IMAGES}{old}{suffix}.png'.encode())
+            check(like is not None, f'Missing stock image {old}{suffix}.png')
+            src = ROOT/'assets/icons/m1'/f'{new}{suffix}.png'
+            path = f'{IMAGES}{new}{suffix}.png'.encode()
+            at = p.index(b'# START OF DATA')
+            p = p[:at]+path+b' F '+b' '.join(like.groups())+b' cat '+shlex.quote(str(src)).encode()+b'\n'+p[at:]
+            added.append([path, b'R', *like.groups()])
     removed = []
     for path in UNUSED:
         line = re.search(rb'^'+re.escape(path.encode())+rb' R .+\n', p, re.M)
@@ -353,7 +446,7 @@ def build(update, out, logo, ipod=True, dev=False):
     def inodes(image):
         text = subprocess.check_output(['unsquashfs', '-pf', '-', str(image)]).split(b'\n# START OF DATA')[0]
         return sorted(l.split()[:6] for l in text.splitlines() if l and not l.startswith(b'#'))
-    check(inodes(newsq) == sorted(i for i in inodes(sq) if i not in removed), 'Repacked rootfs metadata differs from stock')
+    check(inodes(newsq) == sorted([i for i in inodes(sq) if i not in removed] + added), 'Repacked rootfs metadata differs from stock')
     blobs['recovery-update/rootfs.squashfs'] = newsq.read_bytes()
     check(len(blobs['recovery-update/rootfs.squashfs']) <= sq.stat().st_size, 'Repacked rootfs exceeds stock size')
     blobs['firmware_v20.info'] = (f'{MODEL}\n{version}\n' + ''.join(
