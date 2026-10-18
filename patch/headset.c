@@ -186,7 +186,7 @@ static void headset_start(void) {
     int n = getBtLinkSize(), status = 0;
     if (n > 0) getBtLinkItem(n - 1, &status, mac);
     hs.airpods = 0;
-    void *pairs = *(void *volatile *)0xa38110; /* stock pdeq_btpairlist */
+    void *pairs = *(void *volatile *)BT_PAIRLIST; /* stock pdeq_btpairlist */
     for (unsigned i = 0; pairs && i < deque_size(pairs) && i < 64; ++i) {
         const char *p = deque_at(pairs, i);
         if (p && !strcmp(p + 4, mac) && strstr(p + 0x24, "AirPods")) hs.airpods = 1;

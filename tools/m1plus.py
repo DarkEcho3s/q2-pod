@@ -61,7 +61,8 @@ M1_NAMES = {
     'mcl_open_preload': 0x5d0bd8, 'mcl_preload': 0x5d0ea4,  # the Q2's 0x5a8948 and 0x5a8c1c
     'album_row': 0x4e93c8,               # getAllAlbum's sqlite3_exec callback (the Q2's 0x4fc324)
     'folder_refresh': 0x5318ac,          # folder_page_init's table rebuild from the showlist (the Q2's 0x52176c)
-    'home_card_click': 0x533b80,         # Home's card click: the HOMEMENU id's page (sub_533d8c binds it)
+    'home_card_click': 0x533b80,
+    'load_localclass_list': 'loadLocalClassList', 'load_album_detaillist': 'loadAlbumdetailList',         # Home's card click: the HOMEMENU id's page (sub_533d8c binds it)
     # what the M1 does not keep: a zero the payload owns (compat.c m1_zeros)
     'g_testmode_flag': None, 'album_modetype': None,
 }
@@ -134,6 +135,12 @@ M1_HOOKS = {
     'folder_back': (0x4dbecc, 'ringnav_folder_back', 'folder_back'),
     # Now Playing: the heart's hold rates the song (navigation.c rate_bind; abi.inc FAV_*).
     'playing_page_init': (0x53d1e4, 'ringnav_playing', 'playing'),
+    # The library's lists: Albums splits albums sharing a name (coverflow_split), an album's page
+    # lists that album alone, an empty category says so (navigation.c ringnav_localclass).
+    'load_localclass_list': (0x4ee504, 'ringnav_localclass', 'localclass'),
+    'load_album_detaillist': (0x4eea98, 'ringnav_album_detail', 'detail'),
+    # About: Q2 Pod's version row.
+    'systemset_about_page_init': (0x4a170c, 'ringnav_about', 'about'),
     # Home's card click (atoi of the card image's name, the HOMEMENU id): the two streaming cards
     # are Coverflow and More (m1plus/home.c).
     'home_card_click': (0x533b80, 'm1_card_click', 'card'),

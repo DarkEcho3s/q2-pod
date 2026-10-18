@@ -1879,7 +1879,7 @@ int ringnav_paint(void *w, void *canvas) {
 }
 
 /* A s_listitem_black list_item in view with a 335x70 s_btn_listitem button; returns the button. */
-static void *list_button(void *view) {
+__attribute__((unused)) static void *list_button(void *view) {
     void *item = list_item_create(view, 0, 0, 0, 0);
     widget_use_style(item, "s_listitem_black");
     void *button = button_create(item, 20, 0, 335, 70);
@@ -5070,7 +5070,7 @@ int ringnav_start_player(void) {
  * reads demo's version literal, which carries the updater tag (tools/build.py VERSIONS), so it
  * shows the stock firmware's again; a CFW. Version row in the same widgets follows it. Its button
  * has no name, so stock's row click (atoi of the name, 0x4bc774) ignores it. */
-static void about_label(void *button, int x, int w, const char *style, const char *text) {
+__attribute__((unused)) static void about_label(void *button, int x, int w, const char *style, const char *text) {
     void *label = hscroll_label_create(button, x, 0, w, 70);
     widget_use_style(label, style);
     hscroll_label_set_only_focus(label, 1);
@@ -5078,6 +5078,21 @@ static void about_label(void *button, int x, int w, const char *style, const cha
     widget_set_text_utf8(label, text);
 }
 
+#if M1PLUS
+/* The M1's About: one label per row (listitemN/scrlabelN in about_scrollview), the firmware
+ * version reading the build's tag (tools/m1plus.py m1_tag); Q2 Pod's version follows it in a row
+ * of its own. */
+int ringnav_about(void *win, void *ctx) {
+    int result = stock_about_trampoline(win, ctx);
+    void *view = win ? widget_lookup(win, "about_scrollview", 1) : (void *)0;
+    if (view && widget_count_children(view) >= 2) {
+        void *label = list_row_core(view, 0, 0, 0, 0, 0);
+        widget_set_text_utf8(label, "CFW. Version:" Q2POD_VERSION); /* as the stock rows read */
+        widget_restack(P(label, W_PARENT), 2);
+    }
+    return result;
+}
+#else
 int ringnav_about(void *win, void *ctx) {
     int result = stock_about_trampoline(win, ctx);
     void *view = win ? widget_lookup(win, "scroll_view_about", 1) : (void *)0;
@@ -5091,6 +5106,7 @@ int ringnav_about(void *win, void *ctx) {
     }
     return result;
 }
+#endif
 
 /* Go to album/artist reuse g_local_classinfo_save, which the pages underneath reload from when
  * they come back, so it is put back as the page opened here closes. */
@@ -5132,7 +5148,7 @@ static void qm_select(void) {
 }
 
 /* Stock playlist rows use the queue in add mode 2. Guard their final dispatch as well. */
-#define PLAYLIST_PICK ((int (*)(void *, void *))0x4b1d24)
+#define PLAYLIST_PICK ((int (*)(void *, void *))PLAYLIST_PICK_ADDR)
 static int qm_playlist_pick(void *ctx, void *event) {
     if (!qm_record()) {
         toast("Queue unchanged");
@@ -5978,7 +5994,6 @@ static void bt_volume_poll(void) {
     if (v > limit) v = limit;
     btvol.last = cur;
     g_volume = (unsigned char)v;
-    *(volatile signed char *)0xa38c41u = (signed char)v; /* stock responseSetVolume's level */
     device_set_volume(v, 1);
     write_int_config(v, "PLAYSET", "VOLUME");
     /* device_set_volume invokes our gain hook; enforce the limit even when mocked/unsupported. */

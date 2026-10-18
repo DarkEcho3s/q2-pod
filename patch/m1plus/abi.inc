@@ -187,6 +187,8 @@ extern unsigned char m1_key_lockout, m1_boot_key_guard, m1_return_latch;
 /* Now Playing's heart, bound by playing_page_init's visitor (sub_53b190) to its My Fav toggle. */
 #define FAV_WIDGET "btn_fav"
 #define FAV_CLICK_ADDR 0x53b480
+#define PLAYLIST_PICK_ADDR 0x53d300 /* the add-mode playlist row click (img_choice%d, set_selectindex) */
+#define BT_PAIRLIST 0xa041c0 /* pdeq_btpairlist */
 #define CHECK_IMAGE "selected" /* a picker's current option (unselect the others) */
 #define CONFIG_INIT_MODE_RET 0x4e5974 /* config_init's boot mclSetPlayMode returns here (the Q2 has no such call) */
 #define USB_MIXER 0xa0aba4

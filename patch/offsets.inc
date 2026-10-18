@@ -440,6 +440,8 @@
 #define FAV_WIDGET "img_fav"
 #define FAV_CLICK_ADDR 0x52b154
 #define CHECK_IMAGE "select" /* a picker's current option */
+#define PLAYLIST_PICK_ADDR 0x4b1d24 /* a playlist row's click while adding songs */
+#define BT_PAIRLIST 0xa38110 /* pdeq_btpairlist */
 /* mclUsbAudioSetVol (0x5ac574): the USB DAC's volume control, -1 before the first set, -2 when it
  * has none and hciplayer's soft volume (mcl-softvolflag) applies instead (0x5a8498 opens hw:1). */
 #define USB_MIXER 0xa3be6c
