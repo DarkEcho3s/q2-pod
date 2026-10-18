@@ -904,7 +904,7 @@ static int load_rows(menu_t *m, void *w) {
 /* A row holding stock's "select" check image: a CHOICE picker's current option. */
 static int checked(void *w, int depth, int *budget) {
     if (!w || depth == 16 || --*budget < 0 || !widget_get_visible(w)) return 0;
-    if (!tk_strcmp(widget_get_prop_str(w, "image", ""), "select")) return 1;
+    if (!tk_strcmp(widget_get_prop_str(w, "image", ""), CHECK_IMAGE)) return 1;
     unsigned n = widget_count_children(w);
     for (unsigned i = 0; i < n; ++i)
         if (checked(widget_get_child(w, i), depth + 1, budget)) return 1;
@@ -1818,7 +1818,7 @@ static void edit_paint(void *w, void *canvas);
 static void paint_radio(void *w, void *canvas) {
     if (!w || !st.sel_widget || st.sel_home || ipod_classic() || !P(canvas, CANVAS_LCD)) return;
     const char *image = widget_get_prop_str(w, "image", "");
-    int dot = !tk_strcmp(image, "select");
+    int dot = !tk_strcmp(image, CHECK_IMAGE);
     if (!dot && tk_strcmp(image, "unselect")) return;
     void *row = P(w, W_PARENT);
     for (int depth = 0; row && row != st.sel_widget && depth < 8; ++depth) row = P(row, W_PARENT);
@@ -1892,16 +1892,29 @@ static void *list_button(void *view) {
  * with the label narrowed clear of it, as the stock Local Music categories place it. Returns the
  * label. */
 #if M1PLUS
-/* The M1's settings rows (display_listitem_layout, 0x4a5d08): a list_item in list_item_style the
- * list sizes, its label at x 12 in srlabel_leftwhite21_style, clicked as a whole; its trailing
- * right_arrow (into) at x 295. The M1's rows carry no icon. Returns the label. */
+/* The M1's settings rows (playset_page's and display_listitem_layout's, 0x4a5d08): a list_item in
+ * list_item_style the list sizes (64 high), clicked as a whole; a 40px icon at 12,10 when the page
+ * has icons, the label at x 60 (12 without) in srlabel_leftwhite21_style, the trailing right_arrow
+ * (into) at x 295. The Q2's icon names map to the M1's images; one it lacks leaves the row
+ * iconless. Returns the label. */
+static const char *const m1_icons[][2] = {
+    { "usb_chargeswitch", "usb_chargeswitch" }, { "system_powermanager", "sset_powermanager" },
+    { "system_keylock", "sset_keylock" },       { "playset_covermode", "pset_covermode" },
+    { "playset_folderjump", "pset_jumpfolder" }, { "system_display", "sset_display" },
+    { "playset_gapless", "pset_gapless" },
+};
 static void *list_row_core(void *view, const char *icon, int (*click)(void *, void *), void *ctx,
                            int w, int into) {
-    (void)icon;
+    (void)w;
+    const char *image = (void *)0;
+    for (unsigned i = 0; icon && i < sizeof m1_icons / sizeof *m1_icons; ++i)
+        if (!strcmp(icon, m1_icons[i][0])) image = m1_icons[i][1];
     void *item = list_item_create(view, 0, 0, 0, 0);
     widget_use_style(item, "list_item_style");
     if (click) widget_on(item, EVT_CLICK, click, ctx);
-    void *label = hscroll_label_create(item, 12, 20, w, 21);
+    if (image) image_base_set_image(image_create(item, 12, 10, 40, 40), image);
+    int x = image ? 60 : 12;
+    void *label = hscroll_label_create(item, x, 20, (into ? 290 : 308) - x, 21);
     widget_use_style(label, "srlabel_leftwhite21_style");
     set_hscroll_label_attribute(label);
     if (into) image_base_set_image(image_create(item, 295, 0, 13, 60), "right_arrow");
@@ -2039,7 +2052,7 @@ int ringnav_powermanager(void *win, void *ctx) {
     static const char *const icons[] = { "usb_chargeswitch", "system_powermanager",
                                          "system_keylock" };
     int result = stock_power_trampoline(win, ctx);
-    pod_rows(win, "scroll_view_powermanager", POD_CHARGE, 3, icons);
+    pod_rows(win, SV_POWER, POD_CHARGE, 3, icons);
     return result;
 }
 /* The Bluetooth page's list (stock's local builder, btmenu_rows), rebuilt whole on every search and
@@ -2050,8 +2063,8 @@ int ringnav_btrows(void *win, void *ctx) {
     static const char *const icons[] = { 0 };
     int result = stock_btrows_trampoline(win, ctx);
     if (!g_bluetoothflag) return result;
-    pod_rows(win, "scroll_view_bluetooth", POD_RESUME, 1, icons);
-    void *view = win ? widget_lookup(win, "scroll_view_bluetooth", 1) : (void *)0;
+    pod_rows(win, SV_BLUETOOTH, POD_RESUME, 1, icons);
+    void *view = win ? widget_lookup(win, SV_BLUETOOTH, 1) : (void *)0;
     unsigned n = view ? widget_count_children(view) : 0;
     if (!n) return result;
     void *row = widget_get_child(view, n - 1);
@@ -2093,9 +2106,9 @@ static const unsigned char sysset_order[] = {
 int ringnav_audioset(void *win, void *ctx) {
     static const char *const icons[] = { "playset_covermode", "playset_folderjump" };
     int result = stock_audioset_trampoline(win, ctx);
-    pod_rows(win, "scroll_view_playset", POD_YEAR_OLD, 2, icons);
-    pod_rows(win, "scroll_view_playset", POD_ARTIST_AZ, 1, icons);
-    void *view = win ? widget_lookup(win, "scroll_view_playset", 1) : (void *)0;
+    pod_rows(win, SV_PLAYSET, POD_YEAR_OLD, 2, icons);
+    pod_rows(win, SV_PLAYSET, POD_ARTIST_AZ, 1, icons);
+    void *view = win ? widget_lookup(win, SV_PLAYSET, 1) : (void *)0;
     if (view) xfade_row(list_row(view, "playset_gapless", xfade_open, (void *)0)); /* crossfade.c */
     reorder(view, playset_order, sizeof playset_order);
     return result;
@@ -3108,14 +3121,20 @@ int ringnav_np_info(void *win) {
 int ringnav_display(void *win, void *ctx) {
     int result = stock_display_trampoline(win, ctx);
     /* Artist albums: Grid or Coverflow, a layout as Home's, so it sits after Home. */
+#if M1PLUS
+    static const char *const cf_icon[] = { 0 }; /* the M1's Display rows have no icons */
+#define WHEEL_ICON 0
+#else
     static const char *const cf_icon[] = { "playset_covermode" };
-    void *view = win ? widget_lookup(win, "scroll_view_display", 1) : (void *)0;
+#define WHEEL_ICON "system_display"
+#endif
+    void *view = win ? widget_lookup(win, SV_DISPLAY, 1) : (void *)0;
 #if IPOD
     static const char *const icons[] = { "system_display", "playset_covermode",
                                          "system_powermanager", "system_display" };
     for (int k = 0; view && k < 4; ++k) {
         int i = (k + 3) % 4; /* Theme, Accent, Home, Battery */
-        if (i == 2) pod_rows(win, "scroll_view_display", POD_ARTIST_CF, 1, cf_icon);
+        if (i == 2) pod_rows(win, SV_DISPLAY, POD_ARTIST_CF, 1, cf_icon);
         st.setting_label[i] = list_row(view, icons[i], setting_click, (void *)(long)i);
         setting_text(i);
     }
@@ -3125,9 +3144,10 @@ int ringnav_display(void *win, void *ctx) {
         accent_row();
     }
 #else
-    pod_rows(win, "scroll_view_display", POD_ARTIST_CF, 1, cf_icon);
+    pod_rows(win, SV_DISPLAY, POD_ARTIST_CF, 1, cf_icon);
 #endif
-    if (view) wheel_row(list_row(view, "system_display", xfade_open, (void *)1));
+    if (view) wheel_row(list_row(view, WHEEL_ICON, xfade_open, (void *)1));
+#undef WHEEL_ICON
     return result;
 }
 
@@ -4235,7 +4255,7 @@ static int most_played(void *ctx, void *event) {
 #define ALBUM_RATINGS_FILE "/mnt/data/ringnav-album-ratings"
 /* Now Playing's heart click (playing_page_init binds it to img_fav with the window): stock's My
  * Fav toggled for the playing track (manage_myfav), and the heart's image with it. */
-#define FAV_CLICK ((int (*)(void *, void *))0x52b154)
+#define FAV_CLICK ((int (*)(void *, void *))FAV_CLICK_ADDR)
 
 /* The songs' table, or with album the albums'. */
 static int rate_io(int album, int write) {
@@ -4409,6 +4429,9 @@ static int rate_open(void) {
     return r && rate_show(st.rate_win, checkFavExist(r) ? 5 : rate_kept(0, listen_key(r)), 0);
 }
 
+/* Whether the heart's picker is up (the M1's Previous then closes it, m1plus/input.c). */
+int ringnav_rating_open(void) { return st.rate_on != 0; }
+
 /* The wheel, Centre and Return while the picker is up. */
 static int rate_key(void *top, unsigned key) {
     if (!st.rate_on || top != st.rate_on) return 0;
@@ -4463,7 +4486,7 @@ static int rate_gone(void *win, void *event) {
 /* Now Playing's heart (both builds' playing_page_init): stock's click is swapped for one that
  * tells a hold from a tap, and the badge sits on the heart's top right. */
 static void rate_bind(void *win) {
-    void *fav = widget_lookup(win, "img_fav", 1), *emitter = fav ? P(fav, W_EMITTER) : (void *)0;
+    void *fav = widget_lookup(win, FAV_WIDGET, 1), *emitter = fav ? P(fav, W_EMITTER) : (void *)0;
     stop_timer(&st.rate_tick);
     stop_timer(&st.rate_hold);
     st.rate_ctx = (void *)0;

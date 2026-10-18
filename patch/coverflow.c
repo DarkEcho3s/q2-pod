@@ -944,9 +944,32 @@ void *page_open(const char *name, int (*closed)(void *, void *), int (*keyup)(vo
     return page;
 }
 
+#if M1PLUS
+static int back_click(void *ctx, void *event) {
+    (void)ctx, (void)event;
+    navigator_back();
+    return 0;
+}
+/* The M1's pages open under stock's navigation bar: its on-screen back (btn_return's look, which
+ * leaves the page as Previous does) and the title after it (navbar_label_white). */
+void m1_back_button(void *page) {
+    void *back = button_create(page, 0, 0, 36, 48);
+    widget_use_style(back, "navbar_btnreturn_style");
+    widget_set_prop_str(back, "style:normal:icon", "return");
+    widget_set_prop_str(back, "style:pressed:icon", "return_down");
+    widget_on(back, EVT_CLICK, back_click, 0);
+}
+#endif
+
 /* A page's 48px title bar; shared with photos.c. */
 void *page_title(void *body, const char *caption) {
+#if M1PLUS
+    m1_back_button(body);
+    void *title = label_create(body, 36, 13, SCREEN_W - 48, 22);
+    widget_use_style(title, "navbar_label_white");
+#else
     void *title = text(body, CF_X, 0, CF_W, 48);
+#endif
     widget_set_text_utf8(title, caption);
     return title;
 }
@@ -986,11 +1009,11 @@ void *page_row_detail(void *view, int index, const char *caption, const char *de
     void *item = list_item_create(view, 0, index * h, SCREEN_W, h);
     widget_use_style(item, "s_listitem_black");
     void *label = text(item, CF_ROW_X, detail ? 4 : 0, CF_ROW_W, detail ? 32 : 48);
-    if (IPOD) widget_use_style(label, "s_scrlabel_white20l");
+    if (IPOD || M1PLUS) widget_use_style(label, "s_scrlabel_white20l");
     widget_set_text_utf8(label, caption);
     if (detail) {
         label = text(item, CF_ROW_X, 36, CF_ROW_W, 24);
-        if (IPOD) widget_use_style(label, "s_scrlabel_white20l");
+        if (IPOD || M1PLUS) widget_use_style(label, "s_scrlabel_white20l");
         widget_set_prop_int(label, "style:normal:text_color", (int)0xffaaaaaau);
         widget_set_prop_int(label, "style:normal:font_size", 16);
         widget_set_text_utf8(label, detail);

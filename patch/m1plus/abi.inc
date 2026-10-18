@@ -178,6 +178,16 @@ extern unsigned char m1_key_lockout, m1_boot_key_guard, m1_return_latch;
 #define MCL_FD 0xa0abec
 #define INITCONFIG_MODE_RET 0x4d8738 /* config_mplayer (the Q2's player_initconfig): its mclSetPlayMode call returns here */
 #define INITCONFIG_SPEED_RET 0x4d86c4 /* config_mplayer's mclSetPlaySpeed call returns here */
+/* Settings pages' row lists (navigation.c pod_rows): the M1's Idle page lists its standby rows on
+ * its second slide. */
+#define SV_POWER "standby_scrollview"
+#define SV_PLAYSET "playset_scrollview"
+#define SV_DISPLAY "display_scrollview"
+#define SV_BLUETOOTH "bluetooth_scrollview"
+/* Now Playing's heart, bound by playing_page_init's visitor (sub_53b190) to its My Fav toggle. */
+#define FAV_WIDGET "btn_fav"
+#define FAV_CLICK_ADDR 0x53b480
+#define CHECK_IMAGE "selected" /* a picker's current option (unselect the others) */
 #define CONFIG_INIT_MODE_RET 0x4e5974 /* config_init's boot mclSetPlayMode returns here (the Q2 has no such call) */
 #define USB_MIXER 0xa0aba4
 #define SORTSELECT_KEYUP M1_UNMAPPED

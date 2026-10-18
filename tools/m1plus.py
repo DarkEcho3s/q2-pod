@@ -83,7 +83,7 @@ M1_FUNCTIONS = {
 # libcstl iterators the M1's demo imports, which compat.c's deque shims walk.
 M1_LIBC = {'deque_begin': ('m1_iterator', 'void *'), 'iterator_next': ('m1_iterator', 'm1_iterator'),
            'deque_erase': ('m1_iterator', 'void *, m1_iterator')}
-M1_SHIMS = {'deque_init_copy', 'deque_pop_back', 'widget_use_style', 'tk_strcmp', 'tk_str_end_with', 'window_manager_get_input_device_status',
+M1_SHIMS = {'deque_init_copy', 'deque_pop_back', 'widget_use_style', 'image_base_set_image', 'tk_strcmp', 'tk_str_end_with', 'window_manager_get_input_device_status',
             'set_hscroll_label_attribute', 'canvas_stroke_rounded_rect', 'slide_menu_item_width',
             'slide_menu_scroll_to_next', 'slide_menu_scroll_to_prev', 'stock_search',
             'config_playmode', 'switch_charge_enable', 'getMusicByAlbumArtist'}
@@ -122,6 +122,18 @@ M1_HOOKS = {
     'scanAllMusicFile': (0x4e9df4, 'coverflow_scan_all', 'scan_all'),
     'scanSpecFolder': (0x4e9e90, 'coverflow_scan_folder', 'scan_folder'),
     'deleteMusicFromMusicDb': (0x4ede44, 'coverflow_delete_song', 'delete_song'),
+    # Settings pages: stock builds its rows, the payload's follow (navigation.c pod_rows, abi.inc
+    # SV_*); the EQ row opens the PEQ editor instead of stock's page (peq_ui.c).
+    'playset_equalizer_page_init': (0x49e358, 'peq_page_init', None),
+    'playset_playset_page_init': (0x4a0c88, 'ringnav_audioset', 'audioset'),
+    'systemset_display_page_init': (0x4a5eb8, 'ringnav_display', 'display'),
+    'systemset_powermanager_page_init': (0x4a9d18, 'ringnav_powermanager', 'power'),
+    # More's Podcasts and Audiobooks open folder_page at their card folder (navigation.c media_click);
+    # Back at that root leaves the page.
+    'folder_page_init': (0x53349c, 'ringnav_folder', 'folder'),
+    'folder_back': (0x4dbecc, 'ringnav_folder_back', 'folder_back'),
+    # Now Playing: the heart's hold rates the song (navigation.c rate_bind; abi.inc FAV_*).
+    'playing_page_init': (0x53d1e4, 'ringnav_playing', 'playing'),
     # Home's card click (atoi of the card image's name, the HOMEMENU id): the two streaming cards
     # are Coverflow and More (m1plus/home.c).
     'home_card_click': (0x533b80, 'm1_card_click', 'card'),

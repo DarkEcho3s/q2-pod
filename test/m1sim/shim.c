@@ -199,3 +199,22 @@ void *popen(const char *cmd, const char *mode) {
 /* No bluetoothd, no system bus: libbtctl's server would wait for them for ever. Bluetooth is off. */
 int btctl_start_server(void *loop) { return (void)loop, 0; }
 int btctl_create_daemon_thread(void *thread) { return (void)thread, 0; }
+
+/* The host's directory offsets and inode numbers are 64-bit (ext4 hashes, overlayfs), which the
+ * guest's 32-bit readdir rejects with EOVERFLOW, ending every listing after its first entries: the
+ * entry comes from readdir64 and is truncated into a 32-bit dirent instead, as on the device. */
+struct dirent32 { unsigned d_ino; int d_off; unsigned short d_reclen; unsigned char d_type; char d_name[256]; };
+struct dirent64 { unsigned long long d_ino; long long d_off; unsigned short d_reclen; unsigned char d_type; char d_name[256]; };
+struct dirent32 *readdir(void *dir) {
+    static struct dirent32 out; /* readdir's own static entry, as glibc's per stream; demo reads it at once */
+    struct dirent64 *e = ((struct dirent64 * (*)(void *)) dlsym(RTLD_NEXT, "readdir64"))(dir);
+    if (!e) return 0;
+    out.d_ino = (unsigned)e->d_ino | 1;
+    out.d_off = (int)(e->d_off & 0x7fffffff);
+    out.d_reclen = sizeof out;
+    out.d_type = e->d_type;
+    unsigned i = 0;
+    for (; i < sizeof out.d_name - 1 && e->d_name[i]; ++i) out.d_name[i] = e->d_name[i];
+    out.d_name[i] = 0;
+    return &out;
+}

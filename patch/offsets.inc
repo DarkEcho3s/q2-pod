@@ -431,6 +431,15 @@
 #define MCL_FD 0xa3beb4         /* player socket, -1 none */
 #define INITCONFIG_MODE_RET 0x513420 /* player_initconfig's mclSetPlayMode call (jalr 0x513418) returns here */
 #define INITCONFIG_SPEED_RET 0x51339c /* and its mclSetPlaySpeed call */
+/* Settings pages' row lists, which the payload's rows join (navigation.c pod_rows). */
+#define SV_POWER "scroll_view_powermanager"
+#define SV_PLAYSET "scroll_view_playset"
+#define SV_DISPLAY "scroll_view_display"
+#define SV_BLUETOOTH "scroll_view_bluetooth"
+/* Now Playing's heart and its stock click (the song's My Fav toggle). */
+#define FAV_WIDGET "img_fav"
+#define FAV_CLICK_ADDR 0x52b154
+#define CHECK_IMAGE "select" /* a picker's current option */
 /* mclUsbAudioSetVol (0x5ac574): the USB DAC's volume control, -1 before the first set, -2 when it
  * has none and hciplayer's soft volume (mcl-softvolflag) applies instead (0x5a8498 opens hw:1). */
 #define USB_MIXER 0xa3be6c

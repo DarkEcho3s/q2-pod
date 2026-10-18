@@ -46,9 +46,11 @@ static const char *top_name(void) {
     return top ? widget_get_prop_str(top, "name", "") : "";
 }
 
-/* Previous is Back everywhere but Now Playing, where it stays the previous track. */
+/* Previous is Back everywhere but Now Playing, where it stays the previous track unless the
+ * heart's rating picker is up. */
+extern int ringnav_rating_open(void);
 static int back_key(unsigned key) {
-    return key == KEY_BACK_BTN && strcmp(top_name(), "playing_page");
+    return key == KEY_BACK_BTN && (strcmp(top_name(), "playing_page") || ringnav_rating_open());
 }
 
 /* What the Q2's on_wm_keyup_before_fun did before ringnav() saw a release: the auto-off timer, the

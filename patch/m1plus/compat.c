@@ -121,3 +121,19 @@ int widget_use_style(void *w, const char *style) {
         }
     return stock_widget_use_style(w, style);
 }
+
+/* The Q2 images the payload names, as the M1's (images/xx). */
+static const char *const m1_images[][2] = {
+    { "play_fav", "p_fav" },        { "play_unfav", "p_unfav" },
+    { "list_into", "right_arrow" }, { "default_album_big", "defaultcover" },
+    { "switch_on", "sset_on" },     { "switch_off", "sset_off" },
+    { "select", "selected" },
+};
+int image_base_set_image(void *w, const char *name) {
+    for (unsigned i = 0; name && i < sizeof m1_images / sizeof *m1_images; ++i)
+        if (!strcmp(name, m1_images[i][0])) {
+            name = m1_images[i][1];
+            break;
+        }
+    return stock_image_base_set_image(w, name);
+}
