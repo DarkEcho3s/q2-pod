@@ -432,10 +432,16 @@ def patch_demo(raw, out, ipod, dev):
 
 
 def m1_tag(dev):
-    """The updater refuses only a version literal equal to the installed one, and the M1's is the
-    4 characters of V2.1: a release is P and VERSION's three digits (1.1.9: P119), a --dev build D
-    and its number's three base-36 digits (D001), so none equals stock's or another build's."""
-    return 'D' + dev_tag(dev, 'p')[1:4] if dev else 'P' + VERSION.replace('.', '')
+    """The version literal update_firmware (0x4e0e34) checks a package's second info line against:
+    it must contain a V (strchr) and differ from the installed one (the app's own literal, V2.1 in
+    stock), and it keeps V2.1's 4 characters. A release is V and VERSION's three digits (1.1.9:
+    V119), a --dev build VD and its number's two base-36 digits (VD01), so none equals stock's or
+    another build's."""
+    if dev:
+        check(0 < dev < 36 * 36, 'Dev build number out of range')
+        digits = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        return 'VD' + digits[dev // 36] + digits[dev % 36]
+    return 'V' + VERSION.replace('.', '')
 
 
 def build(update, out, logo, ipod=True, dev=False):
@@ -446,7 +452,8 @@ def build(update, out, logo, ipod=True, dev=False):
         dev = int(counter.read_text()) + 1 if counter.exists() else 1
         counter.write_text(f'{dev}\n')
     version = m1_tag(dev)
-    check(len(version) == len(STOCK_VERSION), 'The version tag must keep V2.1\'s length')
+    check(len(version) == len(STOCK_VERSION) and 'V' in version and version != STOCK_VERSION,
+          'The version tag must keep V2.1\'s length, hold a V and differ from it')
     raw = update.read_bytes()
     check(sha(raw) == UPDATE_SHA, 'Unsupported update.bin: SHA-256 differs from the audited M1 Plus V2.1')
     with tarfile.open(fileobj=io.BytesIO(raw)) as t:

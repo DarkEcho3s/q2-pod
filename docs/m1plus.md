@@ -13,7 +13,7 @@ python3 tools/m1plus.py 'M1 Plus Firmware V2.1/update.bin' --out /tmp/m1-legacy 
 
 The input must be the audited stock `update.bin`, SHA-256 `1ccb4667e3e9bdf9a35be4dc58d09b898ca53c5fd58396b7667fb91fe895f925`. The output's `update.bin` installs the way stock updates do: copy it to the card's root and run System Setting → System Update. To go back, install stock V2.1 the same way.
 
-The version tag keeps V2.1's four characters: `P` and the three version digits for a release (1.1.9 is `P119`), `D` and a three-digit base-36 build number for `--dev`. About shows it as **FW. Version**, with a **CFW. Version** row under it.
+The updater installs a package only when its version holds a `V` and differs from the installed one (`update_firmware`, `0x4e0e34`). The tag keeps V2.1's four characters: `V` and the three version digits for a release (1.1.9 is `V119`), `VD` and a two-digit base-36 build number for `--dev` (`VD01`). About shows it as **FW. Version**, with a **CFW. Version** row under it. Stock V2.1 installs back over any of them.
 
 Requirements are the Q2 build's (clang, lld, llvm-objcopy, squashfs-tools), and Pillow only to redraw the two Home card icons (`tools/m1icons.py`; the PNGs are committed).
 
